@@ -4,54 +4,54 @@
 
 ```mermaid
 graph TD
-    User["Human Player"] -->|WebSocket| FE["Frontend (Vite + React)"]
-    FE -->|WebSocket Events| WS["Orchestration Service (FastAPI + Socket.io)"]
+    User["Human Player"] -->|HTTPS| FE["Frontend (Firebase Hosting)"]
+    FE -->|WebSocket / HTTP| CloudRun["Orchestration Service (Google Cloud Run)"]
     
-    subgraph "Backend / Orchestration"
-        WS -->|Route Action| Conductor["Conductor Logic"]
+    subgraph "Google Cloud Platform"
+        CloudRun -->|Route Action| Conductor["Conductor Logic"]
         Conductor -->|Check Rules| DM_Agent["AI Dungeon Master"]
-        Conductor -->|Party Banter| Party_Agents["AI Party Members (x3)"]
         
-        DM_Agent -->|Tool Calls - Update State| GameEngine["Modular Game Engine"]
+        DM_Agent -->|Tool Calls| GameEngine["Modular Game Engine"]
         DM_Agent -->|Query World| VectorDB["Vector Knowledge Base"]
         
-        Party_Agents -->|React to event| Conductor
+        subgraph "Persistence (Cloud Storage Volume)"
+            GameEngine -->|Persist State| DB[("SQLite (mounted)")]
+            VectorDB -->|Lore/Rules| VectorStore[("ChromaDB (mounted)")]
+        end
     end
     
-    subgraph "Data Persistence (Local)"
-        GameEngine -->|Persist State| DB[("SQLite (Local)")]
-        VectorDB -->|Lore/Rules| VectorStore[("ChromaDB")]
-    end
-    
-    subgraph "External LLM"
-        DM_Agent -->|Prompt + Context| LLM["LLM Provider (Gemini / Local)"]
-        Party_Agents -->|Prompt + Persona| LLM
+    subgraph "External Services"
+        DM_Agent -->|API| LLM["Google Gemini API"]
+        FE -->|Auth| Firebase["Firebase Auth"]
     end
 ```
 
-## 2. Tech Stack Recommendation
+## 2. Tech Stack
 
 ### Frontend
-*   **Framework**: **Vite + React** - For fast development, client-side rendering, and simplified build process.
-*   **Language**: **TypeScript** - Strict typing for reliability.
-*   **Styling**: **Tailwind CSS 4 + Framer Motion** - For "premium" feel and micro-animations.
-*   **Real-time Client**: **Socket.io-client** - Robust WebSocket handling.
-*   **State Management**: **Zustand** - Simple, fast state management for the complex game state.
-*   **Visuals**: **Typing Indicators** - Sidebar avatars will glow/animate when an entity is "thinking" or typing.
+*   **Hosting**: **Google Firebase Hosting**.
+*   **Framework**: **Vite + React** (SPA).
+*   **Language**: **TypeScript**.
+*   **Styling**: **Tailwind CSS 4 + Framer Motion**.
+*   **Real-time Client**: **Socket.io-client**.
+*   **State Management**: **Zustand**.
 
 ### Backend / Orchestration Service
-*   **Language**: **Python 3.11+**
-*   **API Framework**: **FastAPI**
-*   **Real-time Server**: **Python-SocketIO**
-*   **Agent Framework**: **LangGraph + LangChain**
-*   **LLM Interface**: **LangChain Google GenAI / LiteLLM**
-    *   **Default**: **Gemini 1.5/2.0 Flash** (Fast by default).
-    *   **Option**: Integrated switch for **Local LLM** (Ollama/LM Studio) for privacy/offline.
+*   **Hosting**: **Google Cloud Run** (Serverless Container).
+*   **Language**: **Python 3.11+**.
+*   **API Framework**: **FastAPI**.
+*   **Real-time Server**: **Python-SocketIO** (ASGI).
+*   **Agent Framework**: **LangGraph + LangChain**.
+*   **LLM Interface**: **Google GenAI (Gemini)**.
 
-### Database & Auth (Local / Hacker Mode)
-*   **Primary DB**: **SQLite** (`game.db`). Simple, file-based, no setup.
-*   **Auth**: **Local Identity**. Users just pick a username. Persistent within the local database but no cloud sync.
-*   **Vector DB**: **ChromaDB**. Runs locally in-process to store lore and rules embeddings.
+### Database & Persistence
+*   **Primary DB**: **SQLite** (`game.db`) stored on a **Cloud Run Persistent Volume**.
+*   **Vector DB**: **ChromaDB** stored on a **Cloud Run Persistent Volume**.
+*   **Auth**: **Firebase Authentication** (Google Sign-In / Email).
+
+### Repository
+*   **Visibility**: **Private**.
+*   **Platform**: **GitHub**.
 
 ## 3. Data Schema (GameState Models)
 
@@ -84,36 +84,6 @@ Implementation based on `backend/app/models.py`.
       "inventory": ["Longsword", "Potion of Healing"],
       "status_effects": ["blessed"],
       "position": { "q": 0, "r": 0, "s": 0 }
-    },
-    {
-      "id": "ai_party_1",
-      "name": "Thorne",
-      "role": "Rogue",
-      "is_ai": true,
-      "hp_current": 18,
-      "hp_max": 20,
-      "inventory": ["Dagger", "Thieves Tools"],
-      "position": { "q": 1, "r": -1, "s": 0 }
-    }
-  ],
-  "enemies": [
-    {
-      "id": "goblin_archer_1",
-      "name": "Goblin Sniper",
-      "is_ai": true,
-      "hp_current": 5,
-      "hp_max": 7,
-      "position": { "q": 10, "r": -10, "s": 0 }
-    }
-  ],
-  "combat_log": [
-    {
-      "tick": 41,
-      "actor_id": "player_1",
-      "action": "Attack",
-      "target_id": "goblin_archer_1",
-      "result": "Hit! 6 Damage.",
-      "timestamp": "2023-10-27T10:00:00Z"
     }
   ],
   "chat_history": [
@@ -123,13 +93,6 @@ Implementation based on `backend/app/models.py`.
       "sender_name": "Valerius",
       "content": "I scan the room for traps.",
       "timestamp": "2023-10-27T10:05:00Z"
-    },
-    {
-      "id": "msg_124",
-      "sender_id": "dm",
-      "sender_name": "Dungeon Master",
-      "content": "You notice a fainttripwire near the chest.",
-      "timestamp": "2023-10-27T10:05:02Z"
     }
   ]
 }
@@ -137,11 +100,10 @@ Implementation based on `backend/app/models.py`.
 
 ## 4. Data Persistence Strategy
 
-The system requires strict persistence for game state and chat history.
+The system uses **Cloud Run Volumes** to persist files across container restarts.
 
-*   **Game State**: Snapshot saved after every "Tick" or major event to SQLite `game_state` table.
-*   **Chat History**: Every message (User or AI) is appended to a `chat_log` table in SQLite, indexed by `campaign_id`. This allows for complete replayability and context retrieval.
-
+*   **Game State**: Snapshot saved to SQLite `game.db` in `/data` volume.
+*   **Vector Index**: ChromaDB persisted in `/data/chroma_db`.
 
 ## 5. Agent Prompt Strategy
 
@@ -149,19 +111,10 @@ The system requires strict persistence for game state and chat history.
 1.  **System Prompt (The Soul)**: Immutable core personality.
 2.  **Context Prompt (The Memory & Rules)**: 
     *   **Immediate Situation**: Room desc, last 5 messages.
-    *   **Rule Injection**: Relevant rules for the current context (e.g., if casting a spell, inject spellcasting rules). *Crucial for preventing hallucinations.*
+    *   **Rule Injection**: Injected via RAG (ChromaDB).
 3.  **Task Prompt (The Directive)**: Specific goal for generation.
 
-### B. The Conductor Pattern (Orchestration)
-*   **Input**: Human sends message "I open the chest."
-*   **Conductor Logic**: 
-    1.  Block all Party AI.
-    2.  Route to DM Agent.
-    3.  DM Agent tool-calls `check_trap(chest_id)`.
-    4.  DM Agent output: "The chest clicks. Roll a DEX save."
-    5.  Conductor unblocks Party AI to react.
-
-## 6. New Features / Roadmap
-*   **Character Creation Wizard**: A dedicated wizard flow to build the player character (Stats, Class, Backstory) before entering the game session.
-*   **Real-time Chat**: WebSocket-based chat interface with "typing" indicators for AI agents.
-*   **Local-First Architecture**: Fully local stack (SQLite + ChromaDB) for privacy and ease of setup.
+## 6. Roadmap
+*   **Character Creation Wizard**: Completed.
+*   **Real-time Chat**: Implemented via Socket.IO.
+*   **Cloud Deployment**: Active on Google Cloud Run + Firebase.
