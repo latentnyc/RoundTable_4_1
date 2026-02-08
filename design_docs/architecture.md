@@ -4,7 +4,7 @@
 
 ```mermaid
 graph TD
-    User["Human Player"] -->|WebSocket| FE["Frontend (Next.js)"]
+    User["Human Player"] -->|WebSocket| FE["Frontend (Vite + React)"]
     FE -->|WebSocket Events| WS["Orchestration Service (FastAPI + Socket.io)"]
     
     subgraph "Backend / Orchestration"
@@ -32,7 +32,8 @@ graph TD
 ## 2. Tech Stack Recommendation
 
 ### Frontend
-*   **Framework**: **Next.js 16 (App Router)** - For robust routing, server-side rendering, and React ecosystem.
+*   **Framework**: **Vite + React** - For fast development, client-side rendering, and simplified build process.
+*   **Language**: **TypeScript** - Strict typing for reliability.
 *   **Styling**: **Tailwind CSS 4 + Framer Motion** - For "premium" feel and micro-animations.
 *   **Real-time Client**: **Socket.io-client** - Robust WebSocket handling.
 *   **State Management**: **Zustand** - Simple, fast state management for the complex game state.
