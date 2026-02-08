@@ -4,27 +4,27 @@
 
 ```mermaid
 graph TD
-    User[Human Player] -->|WebSocket| FE[Frontend (Next.js)]
-    FE -->|WebSocket Events| WS[Orchestration Service (FastAPI + Socket.io)]
+    User["Human Player"] -->|WebSocket| FE["Frontend (Next.js)"]
+    FE -->|WebSocket Events| WS["Orchestration Service (FastAPI + Socket.io)"]
     
     subgraph "Backend / Orchestration"
-        WS -->|Route Action| Conductor[Conductor Logic]
-        Conductor -->|Check Rules| DM_Agent[AI Dungeon Master]
-        Conductor -->|Party Banter| Party_Agents[AI Party Members (x3)]
+        WS -->|Route Action| Conductor["Conductor Logic"]
+        Conductor -->|Check Rules| DM_Agent["AI Dungeon Master"]
+        Conductor -->|Party Banter| Party_Agents["AI Party Members (x3)"]
         
-        DM_Agent -->|Tool Calls (Update State)| GameEngine[Modular Game Engine]
-        DM_Agent -->|Query World| VectorDB[Vector Knowledge Base]
+        DM_Agent -->|Tool Calls (Update State)| GameEngine["Modular Game Engine"]
+        DM_Agent -->|Query World| VectorDB["Vector Knowledge Base"]
         
         Party_Agents -->|React to event| Conductor
     end
     
     subgraph "Data Persistence"
-        GameEngine -->|Persist State| DB[(Supabase / Postgres)]
-        VectorDB -->|Lore/Rules| VectorStore[(Vector Store)]
+        GameEngine -->|Persist State| DB[("Supabase / Postgres")]
+        VectorDB -->|Lore/Rules| VectorStore[("Vector Store")]
     end
     
     subgraph "External LLM"
-        DM_Agent -->|Prompt + Context| LLM[LLM Provider]
+        DM_Agent -->|Prompt + Context| LLM["LLM Provider"]
         Party_Agents -->|Prompt + Persona| LLM
     end
 ```
@@ -47,10 +47,10 @@ graph TD
     *   **Default**: **Gemini 1.5/2.0 Flash** (Fast by default).
     *   **Option**: Integrated switch for **Local LLM** (Ollama/LM Studio) for privacy/offline.
 
-### Database & Auth
-*   **Primary DB**: **Supabase (PostgreSQL)**.
-*   **Auth**: **Google OAuth** (via Supabase Auth) + Email/Password fallback.
-*   **Vector DB**: **Supabase (pgvector)**.
+### Database & Auth (Local / Hacker Mode)
+*   **Primary DB**: **SQLite** (`game.db`). Simple, file-based, no setup.
+*   **Auth**: **Local Identity**. Users just pick a username. persistent within the local database but no cloud sync.
+*   **Vector DB**: **ChromaDB**. Runs locally in-process to store lore and rules embeddings.
 
 ## 3. Data Schema Draft (GameState)
 
