@@ -12,7 +12,7 @@ graph TD
         Conductor -->|Check Rules| DM_Agent["AI Dungeon Master"]
         Conductor -->|Party Banter| Party_Agents["AI Party Members (x3)"]
         
-        DM_Agent -->|Tool Calls (Update State)| GameEngine["Modular Game Engine"]
+        DM_Agent -->|Tool Calls - Update State| GameEngine["Modular Game Engine"]
         DM_Agent -->|Query World| VectorDB["Vector Knowledge Base"]
         
         Party_Agents -->|React to event| Conductor
