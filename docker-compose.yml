@@ -1,0 +1,26 @@
+services:
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - SQLITE_DB_PATH=/data/game.db
+      - ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+    volumes:
+      # Mount the local backend directory's database to the container's data directory
+      # This mimics the Cloud Run volume persistence
+      - ./backend/game.db:/data/game.db
+      # Optional: Mount credentials if needed
+      # - ./serviceAccountKey.json:/app/serviceAccountKey.json
+  
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend

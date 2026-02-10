@@ -1,0 +1,32 @@
+type User @table {
+  displayName: String!
+  createdAt: Timestamp!
+  email: String
+  photoUrl: String
+}
+
+type JournalEntry @table {
+  user: User!
+  content: String!
+  createdAt: Timestamp!
+  updatedAt: Timestamp!
+  title: String
+}
+
+type Tag @table {
+  user: User!
+  name: String!
+  createdAt: Timestamp!
+}
+
+type EntryTag @table(key: ["journalEntry", "tag"]) {
+  journalEntry: JournalEntry!
+  tag: Tag!
+  createdAt: Timestamp!
+}
+
+type Prompt @table {
+  text: String!
+  createdAt: Timestamp!
+  category: String
+}

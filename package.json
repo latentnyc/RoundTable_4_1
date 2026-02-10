@@ -1,0 +1,16 @@
+{
+    "name": "roundtable",
+    "version": "1.0.0",
+    "scripts": {
+        "start": "concurrently \"npm run backend\" \"npm run frontend\"",
+        "backend": "cd backend && venv\\Scripts\\python -m uvicorn main:socket_app --host 0.0.0.0 --port 8000 --reload",
+        "frontend": "cd frontend && npm run dev",
+        "setup": "concurrently \"cd backend && venv\\Scripts\\pip install -r requirements.txt\" \"cd frontend && npm install\""
+    },
+    "devDependencies": {
+        "concurrently": "^9.1.2"
+    },
+    "dependencies": {
+        "@dataconnect/generated": "file:src/dataconnect-generated"
+    }
+}

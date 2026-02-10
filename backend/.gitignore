@@ -1,0 +1,26 @@
+venv/
+__pycache__/
+*.pyc
+.env
+.DS_Store
+
+# Local DB
+game.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Ensure data is tracked
+!backend/data/
+
+# Logs
+*.log
+
+# JSON Logs & Debug files
+*_logs.json
+*_debug*.json
+socket_*.json
+trace_*.json
+temp_*.json
+full_logs.json
+startup_*.json

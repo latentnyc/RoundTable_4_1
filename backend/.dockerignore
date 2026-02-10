@@ -1,0 +1,7 @@
+__pycache__
+venv
+.env
+game.db
+*.log
+chroma_db
+design_docs

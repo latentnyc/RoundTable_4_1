@@ -1,0 +1,60 @@
+mutation CreateSeedData @transaction @auth(level: USER, insecureReason: "This operation is safe to expose to all logged in users.") {
+  user_insertMany(data: [
+    {
+      id: "550e8400-e29b-41d4-a716-446655440000",
+      displayName: "demouser1",
+      createdAt: "2024-04-26T12:00:00Z",
+      email: "demouser1@example.com",
+      photoUrl: "https://example.com/demouser1.jpg"
+    },
+    {
+      id: "550e8400-e29b-41d4-a716-446655440001",
+      displayName: "demouser2",
+      createdAt: "2024-04-26T12:00:00Z",
+      email: "demouser2@example.com",
+      photoUrl: "https://example.com/demouser2.jpg"
+    }
+  ])
+  tag_insertMany(data: [
+    {
+      id: "650e8400-e29b-41d4-a716-446655440000",
+      userId: "550e8400-e29b-41d4-a716-446655440000",
+      createdAt: "2024-04-26T12:00:00Z",
+      name: "exampletag1"
+    },
+    {
+      id: "650e8400-e29b-41d4-a716-446655440001",
+      userId: "550e8400-e29b-41d4-a716-446655440001",
+      createdAt: "2024-04-26T12:00:00Z",
+      name: "exampletag2"
+    }
+  ])
+  journalEntry_insertMany(data: [
+    {
+      id: "750e8400-e29b-41d4-a716-446655440000",
+      userId: "550e8400-e29b-41d4-a716-446655440000",
+      content: "Example journal entry from demouser1",
+      createdAt: "2024-04-26T12:00:00Z",
+      updatedAt: "2024-04-26T12:00:00Z"
+    },
+    {
+      id: "750e8400-e29b-41d4-a716-446655440001",
+      userId: "550e8400-e29b-41d4-a716-446655440001",
+      content: "Example journal entry from demouser2",
+      createdAt: "2024-04-26T12:00:00Z",
+      updatedAt: "2024-04-26T12:00:00Z"
+    }
+  ])
+  entryTag_insertMany(data: [
+    {
+      journalEntryId: "750e8400-e29b-41d4-a716-446655440000",
+      tagId: "650e8400-e29b-41d4-a716-446655440000",
+      createdAt: "2024-04-26T12:00:00Z"
+    },
+    {
+      journalEntryId: "750e8400-e29b-41d4-a716-446655440001",
+      tagId: "650e8400-e29b-41d4-a716-446655440001",
+      createdAt: "2024-04-26T12:00:00Z"
+    }
+  ])
+}

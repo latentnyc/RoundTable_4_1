@@ -1,0 +1,32 @@
+mutation CreateUser($displayName: String!, $email: String, $photoUrl: String) @auth(level: USER) {
+  user_insert(data: {
+    displayName: $displayName,
+    email: $email,
+    photoUrl: $photoUrl,
+    createdAt_expr: "request.time"
+  })
+}
+
+query GetJournalEntriesByUser($userId: UUID!) @auth(level: USER) {
+  journalEntries(where: {userId: {eq: $userId}}) {
+    id
+    title
+    content
+    createdAt
+    updatedAt
+  }
+}
+
+mutation CreateJournalEntry($userId: UUID!, $content: String!, $title: String) @auth(level: USER) {
+  journalEntry_insert(data: {
+    userId: $userId
+    content: $content
+    title: $title
+    createdAt_expr: "request.time"
+    updatedAt_expr: "request.time"
+  })
+}
+
+mutation DeleteJournalEntry($id: UUID!) @auth(level: USER) {
+  journalEntry_delete(key: {id: $id})
+}

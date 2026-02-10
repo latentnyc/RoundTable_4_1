@@ -1,0 +1,7 @@
+# AI / Agents
+langchain
+langgraph
+langchain-google-genai
+langchain-core
+pydantic
+python-dotenv
