@@ -26,7 +26,7 @@ def init_firebase():
                     "type": "service_account",
                     "project_id": "roundtable41-1dc2c",
                     "private_key_id": "dummy_key_id",
-                    "private_key": """REDACTED_PRIVATE_KEY""",
+                    "private_key": os.getenv("FIREBASE_EMULATOR_PRIVATE_KEY", "").replace("\\n", "\n"),
                     "client_email": "firebase-adminsdk-dummy@roundtable41-1dc2c.iam.gserviceaccount.com",
                     "client_id": "dummy_client_id",
                     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
