@@ -28,19 +28,19 @@ async def search_items(q: str = Query(None), db: AsyncSession = Depends(get_db))
             text("SELECT id, name, type, data FROM items LIMIT 25")
         )
     rows = result.mappings().all()
-    
+
     items = []
     for row in rows:
         try:
             data = json.loads(row['data'])
         except:
             data = {}
-        
+
         items.append(Item(
             id=row['id'],
             name=row['name'],
             type=row['type'],
             data=data
         ))
-        
+
     return items

@@ -6,20 +6,20 @@
 graph TD
     User["Human Player"] -->|HTTPS| FE["Frontend (Firebase Hosting)"]
     FE -->|WebSocket / HTTP| CloudRun["Orchestration Service (Google Cloud Run)"]
-    
+
     subgraph "Google Cloud Platform"
         CloudRun -->|Route Action| Conductor["Conductor Logic"]
         Conductor -->|Check Rules| DM_Agent["AI Dungeon Master"]
-        
+
         DM_Agent -->|Tool Calls| GameEngine["Modular Game Engine"]
         DM_Agent -->|Query World| VectorDB["Vector Knowledge Base"]
-        
+
         subgraph "Persistence (Cloud Storage Volume)"
             GameEngine -->|Persist State| DB[("SQLite (mounted)")]
             VectorDB -->|Lore/Rules| VectorStore[("ChromaDB (mounted)")]
         end
     end
-    
+
     subgraph "External Services"
         DM_Agent -->|API| LLM["Google Gemini API"]
         FE -->|Auth| Firebase["Firebase Auth"]
@@ -62,12 +62,12 @@ Implementation based on `backend/app/models.py`.
   "session_id": "uuid-v4",
   "turn_index": 42,
   "active_entity_id": "goblin_archer_1",
-  "phase": "combat", 
-  "ruleset": "5e_SRD", 
+  "phase": "combat",
+  "ruleset": "5e_SRD",
   "dm_settings": {
     "strictness_level": "normal",
     "dice_fudging": true,
-    "narrative_focus": "high" 
+    "narrative_focus": "high"
   },
   "location": {
     "name": "The Weeping Caverns",
@@ -109,7 +109,7 @@ The system uses **Cloud Run Volumes** to persist files across container restarts
 
 ### A. The Separation of Concerns
 1.  **System Prompt (The Soul)**: Immutable core personality.
-2.  **Context Prompt (The Memory & Rules)**: 
+2.  **Context Prompt (The Memory & Rules)**:
     *   **Immediate Situation**: Room desc, last 5 messages.
     *   **Rule Injection**: Injected via RAG (ChromaDB).
 3.  **Task Prompt (The Directive)**: Specific goal for generation.

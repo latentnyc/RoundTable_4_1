@@ -20,7 +20,7 @@ def fetch_all(endpoint):
 def fetch_detail(url):
     """Fetches full details from a specific URL."""
     # Sleep to respect API rate limits
-    time.sleep(0.05) 
+    time.sleep(0.05)
     try:
         response = requests.get(f"{BASE_URL}{url}")
         if response.status_code == 200:
@@ -40,18 +40,18 @@ def save_json(filename, data):
 def build_monster_box():
     print("\n--- Processing Monsters (This is large, please wait) ---")
     monsters = []
-    
+
     # 1. Get the list of all monsters
     index = fetch_all("/api/monsters")
     total = len(index)
-    
+
     # 2. Loop through and get full details for each
     for i, m_idx in enumerate(index):
-        if i % 25 == 0: 
+        if i % 25 == 0:
             print(f"Processing monster {i}/{total}...")
-        
+
         data = fetch_detail(m_idx['url'])
-        
+
         if data:
             # Helper: Flatten Special Abilities descriptions for easier UI
             if 'special_abilities' in data:
@@ -59,9 +59,9 @@ def build_monster_box():
                     if 'desc' in ability:
                          # Ensure desc is clean text
                          pass
-            
+
             monsters.append(data)
-        
+
     save_json('monsters.json', monsters)
 
 if __name__ == "__main__":

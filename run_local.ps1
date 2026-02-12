@@ -2,6 +2,13 @@
 
 Write-Host "Starting RoundTable 4.1 Local Environment..." -ForegroundColor Cyan
 
+# 0. Clean Setup (Optional but requested for testing)
+Write-Host "Resetting Local Database..." -ForegroundColor Yellow
+if (Test-Path "backend\game.db") {
+    Remove-Item "backend\game.db" -Force
+    Write-Host "Database reset complete." -ForegroundColor Green
+}
+
 # 1. Java Setup (Crucial for Firebase Emulators)
 $javaPath = "C:\Program Files\Java\jdk-21.0.10"
 if (Test-Path $javaPath) {
@@ -37,7 +44,7 @@ Write-Host "Frontend ready." -ForegroundColor Green
 # 4. Set Environment Variables for Emulators
 $env:FIRESTORE_EMULATOR_HOST="127.0.0.1:8080"
 $env:FIREBASE_AUTH_EMULATOR_HOST="127.0.0.1:9099"
-$env:GCLOUD_PROJECT="roundtable-4-1" 
+$env:GCLOUD_PROJECT="roundtable41-1dc2c"
 
 # 5. Run Everything
 Write-Host "Launching services..." -ForegroundColor Cyan

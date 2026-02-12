@@ -1,0 +1,127 @@
+{
+    "campaign_meta": {
+        "id": "",
+        "title": "",
+        "genre": "",
+        "description": "",
+        "setting_system_prompt": "",
+        "time_config": {
+            "day_length_hours": 24,
+            "sunrise": "06:00",
+            "sunset": "18:00",
+            "current_time": "12:00",
+            "day_state": "day"
+        },
+        "starting_location": "",
+        "starting_npc": ""
+    },
+    "narrative_state": {
+        "active_quests": [],
+        "variables": {},
+        "story_threads": {
+            "primary": "",
+            "second_story": "",
+            "romance": "",
+            "boss_fight": {
+                "description": "",
+                "trigger": "",
+                "location": ""
+            }
+        },
+        "timeline": [
+            {
+                "trigger": "",
+                "event_description": "",
+                "consequences": []
+            }
+        ]
+    },
+    "quests": [
+        {
+            "id": "",
+            "title": "",
+            "description": "",
+            "steps": [],
+            "rewards": []
+        }
+    ],
+    "atlas": [
+        {
+            "id": "",
+            "name": "",
+            "active_hours": "always",
+            "description": {
+                "visual": "",
+                "auditory": "",
+                "olfactory": "",
+                "anchors": [],
+                "anti_drift": "",
+                "connections": []
+            },
+            "environmental_state": {
+                "light_level": "bright",
+                "light_required": false,
+                "hazards": []
+            },
+            "interactables": [
+                {
+                    "id": "",
+                    "name": "",
+                    "locked": false,
+                    "key_id": "",
+                    "secrets": []
+                }
+            ],
+            "secrets": []
+        }
+    ],
+    "npcs": [
+        {
+            "id": "",
+            "name": "",
+            "role": "",
+            "race": "",
+            "stats": {
+                "str": 10,
+                "dex": 10,
+                "con": 10,
+                "int": 10,
+                "wis": 10,
+                "cha": 10
+            },
+            "voice": {
+                "tone": "",
+                "samples": []
+            },
+            "equipment": [],
+            "schedule": [
+                {
+                    "time": "00:00-24:00",
+                    "location": "",
+                    "activity": ""
+                }
+            ],
+            "disposition": {
+                "base": "",
+                "attitude": "Neutral",
+                "triggers": {},
+                "romance_eligible": false,
+                "player_affinity": 0
+            },
+            "secrets": []
+        }
+    ],
+    "monsters": [
+        {
+            "id": "",
+            "name": "",
+            "type": "",
+            "description": "",
+            "usage": "",
+            "stats": {},
+            "abilities": [],
+            "behavior": ""
+        }
+    ],
+    "items": []
+}

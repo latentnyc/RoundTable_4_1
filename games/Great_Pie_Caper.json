@@ -1,0 +1,795 @@
+{
+  "campaign_meta": {
+    "id": "adv_003_animals",
+    "title": "The Great Pie Caper",
+    "genre": "Cozy Mystery",
+    "description": "Welcome to Critter Creek, where the biggest crime is a stolen pie! Play as a helpful animal in this cozy, combat-free mystery. Deliver mail, paint with squirrels, and help a shy bear find love.",
+    "setting_system_prompt": "Combat is replaced with social/skill attributes where possible. The \"Second Story\" is the romance between the Baker and the Florist, which the theft inadvertently interrupts.",
+    "time_config": {
+      "day_length_hours": 24,
+      "sunrise": "06:00",
+      "sunset": "18:00",
+      "current_time": "10:00",
+      "day_state": "day"
+    },
+    "starting_location": "loc_town_square",
+    "starting_npc": "npc_constable_barnaby"
+  },
+  "narrative_state": {
+    "active_quests": [
+      "quest_find_blueberries",
+      "quest_calm_badger",
+      "quest_invite_townsfolk"
+    ],
+    "variables": {
+      "friendship_level": 0,
+      "pie_integrity": 100,
+      "festival_hype": 0
+    },
+    "story_threads": {
+      "primary": "Find the missing blueberry pie before the festival.",
+      "second_story": "Baker Bernie wanted to use the pie to propose to Florence the Poodle.",
+      "romance": "Help Bernie find the courage to propose.",
+      "side_hustle": "Help Postman Percy deliver the mixed-up mail.",
+      "goose_blockade": "The Geese are blocking the bridge. Find a way to move them.",
+      "boss_fight": {
+        "description": "A 'fight' to catch a mischievous raccoon without dropping the pie.",
+        "trigger": "cornering_the_thief",
+        "location": "loc_meadow"
+      }
+    },
+    "timeline": [
+      {
+        "trigger": "time_1400",
+        "event_description": "The Pie Judging begins!",
+        "consequences": [
+          "Bernie panics",
+          "Mayor gets hungry"
+        ]
+      }
+    ]
+  },
+  "quests": [
+    {
+      "id": "quest_find_pie",
+      "title": "The Missing Masterpiece",
+      "description": "Recover Bernie's blueberry pie.",
+      "steps": [
+        "Find clues at the bakery",
+        "Track the thief"
+      ],
+      "rewards": [
+        "Bernie's gratitude",
+        "A slice of pie"
+      ]
+    },
+    {
+      "id": "quest_deliver_invites",
+      "title": "Postal Panic",
+      "description": "Help Percy deliver the mixed-up mail.",
+      "steps": [
+        "Sort the letters",
+        "Deliver to 3 residents"
+      ],
+      "rewards": [
+        "Speedy shoes",
+        "Postal badge"
+      ]
+    }
+  ],
+  "atlas": [
+    {
+      "id": "loc_town_square",
+      "name": "Critter Creek Square",
+      "active_hours": "always",
+      "description": {
+        "visual": "A bustling square paved with river stones. In the center, a giant fountain shaped like a golden acorn spouts sparkling water.",
+        "auditory": "Chatter of animals, splashing water, distant honking.",
+        "olfactory": "Fresh baked goods, flowers, wet stone.",
+        "anchors": [
+          "acorn fountain",
+          "bulletin board",
+          "gazebo"
+        ],
+        "anti_drift": "Whimsical and bright. Think Animal Crossing meets Beatrix Potter.",
+        "connections": [
+          "loc_bakery",
+          "loc_post_office",
+          "loc_library",
+          "loc_river_bank"
+        ],
+        "secrets": [
+          "The acorn fountain has a hidden button that makes it play a tune."
+        ]
+      },
+      "environmental_state": {
+        "light_level": "bright",
+        "light_required": false,
+        "hazards": []
+      },
+      "interactables": [
+        {
+          "id": "obj_fountain",
+          "name": "Acorn Fountain",
+          "locked": false
+        },
+        {
+          "id": "obj_bulletin_board",
+          "name": "Community Board",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "id": "loc_bakery",
+      "name": "Bernie's Bakery",
+      "active_hours": "04:00-18:00",
+      "description": {
+        "visual": "A warm, flour-dusted room with ovens and display cases. Smells heavenly.",
+        "auditory": "Clanging pans, humming.",
+        "olfactory": "Fresh bread, yeast, cinnamon.",
+        "anchors": [
+          "oven",
+          "display case",
+          "flour sack"
+        ],
+        "anti_drift": "Warm and inviting.",
+        "connections": [
+          "loc_town_square"
+        ],
+        "secrets": [
+          "The oven is large enough to hide a bear (if he tried)."
+        ]
+      },
+      "environmental_state": {
+        "light_level": "bright",
+        "light_required": false,
+        "hazards": []
+      },
+      "interactables": []
+    },
+    {
+      "id": "loc_post_office",
+      "name": "The Post Burrow",
+      "active_hours": "08:00-17:00",
+      "description": {
+        "visual": "Stacks of letters everywhere, packages balancing precariously. A chaotic mess of paper.",
+        "auditory": "Rustling paper, frantic stamping.",
+        "olfactory": "Paper dust, ink, sealing wax.",
+        "anchors": [
+          "sorting desk",
+          "pigeon holes",
+          "overflowing bin"
+        ],
+        "anti_drift": "Organized chaos.",
+        "connections": [
+          "loc_town_square"
+        ],
+        "secrets": [
+          "A letter addressed to 'Santa' is lost under the desk."
+        ]
+      },
+      "environmental_state": {
+        "light_level": "dim",
+        "light_required": false,
+        "hazards": [
+          "paper_cuts"
+        ]
+      },
+      "interactables": []
+    },
+    {
+      "id": "loc_library",
+      "name": "The Wisdom Tree",
+      "active_hours": "10:00-20:00",
+      "description": {
+        "visual": "A massive hollowed-out oak tree lined with spiral shelves. Sunlight filters through leaves.",
+        "auditory": "Pages turning, soft hooting.",
+        "olfactory": "Old books, tea, wood.",
+        "anchors": [
+          "reading nook",
+          "spiral staircase",
+          "librarian's perch"
+        ],
+        "anti_drift": "Quiet and reverent.",
+        "connections": [
+          "loc_town_square"
+        ],
+        "secrets": [
+          "A book titled 'How to Catch a Raccoon' is missing from the shelf."
+        ]
+      },
+      "environmental_state": {
+        "light_level": "dim",
+        "light_required": false,
+        "hazards": []
+      },
+      "interactables": []
+    },
+    {
+      "id": "loc_river_bank",
+      "name": "Whispering River",
+      "active_hours": "always",
+      "description": {
+        "visual": "Gentle flowing water, weeping willows, smooth stones.",
+        "auditory": "Water over rocks, frogs croaking.",
+        "olfactory": "Mud, algae, fresh water.",
+        "anchors": [
+          "fishing dock",
+          "willow tree",
+          "smooth stones"
+        ],
+        "anti_drift": "Peaceful and lazy.",
+        "connections": [
+          "loc_town_square",
+          "loc_meadow"
+        ],
+        "secrets": [
+          "The frogs are forming a choir and practice at night."
+        ]
+      },
+      "environmental_state": {
+        "light_level": "bright",
+        "light_required": false,
+        "hazards": [
+          "slippery_rocks"
+        ]
+      },
+      "interactables": []
+    },
+    {
+      "id": "loc_meadow",
+      "name": "Sunny Meadow",
+      "active_hours": "always",
+      "description": {
+        "visual": "Tall grass, buzzing bees, a small creek.",
+        "auditory": "Chirping birds, buzzing.",
+        "olfactory": "Wildflowers and wet fur.",
+        "anchors": [
+          "creek",
+          "flower patch",
+          "old oak tree"
+        ],
+        "anti_drift": "Cheerful and open.",
+        "connections": [
+          "loc_river_bank"
+        ],
+        "secrets": [
+          "Rocket's stash is hidden in the hollow of the old oak tree."
+        ]
+      },
+      "environmental_state": {
+        "light_level": "bright",
+        "light_required": false,
+        "hazards": []
+      },
+      "interactables": []
+    }
+  ],
+  "npcs": [
+    {
+      "id": "npc_bernie",
+      "name": "Bernie the Bear",
+      "role": "Quest Giver",
+      "race": "Bear",
+      "stats": {
+        "str": 16,
+        "dex": 10,
+        "con": 16,
+        "int": 10,
+        "wis": 14,
+        "cha": 14
+      },
+      "voice": {
+        "tone": "Warm, slow, gentle.",
+        "samples": [
+          "Now, let's not rush a good dough.",
+          "Oh bother."
+        ]
+      },
+      "secrets": [
+        "Uses a secret ingredient (honey from dangerous bees)."
+      ],
+      "equipment": [
+        "item_apron",
+        "item_rolling_pin"
+      ],
+      "schedule": [
+        {
+          "time": "04:00-12:00",
+          "location": "loc_bakery",
+          "activity": "baking"
+        }
+      ],
+      "disposition": {
+        "base": "friendly",
+        "attitude": "Friendly",
+        "triggers": {},
+        "romance_eligible": false,
+        "romance_target": "npc_florence",
+        "player_affinity": 0
+      }
+    },
+    {
+      "id": "npc_florence",
+      "name": "Florence the Poodle",
+      "role": "Townsfolk",
+      "race": "Poodle",
+      "stats": {
+        "str": 8,
+        "dex": 12,
+        "con": 10,
+        "int": 12,
+        "wis": 14,
+        "cha": 16
+      },
+      "voice": {
+        "tone": "Posh, high-pitched, sweet.",
+        "samples": [
+          "Oh darling, simply dreadful!",
+          "My fur is a mess!"
+        ]
+      },
+      "secrets": [
+        "Secretly loves rolling in mud."
+      ],
+      "equipment": [
+        "item_sun_hat"
+      ],
+      "schedule": [
+        {
+          "time": "10:00-18:00",
+          "location": "loc_town_square",
+          "activity": "shopping"
+        }
+      ],
+      "disposition": {
+        "base": "posh but sweet",
+        "attitude": "Friendly",
+        "triggers": {},
+        "romance_eligible": false,
+        "player_affinity": 0
+      }
+    },
+    {
+      "id": "npc_bandit",
+      "name": "Rocket the Raccoon",
+      "role": "Antagonist / Friend",
+      "race": "Raccoon",
+      "stats": {
+        "str": 8,
+        "dex": 18,
+        "con": 12,
+        "int": 16,
+        "wis": 10,
+        "cha": 14
+      },
+      "voice": {
+        "tone": "Fast, mischievous, chittering.",
+        "samples": [
+          "Mine! Shiny! Mine!",
+          "Didn't do it! Nowhere near it!"
+        ]
+      },
+      "secrets": [
+        "Stole the shiny rock from the Mayor's desk."
+      ],
+      "equipment": [
+        "item_slingshot",
+        "item_shiny_rock"
+      ],
+      "schedule": [],
+      "disposition": {
+        "base": "mischievous",
+        "attitude": "Neutral",
+        "triggers": {},
+        "romance_eligible": false,
+        "redemption_possible": true,
+        "player_affinity": 0
+      }
+    },
+    {
+      "id": "npc_mayor_lionheart",
+      "name": "Mayor Lionheart",
+      "role": "Mayor",
+      "race": "Lion",
+      "stats": {
+        "str": 14,
+        "dex": 10,
+        "con": 14,
+        "int": 12,
+        "wis": 10,
+        "cha": 18
+      },
+      "voice": {
+        "tone": "Booming, pompous, sleepy.",
+        "samples": [
+          "As Mayor of this fine town... *yawn*",
+          "Proceed with the festivities!"
+        ]
+      },
+      "secrets": [
+        "Is terribly afraid of thunder."
+      ],
+      "equipment": [
+        "item_monocle",
+        "item_sash"
+      ],
+      "schedule": [
+        {
+          "time": "09:00-12:00",
+          "location": "loc_town_square",
+          "activity": "giving speeches"
+        },
+        {
+          "time": "13:00-16:00",
+          "location": "loc_town_square",
+          "activity": "napping in sun"
+        }
+      ],
+      "disposition": {
+        "base": "pompous but kind",
+        "attitude": "Friendly",
+        "triggers": {},
+        "romance_eligible": false,
+        "player_affinity": 0
+      }
+    },
+    {
+      "id": "npc_constable_barnaby",
+      "name": "Constable Barnaby",
+      "role": "Law Enforcement",
+      "race": "Bulldog",
+      "stats": {
+        "str": 16,
+        "dex": 8,
+        "con": 16,
+        "int": 10,
+        "wis": 14,
+        "cha": 10
+      },
+      "voice": {
+        "tone": "Gruff, stern but fair.",
+        "samples": [
+          "'Ello 'ello, what's all this then?",
+          "Move along, move along."
+        ]
+      },
+      "secrets": [
+        "Lost his badge yesterday and is using a shiny wrapper."
+      ],
+      "equipment": [
+        "item_whistle",
+        "item_badge"
+      ],
+      "schedule": [
+        {
+          "time": "08:00-18:00",
+          "location": "loc_town_square",
+          "activity": "patrolling"
+        }
+      ],
+      "disposition": {
+        "base": "stern and rule-abiding",
+        "attitude": "Neutral",
+        "triggers": {
+          "belly_rub": "happy"
+        },
+        "romance_eligible": false,
+        "player_affinity": 0
+      }
+    },
+    {
+      "id": "npc_postman_percy",
+      "name": "Postman Percy",
+      "role": "Postal Worker",
+      "race": "Hare",
+      "stats": {
+        "str": 8,
+        "dex": 20,
+        "con": 12,
+        "int": 8,
+        "wis": 8,
+        "cha": 14
+      },
+      "voice": {
+        "tone": "Hyperactive, fast, twitchy.",
+        "samples": [
+          "Special delivery! Sign here! Gotta run!",
+          "No time to chat! Mail waits for no hare!"
+        ]
+      },
+      "secrets": [
+        "Can't read very well, memorizes house colors."
+      ],
+      "equipment": [
+        "item_mailbag"
+      ],
+      "schedule": [
+        {
+          "time": "06:00-18:00",
+          "location": "loc_town_square",
+          "activity": "running everywhere"
+        }
+      ],
+      "disposition": {
+        "base": "anxious and fast",
+        "attitude": "Friendly",
+        "triggers": {},
+        "romance_eligible": false,
+        "player_affinity": 0
+      }
+    },
+    {
+      "id": "npc_librarian_hoot",
+      "name": "Librarian Hoot",
+      "role": "Librarian",
+      "race": "Owl",
+      "stats": {
+        "str": 8,
+        "dex": 12,
+        "con": 10,
+        "int": 18,
+        "wis": 18,
+        "cha": 8
+      },
+      "voice": {
+        "tone": "Sleepy, wise, speaks in riddles.",
+        "samples": [
+          "Whooo goes there?",
+          "Knowledge is a tree with many roots."
+        ]
+      },
+      "secrets": [
+        "Is legally blind without those spectacles."
+      ],
+      "equipment": [
+        "item_spectacles"
+      ],
+      "schedule": [
+        {
+          "time": "18:00-06:00",
+          "location": "loc_library",
+          "activity": "reading"
+        },
+        {
+          "time": "06:00-18:00",
+          "location": "loc_library",
+          "activity": "sleeping"
+        }
+      ],
+      "disposition": {
+        "base": "grumpy when woken",
+        "attitude": "Neutral",
+        "triggers": {},
+        "romance_eligible": false,
+        "player_affinity": 0
+      }
+    },
+    {
+      "id": "npc_gertie_goose",
+      "name": "Gertie Goose",
+      "role": "Gossip",
+      "race": "Goose",
+      "stats": {
+        "str": 10,
+        "dex": 10,
+        "con": 12,
+        "int": 8,
+        "wis": 8,
+        "cha": 12
+      },
+      "voice": {
+        "tone": "Loud, aggressive, HONK.",
+        "samples": [
+          "HONK!",
+          "Get off my lawn! HONK!"
+        ]
+      },
+      "secrets": [
+        "Moved the bridge sign to confuse tourists."
+      ],
+      "equipment": [
+        "item_bonnet"
+      ],
+      "schedule": [
+        {
+          "time": "08:00-18:00",
+          "location": "loc_river_bank",
+          "activity": "honking"
+        }
+      ],
+      "disposition": {
+        "base": "loud and judgmental",
+        "attitude": "Neutral",
+        "triggers": {},
+        "romance_eligible": false,
+        "player_affinity": 0
+      }
+    },
+    {
+      "id": "npc_squiggles",
+      "name": "Squiggles",
+      "role": "Artist",
+      "race": "Red Squirrel",
+      "stats": {
+        "str": 6,
+        "dex": 18,
+        "con": 8,
+        "int": 12,
+        "wis": 8,
+        "cha": 14
+      },
+      "voice": {
+        "tone": "Artsy, eccentric, French accent.",
+        "samples": [
+          "The color! The passion! It is lacking!",
+          "Do not move! Let me capture your essence!"
+        ]
+      },
+      "secrets": [
+        "Paints abstract art because he can't draw hands (paws)."
+      ],
+      "equipment": [
+        "item_beret",
+        "item_paintbrush"
+      ],
+      "schedule": [
+        {
+          "time": "10:00-16:00",
+          "location": "loc_town_square",
+          "activity": "painting"
+        }
+      ],
+      "disposition": {
+        "base": "eccentric",
+        "attitude": "Friendly",
+        "triggers": {},
+        "romance_eligible": false,
+        "player_affinity": 0
+      }
+    },
+    {
+      "id": "npc_farmer_mcgoat",
+      "name": "Farmer McGoat",
+      "role": "Farmer",
+      "race": "Goat",
+      "stats": {
+        "str": 12,
+        "dex": 10,
+        "con": 14,
+        "int": 8,
+        "wis": 14,
+        "cha": 8
+      },
+      "voice": {
+        "tone": "Bleating, grumpy, pragmatist.",
+        "samples": [
+          "Bah! Too expensive.",
+          "Eat your greens or I will."
+        ]
+      },
+      "secrets": [
+        "Is a retired adventurer (Level 20 Monk)."
+      ],
+      "equipment": [
+        "item_pitchfork",
+        "item_tin_can"
+      ],
+      "schedule": [
+        {
+          "time": "05:00-18:00",
+          "location": "loc_town_square",
+          "activity": "selling veg"
+        }
+      ],
+      "disposition": {
+        "base": "grumpy and hungry",
+        "attitude": "Neutral",
+        "triggers": {},
+        "romance_eligible": false,
+        "player_affinity": 0
+      }
+    }
+  ],
+  "monsters": [
+    {
+      "id": "mon_rocket",
+      "name": "Rocket the Raccoon",
+      "type": "beast",
+      "description": "Fast and tricky.",
+      "stats": {
+        "ac": 14,
+        "hp": 20,
+        "spd": 40
+      },
+      "abilities": [
+        "Steal",
+        "Hide"
+      ],
+      "behavior": "Tries to steal shiny things and run away."
+    }
+  ],
+  "items": [
+    {
+      "id": "item_slingshot",
+      "name": "Slingshot",
+      "type": "weapon",
+      "description": "A simple wooden slingshot.",
+      "usage": "Ranged weapon.",
+      "stats": {},
+      "abilities": [],
+      "behavior": ""
+    },
+    {
+      "id": "item_shiny_rock",
+      "name": "Shiny Rock",
+      "type": "treasure",
+      "description": "Very shiny. Raccoons love it.",
+      "usage": "Trade with Rocket.",
+      "stats": {},
+      "abilities": [],
+      "behavior": ""
+    },
+    {
+      "id": "item_honey_cake",
+      "name": "Honey Cake",
+      "type": "consumable",
+      "description": "Sticky and sweet. Mayor Lionheart's favorite.",
+      "usage": "Gift for Mayor.",
+      "stats": {},
+      "abilities": [],
+      "behavior": ""
+    },
+    {
+      "id": "item_carrot_muffin",
+      "name": "Carrot Muffin",
+      "type": "consumable",
+      "description": "Full of vitamins. Good for running.",
+      "usage": "Restore energy.",
+      "stats": {},
+      "abilities": [],
+      "behavior": ""
+    },
+    {
+      "id": "item_whistle",
+      "name": "Constable's Whistle",
+      "type": "tool",
+      "description": "Loud and authoritarian.",
+      "usage": "Call for help.",
+      "stats": {},
+      "abilities": [],
+      "behavior": ""
+    },
+    {
+      "id": "item_mailbag",
+      "name": "Overflowing Mailbag",
+      "type": "container",
+      "description": "Full of letters for everyone.",
+      "usage": "Quest item.",
+      "stats": {},
+      "abilities": [],
+      "behavior": ""
+    },
+    {
+      "id": "item_blue_ribbon",
+      "name": "Blue Ribbon",
+      "type": "treasure",
+      "description": "First Prize for the Pie Contest.",
+      "usage": "Quest reward.",
+      "stats": {},
+      "abilities": [],
+      "behavior": ""
+    },
+    {
+      "id": "item_tin_can",
+      "name": "Old Tin Can",
+      "type": "consumable",
+      "description": "A goat's favorite snack.",
+      "usage": "Gift for McGoat.",
+      "stats": {},
+      "abilities": [],
+      "behavior": ""
+    }
+  ]
+}

@@ -22,3 +22,5 @@ build/
 
 # Logs
 *.log
+
+lint_report.txt

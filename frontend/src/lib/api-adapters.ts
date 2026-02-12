@@ -1,6 +1,7 @@
 
 import { RaceData, ClassData, SubraceData, BackgroundData, Stat, Skill } from './srd-data';
 import { Item } from './api';
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 // Re-export type if needed or just use locally.
 // srd-data types are slightly different?
@@ -81,7 +82,7 @@ export function adaptClass(item: Item): ClassData {
 
     if (d.proficiency_choices) {
         for (const choice of d.proficiency_choices) {
-            let options = choice.from?.options || (Array.isArray(choice.from) ? choice.from : []);
+            const options = choice.from?.options || (Array.isArray(choice.from) ? choice.from : []);
 
             // Check if options refer to skills
             // options might be [{ item: { name: "Skill: Athletics" } }] or similar

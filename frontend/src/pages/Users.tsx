@@ -18,14 +18,14 @@ export default function UsersPage() {
             return;
         }
         loadUsers();
-    }, [profile]);
+    }, [profile, navigate]);
 
     const loadUsers = async () => {
         try {
             setLoading(true);
             const list = await usersApi.list();
             setUsers(list);
-        } catch (e) {
+        } catch (e: unknown) {
             console.error("Failed to load users", e);
             setError("Failed to load users");
         } finally {
@@ -44,7 +44,7 @@ export default function UsersPage() {
             setUsers(curr => curr.map(u => u.id === user.id ? { ...u, is_admin: newStatus } : u));
 
             await usersApi.update(user.id, { is_admin: newStatus });
-        } catch (e) {
+        } catch (e: unknown) {
             console.error("Failed to update user", e);
             // Revert
             setUsers(curr => curr.map(u => u.id === user.id ? { ...u, is_admin: !newStatus } : u));
@@ -60,7 +60,7 @@ export default function UsersPage() {
             setUsers(curr => curr.map(u => u.id === user.id ? { ...u, status: newStatus } : u));
 
             await usersApi.update(user.id, { status: newStatus });
-        } catch (e) {
+        } catch (e: unknown) {
             console.error("Failed to update user status", e);
             // Revert
             setUsers(curr => curr.map(u => u.id === user.id ? { ...u, status: oldStatus } : u));
@@ -82,7 +82,7 @@ export default function UsersPage() {
                 window.location.reload();
             }
             setUserToDelete(null);
-        } catch (e) {
+        } catch (e: unknown) {
             console.error("Failed to delete user", e);
             alert("Failed to delete user");
         }

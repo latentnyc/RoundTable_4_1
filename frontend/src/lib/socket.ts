@@ -2,13 +2,84 @@ import { io, Socket } from 'socket.io-client';
 import { create } from 'zustand';
 import { useAuthStore } from '@/store/authStore';
 
+
+import { Character } from '@/lib/api';
+
 const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+export interface Location {
+    id: string;
+    name: string;
+    description: string;
+    source_id?: string;
+}
+
+export interface Coordinates {
+    q: number;
+    r: number;
+    s: number;
+}
+
+export interface Entity {
+    id: string;
+    name: string;
+    is_ai: boolean;
+    hp_current: number;
+    hp_max: number;
+    ac: number;
+    initiative: number;
+    speed: number;
+    position: Coordinates;
+    inventory: string[];
+    status_effects: string[];
+}
+
+export interface Player extends Entity {
+    role: string;
+    control_mode: string;
+    race: string;
+    level: number;
+    xp: number;
+    user_id?: string;
+    sheet_data: Record<string, unknown>;
+}
+
+export interface Enemy extends Entity {
+    type: string;
+}
+
+export interface NPC extends Entity {
+    role: string;
+    data: Record<string, unknown>;
+}
+
+export interface LogEntry {
+    tick: number;
+    actor_id: string;
+    action: string;
+    target_id?: string;
+    result: string;
+    timestamp: string;
+}
+
+export interface GameState {
+    session_id: string;
+    turn_index: number;
+    phase: 'combat' | 'exploration' | 'social';
+    active_entity_id: string | null;
+    location: Location;
+    party: Character[]; // Mapping Player to Character for frontend ease
+    enemies: Enemy[];
+    npcs: NPC[];
+    combat_log: LogEntry[];
+}
+
 
 interface SocketState {
     socket: Socket | null;
     isConnected: boolean;
     messages: ChatMessage[];
-    gameState: any | null; // Placeholder for GameState type
+    gameState: GameState | null;
     connect: (campaignId: string, userId: string, characterId?: string) => Promise<void>;
     disconnect: () => void;
     sendMessage: (content: string, senderName?: string, senderId?: string) => void;
@@ -20,6 +91,9 @@ interface SocketState {
     measurePing: () => Promise<void>;
     // Internal state to track connection promise
     connectingPromise: Promise<void> | null;
+    // AI Stats
+    aiStats: AIStats;
+    setInitialStats: (totalTokens: number, inputTokens: number, outputTokens: number, queryCount: number) => void;
 }
 
 export interface ChatMessage {
@@ -33,9 +107,21 @@ export interface ChatMessage {
 export interface DebugLogItem {
     type: 'llm_start' | 'llm_end' | 'tool_start' | 'tool_end';
     content: string;
-    full_content: any;
-    timestamp: string;
     agent_name?: string;
+    full_content: unknown;
+    timestamp: string;
+}
+
+export interface AIStats {
+    totalTokens: number;
+    inputTokens: number;
+    outputTokens: number;
+    queryCount: number;
+    lastRequest?: {
+        tokens: number;
+        model: string;
+        agent: string;
+    };
 }
 
 export const useSocketStore = create<SocketState>((set, get) => ({
@@ -46,6 +132,12 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     debugLogs: [],
     connectingPromise: null,
     lastPing: null,
+    aiStats: {
+        totalTokens: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        queryCount: 0
+    },
 
     connect: async (campaignId, userId, characterId) => {
         const { socket, connectingPromise } = get();
@@ -55,19 +147,19 @@ export const useSocketStore = create<SocketState>((set, get) => ({
 
         // If already connected, check if tokens matched
         if (socket) {
-            // @ts-ignore - auth property exists on socket.io client options
+            // @ts-expect-error - auth property exists on socket.io client options
             const currentToken = socket.auth?.token;
             if (socket.connected && currentToken === token) {
-                console.log('Socket already connected with same token');
+
                 return;
             }
 
             if (currentToken !== token) {
-                console.log('Token changed, recreating socket...');
+
                 socket.disconnect();
                 set({ socket: null, isConnected: false });
             } else if (connectingPromise) {
-                console.log('Socket connection already in progress, awaiting...');
+
                 await connectingPromise;
                 return;
             }
@@ -84,7 +176,7 @@ export const useSocketStore = create<SocketState>((set, get) => ({
                 return;
             }
 
-            console.log(`Connecting to socket at ${SOCKET_URL} with token: ${token.substring(0, 10)}...`);
+
             const newSocket = io(SOCKET_URL, {
                 // transports: ['polling'], // Default is ['polling', 'websocket']
                 auth: { token },
@@ -93,11 +185,11 @@ export const useSocketStore = create<SocketState>((set, get) => ({
             });
 
             newSocket.on('connect', () => {
-                console.log('Socket connected:', newSocket.id);
+
                 set({ isConnected: true, connectingPromise: null });
 
                 // Join Campaign Room
-                console.log(`Joining campaign: ${campaignId} as user: ${userId} with char: ${characterId}`);
+
                 newSocket.emit('join_campaign', {
                     user_id: userId,
                     campaign_id: campaignId,
@@ -111,12 +203,12 @@ export const useSocketStore = create<SocketState>((set, get) => ({
             });
 
             newSocket.on('disconnect', () => {
-                console.log('Socket disconnected');
+
                 set({ isConnected: false, lastPing: null });
             });
 
             newSocket.on('chat_message', (msg: ChatMessage) => {
-                console.log('Received chat message:', msg);
+
                 set((state) => {
                     // Deduplicate messages based on timestamp and content + sender
                     const exists = state.messages.some(m =>
@@ -129,8 +221,47 @@ export const useSocketStore = create<SocketState>((set, get) => ({
                 });
             });
 
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            newSocket.on('ai_stats', (data: any) => {
+
+                if (data.type === 'usage' || data.type === 'update') {
+                    // Usage is incremental (legacy/other providers), Update is absolute (from DB)
+                    // If we get an absolute update, use it.
+                    if (data.type === 'update' && typeof data.total_tokens === 'number') {
+                        set((state) => ({
+                            aiStats: {
+                                totalTokens: data.total_tokens,
+                                inputTokens: data.input_tokens || 0,
+                                outputTokens: data.output_tokens || 0,
+                                queryCount: data.query_count || (state.aiStats.queryCount + 1),
+                                lastRequest: data.last_request ? {
+                                    tokens: data.last_request.tokens,
+                                    model: data.last_request.model,
+                                    agent: data.last_request.agent
+                                } : state.aiStats.lastRequest
+                            }
+                        }));
+                    } else if (data.type === 'usage') {
+                        // Fallback for incremental
+                        set((state) => ({
+                            aiStats: {
+                                totalTokens: state.aiStats.totalTokens + (data.total_tokens || 0),
+                                inputTokens: state.aiStats.inputTokens + (data.input_tokens || 0),
+                                outputTokens: state.aiStats.outputTokens + (data.output_tokens || 0),
+                                queryCount: state.aiStats.queryCount + 1,
+                                lastRequest: {
+                                    tokens: data.total_tokens || 0,
+                                    model: data.model || 'unknown',
+                                    agent: data.agent_name || 'unknown'
+                                }
+                            }
+                        }));
+                    }
+                }
+            });
+
             newSocket.on('system_message', (msg: { content: string }) => {
-                console.log('Received system message:', msg);
+
                 set((state) => {
                     const newMsg = {
                         sender_id: 'system',
@@ -148,28 +279,28 @@ export const useSocketStore = create<SocketState>((set, get) => ({
                 });
             });
 
-            newSocket.on('game_state_update', (state: any) => {
-                console.log('Received game state update:', state);
+            newSocket.on('game_state_update', (state: GameState) => {
+
                 set({ gameState: state });
             });
 
             newSocket.on('debug_log', (log: DebugLogItem) => {
-                console.log('Received debug log:', log);
+
                 set((state) => ({ debugLogs: [...state.debugLogs, log] }));
             });
 
-            newSocket.on('chat_history', (history: any[]) => {
-                console.log('Received chat history:', history);
+            newSocket.on('chat_history', (history: ChatMessage[]) => {
+
                 set({ messages: history });
             });
 
             newSocket.on('chat_cleared', () => {
-                console.log('Chat cleared by server');
+
                 set({ messages: [] });
             });
 
             newSocket.on('debug_logs_cleared', () => {
-                console.log('Debug logs cleared by server');
+
                 set({ debugLogs: [] });
             });
 
@@ -188,7 +319,7 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     disconnect: () => {
         const { socket } = get();
         if (socket) {
-            console.log('Disconnecting socket...');
+
             socket.disconnect();
             set({ socket: null, isConnected: false, lastPing: null });
         }
@@ -197,9 +328,9 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     sendMessage: (content, senderName, senderId) => {
         const { socket } = get();
         if (socket) {
-            console.log('Sending message:', content, senderName);
+
             const apiKey = localStorage.getItem('gemini_api_key');
-            const model = localStorage.getItem('selected_model') || 'gemini-2.0-flash';
+            const model = localStorage.getItem('selected_model');
 
             socket.emit('chat_message', {
                 content,
@@ -216,10 +347,10 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     clearLogs: () => {
         const { socket } = get();
         if (socket) {
-            console.log('Requesting to clear debug logs...');
+
             socket.emit('clear_debug_logs');
             // Optimistically clear local? No, wait for server event 'debug_logs_cleared'
-            // But for responsiveness we might want to? 
+            // But for responsiveness we might want to?
             // The requirement says "trigger backend call". The server will broadcast.
         }
     },
@@ -227,7 +358,7 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     clearChat: () => {
         const { socket } = get();
         if (socket) {
-            console.log('Requesting to clear chat...');
+
             socket.emit('clear_chat');
         }
     },
@@ -256,5 +387,17 @@ export const useSocketStore = create<SocketState>((set, get) => ({
         } catch (e) {
             console.error("Ping failed", e);
         }
+    },
+
+    setInitialStats: (totalTokens, inputTokens, outputTokens, queryCount) => {
+        set((state) => ({
+            aiStats: {
+                ...state.aiStats,
+                totalTokens,
+                inputTokens,
+                outputTokens,
+                queryCount
+            }
+        }));
     }
 }));

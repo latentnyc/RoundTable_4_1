@@ -2,6 +2,7 @@ from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
 from typing import Any, Dict, List, Optional, Union
 import socketio
+import logging
 
 class SocketIOCallbackHandler(AsyncCallbackHandler):
     """Callback Handler that streams LLM events to a specific SocketIO client."""
@@ -11,7 +12,10 @@ class SocketIOCallbackHandler(AsyncCallbackHandler):
         self.sid = sid # Target specific client or room? Start with client for direct debug.
         self.campaign_id = campaign_id
         self.agent_name = agent_name
-        print(f"DEBUG: Initialized SocketIOCallbackHandler for sid {sid} (Agent: {agent_name})", flush=True)
+        self.agent_name = agent_name
+        self.last_model_name = "unknown"
+        self.logger = logging.getLogger(__name__)
+        self.logger.debug(f"Initialized SocketIOCallbackHandler for sid {sid} (Agent: {agent_name})")
 
     async def _emit(self, event: str, data: dict):
         # Runtime import to avoid circular imports
@@ -20,79 +24,89 @@ class SocketIOCallbackHandler(AsyncCallbackHandler):
         from sqlalchemy import text
         from uuid import uuid4
         import json
-        
+
         # Inject agent name
         data['agent_name'] = self.agent_name
-        
+
         # Emit to frontend first for speed
         await sio.emit(event, data, room=self.sid)
-        
+
         # Save to DB
         try:
             async with AsyncSessionLocal() as db:
                 log_id = str(uuid4())
                 full_content_str = json.dumps(data.get('full_content', ''))
-                
+
                 # Prepend agent name to content for visibility in simple logs
                 db_content = f"[{self.agent_name}] {data.get('content', '')}"
-                
+
                 await db.execute(
-                    text("""INSERT INTO debug_logs (id, campaign_id, type, content, full_content) 
+                    text("""INSERT INTO debug_logs (id, campaign_id, type, content, full_content)
                        VALUES (:id, :campaign_id, :type, :content, :full_content)"""),
                     {
-                        "id": log_id, 
-                        "campaign_id": self.campaign_id, 
-                        "type": data.get('type', 'unknown'), 
-                        "content": db_content, 
+                        "id": log_id,
+                        "campaign_id": self.campaign_id,
+                        "type": data.get('type', 'unknown'),
+                        "content": db_content,
                         "full_content": full_content_str
                     }
                 )
                 await db.commit()
         except Exception as e:
-            print(f"Error saving debug log to DB: {e}")
+            self.logger.error(f"Error saving debug log to DB: {e}")
 
     async def on_chat_model_start(
         self, serialized: Dict[str, Any], messages: List[List[Any]], **kwargs: Any
     ) -> None:
         """Run when Chat Model starts running."""
         try:
-            print(f"DEBUG: on_chat_model_start triggered for sid {self.sid}", flush=True)
+            self.logger.debug(f"on_chat_model_start triggered for sid {self.sid}")
+
+            # Capture model name from serialized config
+            # serialized: {'id': ['langchain', 'chat_models', 'google_palm', 'ChatGooglePalm'], 'kwargs': {'model_name': 'models/chat-bison-001', ...}}
+            self.last_model_name = (
+                serialized.get('kwargs', {}).get('model_name') or
+                serialized.get('kwargs', {}).get('model') or
+                "unknown"
+            )
+            self.logger.debug(f"Captured model name: {self.last_model_name}")
+
             # messages is a list of lists of BaseMessage (usually just one list in standard invoke)
             # We want to log the ACTUAL messages sent.
-            
+
             # Serialize messages for display
-            print("DEBUG: Serializing messages...", flush=True)
+            self.logger.debug("Serializing messages...")
             serialized_messages = []
             for sublist in messages:
                 for msg in sublist:
-                    # msg.content can be complex (list of dicts) for multimodal 
+                    # msg.content can be complex (list of dicts) for multimodal
                     # Use str() or just keep it raw if JSON serializable?
                     # LangChain messages usually have .content as str or list.
                     content = msg.content
                     # If it's a list (e.g. image blocks), it might fail simple JSON dump if not careful.
                     # But Python socketio handles basic types. Pydantic models might be tricky.
                     # Let's try to keep it simple.
-                    
+
                     serialized_messages.append({
                         "type": getattr(msg, 'type', 'unknown'),
                         "content": content
                     })
-            
-            print(f"DEBUG: Serialized {len(serialized_messages)} messages. Preparing to emit...", flush=True)
-            
+
+            self.logger.debug(f"Serialized {len(serialized_messages)} messages. Preparing to emit...")
+
             await self._emit('debug_log', {
                 'type': 'llm_start',
                 'content': f"Sending {len(serialized_messages)} messages to LLM...",
                 'full_content': serialized_messages,
                 'timestamp': 'Just now'
             })
-            print("DEBUG: Emit complete.", flush=True)
+            self.logger.debug("Emit complete.")
 
         except BaseException as e:
             # Catch EVERYTHING including CancelledError just to see
             import traceback
-            print(f"CRITICAL ERROR in on_chat_model_start callback: {e}", flush=True)
-            traceback.print_exc()
+            self.logger.error(f"CRITICAL ERROR in on_chat_model_start callback: {e}")
+            self.logger.error(traceback.format_exc())
 
 
     async def on_llm_start(
@@ -100,7 +114,16 @@ class SocketIOCallbackHandler(AsyncCallbackHandler):
     ) -> None:
         """Run when LLM starts running (Legacy / Non-Chat)."""
         try:
-            print(f"DEBUG: on_llm_start triggered for sid {self.sid}", flush=True)
+            self.logger.debug(f"on_llm_start triggered for sid {self.sid}")
+
+            # Capture model name
+            self.last_model_name = (
+                serialized.get('kwargs', {}).get('model_name') or
+                serialized.get('kwargs', {}).get('model') or
+                "unknown"
+            )
+            self.logger.debug(f"Captured model name (LLM): {self.last_model_name}")
+
             await self._emit('debug_log', {
                 'type': 'llm_start',
                 'content': f"Generating response for: {prompts[0][:100]}...",
@@ -108,12 +131,12 @@ class SocketIOCallbackHandler(AsyncCallbackHandler):
                 'timestamp': 'Just now'
             })
         except BaseException as e:
-            print(f"CRITICAL ERROR in on_llm_start callback: {e}", flush=True)
+            self.logger.error(f"CRITICAL ERROR in on_llm_start callback: {e}")
 
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
         """Run when LLM ends running."""
         try:
-            print("DEBUG: on_llm_end triggered.", flush=True)
+            self.logger.debug("on_llm_end triggered.")
             # Check if it's a chat generation or regular generation
             text = ""
             if response.generations:
@@ -124,7 +147,7 @@ class SocketIOCallbackHandler(AsyncCallbackHandler):
                             text += f"[{gen.message.type}]: {gen.message.content}\n"
                         else:
                             text += gen.text
-            
+
             # Safe serialization for full content
             try:
                 full_content = response.dict() if hasattr(response, 'dict') else str(response)
@@ -137,18 +160,187 @@ class SocketIOCallbackHandler(AsyncCallbackHandler):
                 'full_content': full_content,
                 'timestamp': 'Just now'
             })
-            print("DEBUG: on_llm_end emit complete.", flush=True)
+
+            await self._emit('debug_log', {
+                'type': 'llm_end',
+                'content': f"Response: {text[:100]}...",
+                'full_content': full_content,
+                'timestamp': 'Just now'
+            })
+
+            # Emit AI Stats
+            await self._handle_token_usage(response)
+
+            self.logger.debug("on_llm_end emit complete.")
         except BaseException as e:
             import traceback
-            print(f"CRITICAL ERROR in on_llm_end callback: {e}", flush=True)
-            traceback.print_exc()
+            self.logger.error(f"CRITICAL ERROR in on_llm_end callback: {e}")
+            self.logger.error(traceback.format_exc())
+
+    async def on_chat_model_end(self, response: LLMResult, **kwargs: Any) -> None:
+        """Run when Chat Model ends running."""
+        try:
+            self.logger.debug("on_chat_model_end triggered.")
+            # Check if it's a chat generation or regular generation
+            text = ""
+            if response.generations:
+                # Flatten generations
+                for gen_list in response.generations:
+                    for gen in gen_list:
+                        if hasattr(gen, 'message'):
+                            text += f"[{gen.message.type}]: {gen.message.content}\n"
+                        else:
+                            text += gen.text
+
+            # Safe serialization for full content
+            try:
+                full_content = response.dict() if hasattr(response, 'dict') else str(response)
+            except Exception:
+                full_content = str(response)
+
+            await self._emit('debug_log', {
+                'type': 'llm_end',
+                'content': f"Chat Response: {text[:100]}...",
+                'full_content': full_content,
+                'timestamp': 'Just now'
+            })
+
+            # Emit AI Stats
+            await self._handle_token_usage(response)
+
+            self.logger.debug("on_chat_model_end emit complete.")
+        except BaseException as e:
+            import traceback
+            self.logger.error(f"CRITICAL ERROR in on_chat_model_end callback: {e}")
+            self.logger.error(traceback.format_exc())
+
+    async def _handle_token_usage(self, response: LLMResult):
+        usage = {}
+
+        # DEBUG LOGGING FOR USAGE
+        try:
+            self.logger.debug(f"_handle_token_usage raw output: {response.llm_output}")
+            if response.generations:
+                first_gen = response.generations[0][0]
+                has_msg = hasattr(first_gen, 'message')
+                msg_meta = first_gen.message.usage_metadata if has_msg else "N/A"
+                self.logger.debug(f"_handle_token_usage raw generation[0][0]: type={type(first_gen)}, has_msg={has_msg}, msg_meta={msg_meta}")
+        except Exception as e:
+            self.logger.debug(f"Error printing usage debug info: {e}")
+
+        # Check llm_output first (standard LangChain)
+        if response.llm_output and ('token_usage' in response.llm_output or 'usage_metadata' in response.llm_output):
+            usage = response.llm_output.get('token_usage') or response.llm_output.get('usage_metadata') or {}
+
+        # Fallback: Check generations (LangChain Google GenAI specific sometimes)
+        if not usage and response.generations:
+            # Usually flat list of generations, take the first one
+            # generations is List[List[Generation]]
+            try:
+                first_gen = response.generations[0][0]
+                if hasattr(first_gen, 'message') and hasattr(first_gen.message, 'usage_metadata'):
+                    usage = first_gen.message.usage_metadata
+            except (IndexError, AttributeError):
+                pass
+
+        if not usage:
+            self.logger.debug("_handle_token_usage found NO usage data.")
+            return
+
+        self.logger.debug(f"_handle_token_usage found usage: {usage}")
+
+        # Normalization attempt for Gemini / OpenAI / Anthropic
+        # Gemini: {'prompt_token_count': 12, 'candidates_token_count': 34, 'total_token_count': 46}
+        # OpenAI: {'prompt_tokens': 12, 'completion_tokens': 34, 'total_tokens': 46}
+
+        input_tokens = (
+            usage.get('prompt_token_count') or
+            usage.get('input_tokens') or
+            usage.get('prompt_tokens') or
+            0
+        )
+        output_tokens = (
+            usage.get('candidates_token_count') or
+            usage.get('output_tokens') or
+            usage.get('completion_tokens') or
+            0
+        )
+        total_tokens = (
+            usage.get('total_token_count') or
+            usage.get('total_tokens') or
+            (input_tokens + output_tokens)
+        )
+
+        if total_tokens > 0:
+            # Update DB (Auto-commit)
+            try:
+                # Runtime import to avoid circular imports
+                from db.session import AsyncSessionLocal
+                from sqlalchemy import text
+
+                async with AsyncSessionLocal() as db:
+                    await db.execute(
+                        text("""
+                            UPDATE campaigns
+                            SET total_input_tokens = COALESCE(total_input_tokens, 0) + :input,
+                                total_output_tokens = COALESCE(total_output_tokens, 0) + :output,
+                                query_count = COALESCE(query_count, 0) + 1
+                            WHERE id = :cid
+                        """),
+                        {
+                            "input": input_tokens,
+                            "output": output_tokens,
+                            "cid": self.campaign_id
+                        }
+                    )
+                    await db.commit()
+
+                    # Fetch new totals to emit accurate state
+                    result = await db.execute(
+                        text("SELECT total_input_tokens, total_output_tokens, query_count FROM campaigns WHERE id = :cid"),
+                        {"cid": self.campaign_id}
+                    )
+                    row = result.mappings().fetchone()
+                    if row:
+                        current_total = (row['total_input_tokens'] or 0) + (row['total_output_tokens'] or 0)
+                        current_query_count = row['query_count'] or 0
+
+                        # Try to get model name from llm_output or generation_info
+                        model_name = response.llm_output.get('model_name')
+                        if not model_name and response.generations:
+                            try:
+                                model_name = response.generations[0][0].generation_info.get('model_name')
+                            except (IndexError, AttributeError):
+                                pass
+
+                        # Fallback to captured model name from start event
+                        model_name = model_name or self.last_model_name or 'unknown'
+
+                        await self._emit('ai_stats', {
+                            'type': 'update',
+                            'input_tokens': row['total_input_tokens'] or 0,
+                            'output_tokens': row['total_output_tokens'] or 0,
+                            'total_tokens': current_total,
+                            'query_count': current_query_count,
+                            'model': model_name,
+                            'agent_name': self.agent_name,
+                            'last_request': {
+                                'tokens': total_tokens,
+                                'model': model_name,
+                                'agent': self.agent_name
+                            }
+                        })
+                        self.logger.debug(f"Emitted updated ai_stats: {current_total} total tokens")
+
+            except Exception as db_err:
+                self.logger.error(f"Error updating campaign stats: {db_err}")
 
     async def on_tool_start(
         self, serialized: Dict[str, Any], input_str: str, **kwargs: Any
     ) -> None:
         """Run when tool starts running."""
         try:
-            print(f"DEBUG: on_tool_start triggered for {serialized.get('name')}", flush=True)
+            self.logger.debug(f"on_tool_start triggered for {serialized.get('name')}")
             await self._emit('debug_log', {
                 'type': 'tool_start',
                 'content': f"Tool Call: {serialized.get('name')} input: {input_str}",
@@ -156,17 +348,22 @@ class SocketIOCallbackHandler(AsyncCallbackHandler):
                 'timestamp': 'Just now'
             })
         except BaseException as e:
-            print(f"CRITICAL ERROR in on_tool_start callback: {e}", flush=True)
+            self.logger.error(f"CRITICAL ERROR in on_tool_start callback: {e}")
 
     async def on_tool_end(self, output: str, **kwargs: Any) -> None:
         """Run when tool ends running."""
         try:
-            print("DEBUG: on_tool_end triggered.", flush=True)
+            self.logger.debug("on_tool_end triggered.")
+            # Handle ToolMessage object if passed
+            content = output
+            if hasattr(output, 'content'):
+                content = output.content
+
             await self._emit('debug_log', {
                 'type': 'tool_end',
-                'content': f"Tool Output: {output[:100]}...",
-                'full_content': output,
+                'content': f"Tool Output: {str(content)[:100]}...",
+                'full_content': str(content),
                 'timestamp': 'Just now'
             })
         except BaseException as e:
-             print(f"CRITICAL ERROR in on_tool_end callback: {e}", flush=True)
+             self.logger.error(f"CRITICAL ERROR in on_tool_end callback: {e}")

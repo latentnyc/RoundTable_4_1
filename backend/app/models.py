@@ -29,18 +29,26 @@ class Player(Entity):
     xp: int = 0
     user_id: Optional[str] = None
     # dict for flexible storage of stats, skills, feats, etc.
-    sheet_data: Dict = {} 
+    sheet_data: Dict = {}
 
 class Enemy(Entity):
     type: str # e.g. "Goblin"
+    identified: bool = False
 
 # --- Game State ---
+class NPC(Entity):
+    role: str # e.g. "Shopkeeper"
+    data: Dict = {} # Flexible storage for schedule, voice, etc.
+    identified: bool = False
+
 class DMSettings(BaseModel):
     strictness_level: Literal["strict", "normal", "relaxed", "cinematic"] = "normal"
     dice_fudging: bool = True
     narrative_focus: Literal["low", "medium", "high"] = "high"
 
 class Location(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    source_id: Optional[str] = None # The ID from the JSON (e.g. loc_tavern)
     name: str
     description: str
 
@@ -60,5 +68,6 @@ class GameState(BaseModel):
     location: Location
     party: List[Player]
     enemies: List[Enemy] = []
+    npcs: List[NPC] = []
     combat_log: List[LogEntry] = []
     dm_settings: DMSettings = Field(default_factory=DMSettings)

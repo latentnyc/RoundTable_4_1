@@ -9,6 +9,7 @@ import CampaignMain from "@/pages/CampaignMain";
 import UsersPage from "@/pages/Users";
 import AuthGuard from "@/components/AuthGuard";
 import RootRedirector from "@/components/RootRedirector";
+import LogViewer from "@/pages/LogViewer";
 import { useAuthStore } from "@/store/authStore";
 
 function App() {
@@ -36,6 +37,7 @@ function App() {
         {/* Helper Routes */}
         <Route path="/create-character" element={<AuthGuard><CreateCharacterPage /></AuthGuard>} />
         <Route path="/users" element={<AuthGuard><UsersPage /></AuthGuard>} />
+        <Route path="/logs" element={<AuthGuard><LogViewer /></AuthGuard>} />
       </Routes>
     </BrowserRouter>
   );

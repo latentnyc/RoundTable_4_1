@@ -27,8 +27,8 @@ export const useAuthStore = create<AuthState>((set) => ({
         try {
             await signInWithPopup(auth, googleProvider);
             // State update handled by onAuthStateChanged
-        } catch (error: any) {
-            set({ error: error.message, isLoading: false });
+        } catch (error: unknown) {
+            set({ error: (error as Error).message, isLoading: false });
         }
     },
 
@@ -37,34 +37,61 @@ export const useAuthStore = create<AuthState>((set) => ({
         try {
             await signOut(auth);
             set({ user: null, profile: null, token: null, isLoading: false });
-        } catch (error: any) {
-            set({ error: error.message, isLoading: false });
+        } catch (error: unknown) {
+            set({ error: (error as Error).message, isLoading: false });
         }
     },
 
     initialize: () => {
-        const unsubscribe = onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                // Force refresh to ensure we have a valid token for the socket
-                const token = await user.getIdToken(true);
-                // Set token immediately to allow API calls
-                useAuthStore.getState().token = token;
 
+
+        // Safety timeout to prevent infinite loading if Firebase/Emulator is unreachable
+        const timeoutId = setTimeout(() => {
+            console.warn("⏰ Auth timeout trigger!");
+            const state = useAuthStore.getState();
+            if (state.isLoading) {
+                set({
+                    isLoading: false,
+                    error: "Authentication service connection timed out. If running locally, please ensure Firebase Emulators are running."
+                });
+            }
+        }, 5000);
+
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+            // State update handled by onAuthStateChanged
+            clearTimeout(timeoutId);
+            if (user) {
                 try {
+
+                    // Force refresh to ensure we have a valid token for the socket
+                    const token = await user.getIdToken(true);
+
+
+                    // Set token immediately to allow API calls
+                    useAuthStore.getState().token = token;
+                    set({ token });
+
                     // Update token in store first so interceptor picks it up
-                    set({ user, token, isLoading: true });
+                    set({ user, isLoading: true });
 
                     // Fetch Profile from backend
+
                     const profile = await authApi.login();
+
                     set({ profile, isLoading: false });
-                } catch (e) {
-                    console.error("Failed to fetch profile", e);
-                    set({ user, token, profile: null, isLoading: false, error: "Failed to login to backend" });
+                } catch (e: any) {
+                    console.error("❌ Failed to fetch profile/token", e);
+                    set({ user: null, token: null, profile: null, isLoading: false, error: e.message || "Failed to finalize login" });
                 }
             } else {
+
                 set({ user: null, profile: null, token: null, isLoading: false });
             }
         });
-        return unsubscribe;
+
+        return () => {
+            clearTimeout(timeoutId);
+            unsubscribe();
+        };
     }
 }));

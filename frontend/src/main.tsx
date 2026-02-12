@@ -8,9 +8,9 @@ import { setTokenGetter } from './lib/api';
 // Initialize API token getter to break circular dependency
 setTokenGetter(() => useAuthStore.getState().token);
 
-console.log('Main.tsx executing');
+
 const root = document.getElementById('root');
-console.log('Root element:', root);
+
 
 if (root) {
   try {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Shield, Key, CheckCircle, AlertCircle, Save } from 'lucide-react';
 import { campaignApi } from '@/lib/api';
 
@@ -10,8 +10,24 @@ interface CampaignSettingsProps {
 
 export default function CampaignSettings({ campaignId, isOpen, onClose }: CampaignSettingsProps) {
     const [apiKey, setApiKey] = useState("");
-    const [model, setModel] = useState("gpt-4-turbo-preview");
+    const [model, setModel] = useState("");
     const [isTestSuccess, setIsTestSuccess] = useState(false);
+
+    // Fetch current settings on open
+    // Fetch current settings on open
+    useEffect(() => {
+        const fetchSettings = async () => {
+            if (!isOpen) return;
+            try {
+                const campaign = await campaignApi.get(campaignId);
+                // Only overwrite if not already set (or always overwrite on open? Let's overwrite)
+                if (campaign.api_key) setApiKey(campaign.api_key);
+                if (campaign.model) setModel(campaign.model);
+            } catch (e) { console.error(e); }
+        };
+        fetchSettings();
+    }, [isOpen, campaignId]);
+    const [availableModels, setAvailableModels] = useState<string[]>([]);
     const [isTesting, setIsTesting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -24,34 +40,27 @@ export default function CampaignSettings({ campaignId, isOpen, onClose }: Campai
         setStatusMessage(null);
 
         try {
-            // First validation/test call (simulated or real endpoint)
-            // Ideally we send to a specific test endpoint, but updating serves as test + save here
-            // We'll update only the API key first or both if model is selected?
-            // User requested: "Then ONLY within the campaign will the admin enter and test an API key... That setting button will have a save and test button, then a model select dropdown after..."
-
-            // So: 
-            // 1. Send Key to backend to Validate.
-            // 2. If valid, show Model Dropdown.
-            // 3. User selects model -> Save Final.
-
-            // Since we need to persist the key to test it effectively with the backend logic, we might just update it.
-            // But let's assume we have a way to just set it.
-
+            // 1. Update Settings with new Key
             await campaignApi.updateSettings(campaignId, {
-                api_key: apiKey,
-                // We don't change model yet unless it's already visible?
-                // Let's just update the key.
+                api_key: apiKey
             });
 
+            // 2. Test Key & Get Models
+            const response = await campaignApi.testKey(apiKey);
+            setAvailableModels(response.models);
+
             setIsTestSuccess(true);
-            setStatusMessage("API Key Verified & Saved!");
+            setStatusMessage("API Key Verified! Select a Model below.");
 
-            // Fetch current model or set default
-            // setModel(...) 
+            // Set default model if current model is not in list or empty
+            if (response.models.length > 0 && (!model || !response.models.includes(model))) {
+                setModel(response.models[0]);
+            }
 
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error("Failed to test API key", e);
-            setError("Invalid API Key or Network Error");
+            const err = e as any;
+            setError(err.response?.data?.detail || "Invalid API Key or Network Error");
             setIsTestSuccess(false);
         } finally {
             setIsTesting(false);
@@ -63,7 +72,7 @@ export default function CampaignSettings({ campaignId, isOpen, onClose }: Campai
             await campaignApi.updateSettings(campaignId, { model });
             setStatusMessage("Model Settings Saved!");
             setTimeout(onClose, 1000);
-        } catch (e) {
+        } catch {
             setError("Failed to save model");
         }
     };
@@ -132,19 +141,30 @@ export default function CampaignSettings({ campaignId, isOpen, onClose }: Campai
                     </div>
 
                     {/* Model Selection - Revealed on Success */}
-                    {isTestSuccess && (
+                    {/* Model Selection - Revealed on Success or if Model is already set */}
+                    {(isTestSuccess || availableModels.length > 0 || model) && (
                         <div className="space-y-4 pt-4 border-t border-white/10 animate-in slide-in-from-top-2 fade-in">
                             <div>
                                 <label className="block text-sm font-medium text-neutral-400 mb-1">AI Model</label>
                                 <select
                                     value={model}
                                     onChange={(e) => setModel(e.target.value)}
-                                    className="w-full bg-black border border-white/10 rounded-xl px-4 py-2.5 focus:outline-none focus:border-purple-500"
+                                    className="w-full bg-black border border-white/10 rounded-xl px-4 py-2.5 focus:outline-none focus:border-purple-500 text-white"
                                 >
-                                    <option value="gpt-4-turbo-preview">GPT-4 Turbo</option>
-                                    <option value="gpt-4">GPT-4</option>
-                                    <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                                    <option value="" disabled>Select a model...</option>
+                                    {/* If current model is set but not in list (e.g. before test), show it */}
+                                    {model && !availableModels.includes(model) && (
+                                        <option value={model}>{model} (Current)</option>
+                                    )}
+                                    {availableModels.map((m) => (
+                                        <option key={m} value={m}>{m}</option>
+                                    ))}
                                 </select>
+                                {!isTestSuccess && availableModels.length === 0 && (
+                                    <p className="text-[10px] text-neutral-500 mt-1">
+                                        * Re-test API key to refresh available models.
+                                    </p>
+                                )}
                             </div>
 
                             <button

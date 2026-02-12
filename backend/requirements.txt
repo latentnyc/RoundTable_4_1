@@ -14,7 +14,9 @@ requests>=2.31.0
 google-genai>=0.3.0
 firebase-admin>=6.2.0
 
+
 # Database Migration
 sqlalchemy>=2.0.0
+alembic>=1.13.0
 asyncpg>=0.29.0
 greenlet>=3.0.0

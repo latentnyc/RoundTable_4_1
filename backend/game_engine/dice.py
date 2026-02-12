@@ -12,10 +12,10 @@ class Dice:
         expression = expression.lower().strip()
         advantage = "adv" in expression
         disadvantage = "dis" in expression
-        
+
         # Remove words
         clean_expr = expression.replace("adv", "").replace("dis", "").strip()
-        
+
         if "d" not in clean_expr:
             try:
                 val = int(clean_expr)
@@ -34,10 +34,10 @@ class Dice:
                 count, sides = part.split("d")
                 count = int(count) if count else 1
                 sides = int(sides)
-                
+
                 part_total = 0
                 part_rolls = []
-                
+
                 if (advantage or disadvantage) and count == 1 and sides == 20:
                     r1 = random.randint(1, sides)
                     r2 = random.randint(1, sides)
@@ -56,7 +56,7 @@ class Dice:
                         part_rolls.append(r)
                         part_total += r
                     details.append(f"{count}d{sides} ({part_rolls})")
-                
+
                 total += part_total
                 all_rolls.extend(part_rolls)
             else:

@@ -1,15 +1,24 @@
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Dict
+import json
+import logging
 from ..permissions import verify_token, is_admin
 from ..dependencies import get_db
-from ..dtos import CampaignCreateRequest, CampaignResponse, CampaignDetailsResponse, UpdateCampaignRequest, TestAPIKeyRequest, ModelListResponse
-from ..models import GameState, Location
+from ..dtos import (
+    CampaignCreateRequest, CampaignResponse, CampaignDetailsResponse,
+    UpdateCampaignRequest, TestAPIKeyRequest, ModelListResponse,
+    CampaignParticipantResponse, ParticipantCharacter, UpdateParticipantRequest,
+    CampaignTemplateResponse
+)
+from ..models import GameState, Location, NPC, Coordinates
 from uuid import uuid4
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
-from google import genai
+from sqlalchemy import select, insert, update, delete, desc, text
+from db.schema import campaigns, campaign_templates, campaign_participants, game_states, characters, chat_messages, npcs, locations
+from ..services.campaign_loader import instantiate_campaign
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 @router.post("/test_key", response_model=ModelListResponse)
 async def test_api_key(
@@ -17,35 +26,41 @@ async def test_api_key(
     user: dict = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
+    from app.services.system_service import SystemService
     # Admin only
     if not await is_admin(user, db):
         raise HTTPException(status_code=403, detail="Only admins can test API keys")
 
-    if not req.api_key:
-        raise HTTPException(status_code=400, detail="API Key is required")
-
     try:
-        # Initialize client with provided key
-        client = genai.Client(api_key=req.api_key)
-        
-        # Verify credentials by listing models
-        models = []
-        # genai.Client.models.list() returns an iterable of Model objects
-        # We need to filter for models that support content generation
-        for m in client.models.list():
-            if 'generateContent' in (m.supported_actions or []):
-                # Filter for Gemini models primarily as that's what we support
-                if 'gemini' in m.name.lower():
-                     models.append(m.name)
-        
-        # Sort for better UX (newer models usually have higher numbers or 'pro'/'flash')
-        models.sort(reverse=True)
-        
+        models = SystemService.validate_api_key(req.api_key, req.provider)
         return ModelListResponse(models=models)
 
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        print(f"API Key Validation Error: {e}")
+        logger.error(f"API Key Validation Error: {e}")
         raise HTTPException(status_code=400, detail=f"Failed to validate API Key: {str(e)}")
+
+@router.get("/templates", response_model=List[CampaignTemplateResponse])
+async def list_templates(
+    user: dict = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        query = select(campaign_templates.c.id, campaign_templates.c.name, campaign_templates.c.description, campaign_templates.c.genre).order_by(campaign_templates.c.name)
+        result = await db.execute(query)
+        rows = result.all()
+        return [
+            CampaignTemplateResponse(
+                id=row.id,
+                name=row.name,
+                description=row.description,
+                genre=row.genre
+            )
+            for row in rows
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list templates: {e}")
 
 @router.get("/", response_model=List[CampaignResponse])
 async def list_campaigns(
@@ -53,18 +68,23 @@ async def list_campaigns(
     db: AsyncSession = Depends(get_db)
 ):
     try:
-        # TODO: Filter by visibility if needed, currently showing all
-        result = await db.execute(text("SELECT id, name, gm_id, status, created_at, api_key, api_key_verified FROM campaigns ORDER BY created_at DESC"))
-        rows = result.mappings().all()
+        query = select(
+            campaigns.c.id, campaigns.c.name, campaigns.c.gm_id,
+            campaigns.c.status, campaigns.c.created_at,
+            campaigns.c.api_key_verified, campaigns.c.api_key
+        ).order_by(desc(campaigns.c.created_at))
+
+        result = await db.execute(query)
+        rows = result.all()
         return [
             CampaignResponse(
-                id=row["id"],
-                name=row["name"],
-                gm_id=row["gm_id"],
-                status=row["status"],
-                created_at=row["created_at"],
-                api_key_verified=row["api_key_verified"],
-                api_key_configured=bool(row["api_key"])
+                id=row.id,
+                name=row.name,
+                gm_id=row.gm_id,
+                status=row.status,
+                created_at=row.created_at,
+                api_key_verified=row.api_key_verified,
+                api_key_configured=bool(row.api_key)
             )
             for row in rows
         ]
@@ -82,27 +102,163 @@ async def create_campaign(
         raise HTTPException(status_code=403, detail="Only admins can create campaigns")
 
     new_id = str(uuid4())
+
+    # Verify API Key if provided
+    is_verified = False
+    if req.api_key:
+        try:
+            # We need to import genai here or uses SystemService
+            from app.services.system_service import SystemService
+            try:
+                SystemService.validate_api_key(req.api_key)
+                is_verified = True
+            except ValueError:
+                pass # valid to leave unverified if check fails but we still save it?
+                     # The original code just printed error and left it unverified.
+        except Exception as e:
+            logger.warning(f"Pre-verification field for new campaign key: {e}")
+
     try:
-        await db.execute(
-            text("""INSERT INTO campaigns (id, name, gm_id, status, api_key, api_key_verified, model, system_prompt) 
-               VALUES (:id, :name, :gm_id, :status, :api_key, :api_key_verified, :model, :system_prompt)"""),
-            {"id": new_id, "name": req.name, "gm_id": req.gm_id, "status": "active", "api_key": req.api_key, "api_key_verified": False, "model": req.model, "system_prompt": req.system_prompt}
+        # Create Campaign
+        stmt = insert(campaigns).values(
+            id=new_id,
+            name=req.name,
+            gm_id=req.gm_id,
+            status="active",
+            api_key=req.api_key,
+            api_key_verified=is_verified,
+            model=req.model,
+            system_prompt=req.system_prompt,
+            template_id=req.template_id
         )
+        await db.execute(stmt)
+
+        # Instantiate Template Content if provided
+        if req.template_id:
+             await instantiate_campaign(db, new_id, req.template_id)
+
+        # Auto-join Creator as GM
+        stmt_part = insert(campaign_participants).values(
+            id=str(uuid4()),
+            campaign_id=new_id,
+            user_id=req.gm_id,
+            role="gm",
+            status="active"
+        )
+        await db.execute(stmt_part)
+
         await db.commit()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create campaign: {e}")
 
     # Init Game State
+    initial_location_name = "The Beginning"
+    initial_location_desc = "A new adventure begins."
+    initial_location_source_id = None
+    initial_location_id = str(uuid4()) # Default if not found
+
+    initial_npcs = []
+
+    # Try to get specific starting location from template if available
+    try:
+        if req.template_id:
+             # Get Template Config
+             query = select(campaign_templates.c.config).where(campaign_templates.c.id == req.template_id)
+             t_res = await db.execute(query)
+             t_config_str = t_res.scalar()
+
+             if t_config_str:
+                 t_config = json.loads(t_config_str)
+                 start_loc_id = t_config.get('starting_location')
+
+                 if start_loc_id:
+                     # Fetch full location data
+                     query_loc = select(locations.c.id, locations.c.name, locations.c.data).where(
+                         locations.c.campaign_id == new_id,
+                         locations.c.source_id == start_loc_id
+                     )
+                     l_res = await db.execute(query_loc)
+                     l_row = l_res.first()
+
+                     if l_row:
+                         initial_location_name = l_row.name
+                         initial_location_source_id = start_loc_id
+                         initial_location_id = l_row.id
+
+                         l_data = json.loads(l_row.data)
+                         l_desc = l_data.get('description', {})
+                         if isinstance(l_desc, dict):
+                             initial_location_desc = l_desc.get('visual', "A mystery location.")
+                         else:
+                             initial_location_desc = str(l_desc)
+
+                     # Fetch NPCs present at this location
+                     query_npcs = select(npcs.c.id, npcs.c.name, npcs.c.role, npcs.c.data).where(
+                         npcs.c.campaign_id == new_id
+                     )
+                     n_res = await db.execute(query_npcs)
+                     all_npcs = n_res.all()
+
+                     for n_row in all_npcs:
+                         n_data = json.loads(n_row.data)
+                         schedule = n_data.get('schedule', [])
+                         is_here = False
+                         for slot in schedule:
+                             if slot.get('location') == start_loc_id:
+                                 is_here = True
+                                 break
+
+                         if is_here:
+                             # Create NPC Entity
+                             hp = n_data.get('stats', {}).get('hp', 10)
+                             ac = n_data.get('stats', {}).get('ac', 10)
+
+                             # Hostility Sync
+                             disposition = n_data.get('disposition', {})
+                             attitude = disposition.get('attitude', '').lower()
+                             HOSTILE_ATTITUDES = ['hostile', 'aggressive', 'violent', 'enemy', 'attack on sight']
+
+                             if any(h in attitude for h in HOSTILE_ATTITUDES):
+                                 if 'hostile' not in n_data:
+                                     n_data['hostile'] = True
+
+                             initial_npcs.append(NPC(
+                                 id=n_row.id,
+                                 name=n_row.name,
+                                 is_ai=True,
+                                 hp_current=hp,
+                                 hp_max=hp,
+                                 ac=ac,
+                                 role=n_row.role,
+                                 position=Coordinates(q=0, r=0, s=0),
+                                 data=n_data
+                             ))
+
+    except Exception as e:
+        logger.error(f"Error checking starting location/NPCs: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+
     initial_state = GameState(
         session_id=new_id,
-        location=Location(name="The Beginning", description="A new adventure begins."),
-        party=[]
+        location=Location(
+            id=initial_location_id,
+            source_id=initial_location_source_id,
+            name=initial_location_name,
+            description=initial_location_desc
+        ),
+        party=[],
+        npcs=initial_npcs
     )
 
-    await db.execute(
-        text("INSERT INTO game_states (id, campaign_id, turn_index, phase, state_data) VALUES (:id, :campaign_id, :turn_index, :phase, :state_data)"),
-        {"id": str(uuid4()), "campaign_id": new_id, "turn_index": 0, "phase": "exploration", "state_data": initial_state.model_dump_json()}
+    stmt_state = insert(game_states).values(
+        id=str(uuid4()),
+        campaign_id=new_id,
+        turn_index=0,
+        phase="exploration",
+        state_data=initial_state.model_dump_json()
     )
+    await db.execute(stmt_state)
     await db.commit()
 
     return CampaignResponse(
@@ -111,96 +267,78 @@ async def create_campaign(
         gm_id=req.gm_id,
         status="active",
         created_at="Just now",
-        api_key_verified=False,
-        api_key_configured=bool(req.api_key)
+        api_key_verified=is_verified,
+        api_key_configured=bool(req.api_key),
+        template_id=req.template_id
     )
 
 @router.patch("/{campaign_id}", response_model=CampaignDetailsResponse)
 async def update_campaign(
     campaign_id: str,
-    req: UpdateCampaignRequest, 
+    req: UpdateCampaignRequest,
     user: dict = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
     # Verify Admin or GM
-    # For now strict admin/gm check
     if not await is_admin(user, db):
          # Check if GM
-         result = await db.execute(text("SELECT gm_id FROM campaigns WHERE id = :id"), {"id": campaign_id})
-         row = result.mappings().fetchone()
-         if not row or row['gm_id'] != user['uid']:
+         query = select(campaigns.c.gm_id).where(campaigns.c.id == campaign_id)
+         result = await db.execute(query)
+         gm_id = result.scalar()
+         if not gm_id or gm_id != user['uid']:
              raise HTTPException(status_code=403, detail="Not authorized")
 
-    updates = []
     values = {}
     if req.name:
-        updates.append("name = :name")
         values["name"] = req.name
     if req.api_key is not None:
-        updates.append("api_key = :api_key")
         values["api_key"] = req.api_key
         # If key is being updated, check if verified flag is also provided
         # If not provided, assume False because key changed
         if req.api_key_verified is None:
-             updates.append("api_key_verified = :api_key_verified_false")
-             values["api_key_verified_false"] = False # using unique keys for safety
+             values["api_key_verified"] = False
 
     if req.api_key_verified is not None:
-        updates.append("api_key_verified = :api_key_verified")
         values["api_key_verified"] = req.api_key_verified
 
     if req.model:
-        updates.append("model = :model")
         values["model"] = req.model
     if req.system_prompt:
-        updates.append("system_prompt = :system_prompt")
         values["system_prompt"] = req.system_prompt
 
-    if not updates:
-         # Just return current without update
-         result = await db.execute(text("SELECT * FROM campaigns WHERE id = :id"), {"id": campaign_id})
-         row = result.mappings().fetchone()
-         if not row: raise HTTPException(status_code=404)
-         return CampaignDetailsResponse(
-            id=row["id"],
-            name=row["name"],
-            gm_id=row["gm_id"],
-            status=row["status"],
-            created_at=row["created_at"],
-            api_key=row["api_key"],
-            api_key_verified=row["api_key_verified"],
-            api_key_configured=bool(row["api_key"]),
-            model=row["model"],
-            system_prompt=row["system_prompt"]
+    if values:
+        stmt = (
+            update(campaigns)
+            .where(campaigns.c.id == campaign_id)
+            .values(**values)
         )
-
-    values["id"] = campaign_id
-    query = f"UPDATE campaigns SET {', '.join(updates)} WHERE id = :id"
-
-    await db.execute(text(query), values)
-    await db.commit()
+        await db.execute(stmt)
+        await db.commit()
 
     # Fetch updated
-    result = await db.execute(text("SELECT * FROM campaigns WHERE id = :id"), {"id": campaign_id})
-    row = result.mappings().fetchone()
+    query = select(campaigns).where(campaigns.c.id == campaign_id)
+    result = await db.execute(query)
+    row = result.first()
+
+    if not row: raise HTTPException(status_code=404)
 
     return CampaignDetailsResponse(
-        id=row["id"],
-        name=row["name"],
-        gm_id=row["gm_id"],
-        status=row["status"],
-        created_at=row["created_at"],
-        api_key=row["api_key"],
-        api_key_verified=row["api_key_verified"],
-        api_key_configured=bool(row["api_key"]),
-        model=row["model"],
-        system_prompt=row["system_prompt"]
+        id=row.id,
+        name=row.name,
+        gm_id=row.gm_id,
+        status=row.status,
+        created_at=row.created_at,
+        api_key=row.api_key,
+        api_key_verified=row.api_key_verified,
+        api_key_configured=bool(row.api_key),
+        model=row.model,
+        system_prompt=row.system_prompt
     )
 
 @router.put("/{campaign_id}/settings")
 async def update_campaign_settings(
-    campaign_id: str, 
-    settings: dict, 
+    campaign_id: str,
+    settings: dict,
     user: dict = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
@@ -209,31 +347,30 @@ async def update_campaign_settings(
         raise HTTPException(status_code=403, detail="Only admins can modify campaign settings")
 
     # Validate Campaign Existence
-    result = await db.execute(text("SELECT id FROM campaigns WHERE id = :id"), {"id": campaign_id})
-    if not result.mappings().fetchone():
+    query = select(campaigns.c.id).where(campaigns.c.id == campaign_id)
+    result = await db.execute(query)
+    if not result.first():
         raise HTTPException(status_code=404, detail="Campaign not found")
 
     api_key = settings.get("api_key")
     model = settings.get("model")
 
-    updates = []
-    params = {}
-
+    values = {}
     if api_key is not None:
-        updates.append("api_key = :api_key")
-        params["api_key"] = api_key
-
+        values["api_key"] = api_key
     if model is not None:
-        updates.append("model = :model")
-        params["model"] = model
+        values["model"] = model
 
-    if not updates:
+    if not values:
         return {"status": "no changes"}
 
-    params["id"] = campaign_id
-    query = f"UPDATE campaigns SET {', '.join(updates)} WHERE id = :id"
-    
-    await db.execute(text(query), params)
+    stmt = (
+        update(campaigns)
+        .where(campaigns.c.id == campaign_id)
+        .values(**values)
+    )
+
+    await db.execute(stmt)
     await db.commit()
 
     return {"status": "success", "message": "Settings updated"}
@@ -244,24 +381,219 @@ async def get_campaign(
     user: dict = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(text("SELECT * FROM campaigns WHERE id = :id"), {"id": campaign_id})
-    row = result.mappings().fetchone()
+    query = select(campaigns).where(campaigns.c.id == campaign_id)
+    result = await db.execute(query)
+    row = result.first()
     if not row:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
-    return CampaignDetailsResponse(
-        id=row["id"],
-        name=row["name"],
-        gm_id=row["gm_id"],
-        status=row["status"],
-        created_at=row["created_at"],
-        api_key=row["api_key"] if await is_admin(user, db) else None, # Hide API key from non-admins? Or return masked?
-        # The prompt implies strictly admin flow for settings, so maybe users don't need it here.
-        api_key_verified=row["api_key_verified"],
-        api_key_configured=bool(row["api_key"]),
-        model=row["model"],
-        system_prompt=row["system_prompt"]
+    # Get user participant status
+    user_status = None
+    user_role = None
+
+    # Check if user is participant
+    p_query = select(campaign_participants.c.role, campaign_participants.c.status).where(
+        campaign_participants.c.campaign_id == campaign_id,
+        campaign_participants.c.user_id == user['uid']
     )
+    part_result = await db.execute(p_query)
+    part_row = part_result.first()
+
+    if part_row:
+        user_status = part_row.status
+        user_role = part_row.role
+    elif await is_admin(user, db):
+        pass
+
+    return CampaignDetailsResponse(
+        id=row.id,
+        name=row.name,
+        gm_id=row.gm_id,
+        status=row.status,
+        created_at=row.created_at,
+        api_key=row.api_key if await is_admin(user, db) else None,
+        api_key_verified=row.api_key_verified,
+        api_key_configured=bool(row.api_key),
+        model=row.model,
+        system_prompt=row.system_prompt,
+        user_status=user_status,
+        user_role=user_role,
+        total_input_tokens=row.total_input_tokens or 0,
+        total_output_tokens=row.total_output_tokens or 0,
+        query_count=row.query_count or 0
+    )
+
+@router.post("/{campaign_id}/join")
+async def join_campaign(
+    campaign_id: str,
+    user: dict = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    # Check if campaign exists
+    camp_result = await db.execute(text("SELECT * FROM campaigns WHERE id = :id"), {"id": campaign_id})
+    camp = camp_result.mappings().fetchone()
+    if not camp:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    # Check if already joined
+    part_result = await db.execute(
+        text("SELECT * FROM campaign_participants WHERE campaign_id = :cid AND user_id = :uid"),
+        {"cid": campaign_id, "uid": user['uid']}
+    )
+    if part_result.mappings().fetchone():
+        return {"message": "Already joined"}
+
+    # Determine Role/Status
+    role = "player"
+    status = "interested"
+
+    # If Admin -> Active
+    if await is_admin(user, db):
+        status = "active"
+
+    # If User is GM (by ID match on campaign) -> GM, Active
+    # (Should have happened at creation, but just in case)
+    if camp['gm_id'] == user['uid']:
+        role = "gm"
+        status = "active"
+
+    await db.execute(
+        text("INSERT INTO campaign_participants (id, campaign_id, user_id, role, status) VALUES (:id, :cid, :uid, :role, :status)"),
+        {"id": str(uuid4()), "cid": campaign_id, "uid": user['uid'], "role": role, "status": status}
+    )
+    await db.commit()
+    return {"status": status, "role": role}
+
+@router.get("/{campaign_id}/participants", response_model=List[CampaignParticipantResponse])
+async def list_participants(
+    campaign_id: str,
+    user: dict = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    # Auth Check: Must be participant (or Admin) to see list?
+    # Or maybe just anyone? Let's restrict to people who have at least 'interested' status or Admin.
+    if not await is_admin(user, db):
+        check = await db.execute(text("SELECT status FROM campaign_participants WHERE campaign_id=:cid AND user_id=:uid"), {"cid": campaign_id, "uid": user['uid']})
+        if not check.scalar():
+             raise HTTPException(status_code=403, detail="Must join campaign to view participants")
+
+    # Fetch Participants + Profile Info
+from db.schema import campaigns, campaign_templates, campaign_participants, game_states, characters, chat_messages, npcs, locations, profiles
+
+@router.get("/{campaign_id}/participants", response_model=List[CampaignParticipantResponse])
+async def list_participants(
+    campaign_id: str,
+    user: dict = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    # Auth Check: Must be participant (or Admin) to see list?
+    if not await is_admin(user, db):
+        query = select(campaign_participants.c.status).where(
+            campaign_participants.c.campaign_id == campaign_id,
+            campaign_participants.c.user_id == user['uid']
+        )
+        check = await db.execute(query)
+        if not check.scalar():
+             raise HTTPException(status_code=403, detail="Must join campaign to view participants")
+
+    # Fetch Participants + Profile Info
+    # JOIN users and participants
+    j_query = (
+        select(
+            campaign_participants.c.user_id.label("id"),
+            campaign_participants.c.role,
+            campaign_participants.c.status,
+            campaign_participants.c.joined_at,
+            profiles.c.username
+        )
+        .select_from(
+            campaign_participants.join(profiles, campaign_participants.c.user_id == profiles.c.id)
+        )
+        .where(campaign_participants.c.campaign_id == campaign_id)
+        .order_by(campaign_participants.c.joined_at)
+    )
+
+    result = await db.execute(j_query)
+    users = result.all()
+
+    # Fetch Characters for all these users in this campaign
+    chars_by_user = {}
+    if users:
+        c_query = select(
+            characters.c.id, characters.c.user_id, characters.c.name,
+            characters.c.race, characters.c.role.label("class_name"), characters.c.level
+        ).where(characters.c.campaign_id == campaign_id)
+
+        c_result = await db.execute(c_query)
+        chars = c_result.all()
+
+        for c in chars:
+            if c.user_id not in chars_by_user:
+                chars_by_user[c.user_id] = []
+            chars_by_user[c.user_id].append(ParticipantCharacter(
+                id=c.id,
+                name=c.name,
+                race=c.race or "Unknown",
+                class_name=c.class_name,
+                level=c.level
+            ))
+
+    response = []
+    for u in users:
+        response.append(CampaignParticipantResponse(
+            id=u.id,
+            username=u.username,
+            role=u.role,
+            status=u.status,
+            joined_at=u.joined_at,
+            characters=chars_by_user.get(u.id, [])
+        ))
+
+    return response
+
+@router.patch("/{campaign_id}/participants/{target_user_id}")
+async def update_participant(
+    campaign_id: str,
+    target_user_id: str,
+    req: UpdateParticipantRequest,
+    user: dict = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    # Verify Requester is GM or Admin
+    if not await is_admin(user, db):
+        # Check if GM
+        query = select(campaign_participants.c.role).where(
+            campaign_participants.c.campaign_id == campaign_id,
+            campaign_participants.c.user_id == user['uid'],
+            campaign_participants.c.role == 'gm',
+            campaign_participants.c.status == 'active'
+        )
+        gm_check = await db.execute(query)
+        if not gm_check.scalar():
+            raise HTTPException(status_code=403, detail="Only GM or Admin can manage participants")
+
+    values = {}
+    if req.role:
+        values["role"] = req.role
+    if req.status:
+        values["status"] = req.status
+
+    if not values:
+        return {"status": "no changes"}
+
+    stmt = (
+        update(campaign_participants)
+        .where(
+            campaign_participants.c.campaign_id == campaign_id,
+            campaign_participants.c.user_id == target_user_id
+        )
+        .values(**values)
+    )
+
+    await db.execute(stmt)
+    await db.commit()
+
+    return {"status": "success"}
 
 @router.delete("/{campaign_id}")
 async def delete_campaign(
@@ -274,20 +606,24 @@ async def delete_campaign(
         raise HTTPException(status_code=403, detail="Only admins can delete campaigns")
 
     # Check existence
-    result = await db.execute(text("SELECT id FROM campaigns WHERE id = :id"), {"id": campaign_id})
-    if not result.mappings().fetchone():
+    query = select(campaigns.c.id).where(campaigns.c.id == campaign_id)
+    result = await db.execute(query)
+    if not result.first():
         raise HTTPException(status_code=404, detail="Campaign not found")
 
     try:
         # Delete related game states
-        await db.execute(text("DELETE FROM game_states WHERE campaign_id = :id"), {"id": campaign_id})
+        await db.execute(delete(game_states).where(game_states.c.campaign_id == campaign_id))
         # Delete related characters
-        await db.execute(text("DELETE FROM characters WHERE campaign_id = :id"), {"id": campaign_id})
+        await db.execute(delete(characters).where(characters.c.campaign_id == campaign_id))
         # Delete related chat messages
-        await db.execute(text("DELETE FROM chat_messages WHERE campaign_id = :id"), {"id": campaign_id})
-        
+        await db.execute(delete(chat_messages).where(chat_messages.c.campaign_id == campaign_id))
+        # Delete participants
+        await db.execute(delete(campaign_participants).where(campaign_participants.c.campaign_id == campaign_id))
+
         # Delete the campaign
-        await db.execute(text("DELETE FROM campaigns WHERE id = :id"), {"id": campaign_id})
+        await db.execute(delete(campaigns).where(campaigns.c.id == campaign_id))
+
         await db.commit()
     except Exception as e:
         await db.rollback()

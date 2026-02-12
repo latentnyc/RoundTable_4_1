@@ -16,15 +16,20 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
+// Initialize Firebase
+
+
 const app = initializeApp(firebaseConfig);
 // const analytics = getAnalytics(app); // Analytics optional
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
 
+
+
 // Connect to Emulators in Development
-if (location.hostname === "localhost") {
-    console.log("🔧 Connecting to Firebase Emulators");
-    connectAuthEmulator(auth, "http://localhost:9099");
-    connectFirestoreEmulator(db, "localhost", 8080);
+if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
+
+    connectAuthEmulator(auth, "http://127.0.0.1:9099");
+    connectFirestoreEmulator(db, "127.0.0.1", 8080);
 }

@@ -4,6 +4,7 @@ import { useSocketStore } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
 import { Send, User, Bot, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Character } from '@/lib/api';
 
 interface ChatInterfaceProps {
     campaignId: string;
@@ -41,14 +42,14 @@ export default function ChatInterface({ campaignId, characterId }: ChatInterface
         if (!inputValue.trim()) return;
 
         // Find active character
-        const party = (useSocketStore.getState().gameState?.party || []) as any[];
+        const party = (useSocketStore.getState().gameState?.party || []) as Character[];
         // Priority: Passed characterId prop -> Active Store Character -> First Character owned by user -> User Profile
 
         let senderName = profile?.username || 'Player';
         let senderId = profile?.id; // Default to user ID if no character
 
         // We need to know WHICH character the user is "acting" as.
-        // The `characterId` prop is passed from GameInterface. 
+        // The `characterId` prop is passed from GameInterface.
         // If it's set, we use it.
         if (characterId) {
             const char = party.find(p => p.id === characterId);
@@ -129,7 +130,7 @@ export default function ChatInterface({ campaignId, characterId }: ChatInterface
 
                 {messages.map((msg, idx) => {
                     // Find the character associated with this message
-                    const party = (useSocketStore.getState().gameState?.party || []) as any[];
+                    const party = (useSocketStore.getState().gameState?.party || []) as Character[];
                     const isSystem = msg.is_system;
                     const isDM = msg.sender_id === 'dm';
 

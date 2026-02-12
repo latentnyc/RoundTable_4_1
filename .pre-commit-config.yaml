@@ -1,0 +1,32 @@
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+    -   id: trailing-whitespace
+    -   id: end-of-file-fixer
+    -   id: check-yaml
+    -   id: check-added-large-files
+
+# -   repo: https://github.com/yelp/detect-secrets
+#     rev: v1.4.0
+#     hooks:
+#     -   id: detect-secrets
+#         args: ['--baseline', '.secrets.baseline']
+#         exclude: package-lock.json
+
+-   repo: local
+    hooks:
+    -   id: no-console-log-frontend
+        name: No console.log in Frontend
+        entry: console\.log
+        language: pygrep
+        types: [text]
+        files: ^frontend/src/.*\.tsx?$
+        exclude: ^frontend/src/lib/firebase.ts|vite.config.ts
+    -   id: no-print-backend
+        name: No print() in Backend
+        entry: print\(
+        language: pygrep
+        types: [python]
+        files: ^backend/app/
+        exclude: ^backend/tests/|^backend/debug_db.py|^backend/scripts/

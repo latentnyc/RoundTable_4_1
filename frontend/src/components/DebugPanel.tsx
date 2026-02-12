@@ -12,6 +12,10 @@ export default function DebugPanel() {
     // const [healthMessage, setHealthMessage] = useState<string>(''); // Replaced by lastPing
     const [showClearConfirm, setShowClearConfirm] = useState(false);
 
+    const openLogPopup = () => {
+        window.open('/logs', 'AI_Logs', 'width=800,height=600,scrollbars=yes,resizable=yes');
+    };
+
     // Auto-ping every 5 seconds
     useEffect(() => {
         if (!isConnected) return;
@@ -24,7 +28,7 @@ export default function DebugPanel() {
         measurePing();
 
         return () => clearInterval(interval);
-    }, [isConnected]);
+    }, [isConnected, measurePing]);
 
     // Derived status message
     const getStatusMessage = () => {
@@ -47,118 +51,121 @@ export default function DebugPanel() {
     }, [debugLogs]);
 
     const getLogColor = (type: DebugLogItem['type'], agentName?: string) => {
-        // Distinct color for AI Characters vs System/DM
         if (agentName && agentName !== 'System' && agentName !== 'Dungeon Master') {
             switch (type) {
-                case 'llm_start': return 'text-purple-400 border-purple-900/30 bg-purple-900/10';
-                case 'llm_end': return 'text-pink-400 border-pink-900/30 bg-pink-900/10';
-                case 'tool_start': return 'text-fuchsia-400 border-fuchsia-900/30 bg-fuchsia-900/10';
-                case 'tool_end': return 'text-rose-400 border-rose-900/30 bg-rose-900/10';
+                case 'llm_start': return 'text-purple-400';
+                case 'llm_end': return 'text-purple-300';
+                case 'tool_start': return 'text-fuchsia-400';
+                case 'tool_end': return 'text-fuchsia-300';
                 default: return 'text-purple-400';
             }
         }
 
         switch (type) {
-            case 'llm_start': return 'text-blue-400 border-blue-900/30 bg-blue-900/10';
-            case 'llm_end': return 'text-green-400 border-green-900/30 bg-green-900/10';
-            case 'tool_start': return 'text-yellow-400 border-yellow-900/30 bg-yellow-900/10';
-            case 'tool_end': return 'text-orange-400 border-orange-900/30 bg-orange-900/10';
-            default: return 'text-gray-400';
+            case 'llm_start': return 'text-blue-400';
+            case 'llm_end': return 'text-emerald-400';
+            case 'tool_start': return 'text-amber-400';
+            case 'tool_end': return 'text-orange-400';
+            default: return 'text-neutral-500';
         }
     };
 
     return (
-        <div className="flex flex-col h-full bg-neutral-900/50 rounded-lg border border-neutral-800 overflow-hidden">
-            {/* Status / Health Check Button (Now a display) */}
-            <div
-                className={`
-                    w-full px-3 py-2 text-[10px] font-mono border-b border-neutral-800 
-                    flex items-center justify-between transition-colors bg-black/50
-                `}
-            >
-                <div className="flex flex-col items-start gap-0.5">
-                    <div className="flex items-center gap-2">
-                        <span className={`
-                            w-2 h-2 rounded-full 
-                            ${isConnected ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" : "bg-red-500"}
-                        `} />
-                        <span className={`font-bold ${getStatusColor()}`}>
-                            {getStatusMessage()}
-                        </span>
-                    </div>
-                    {(socket?.id || user?.uid) && (
-                        <span className="text-neutral-600 text-[9px] truncate max-w-[200px]">
-                            {socket?.id ? `Socket: ${socket.id}` : `UID: ${user?.uid}`}
-                        </span>
+        <div className="flex flex-col h-full bg-neutral-900/40 backdrop-blur-md rounded-xl border border-white/5 overflow-hidden">
+            {/* Status / Health Check Display */}
+            <div className="w-full px-3 py-2 border-b border-white/5 flex items-center justify-between transition-colors bg-white/[0.02]">
+                <div className="flex items-center gap-2">
+                    <span className={`
+                        w-1.5 h-1.5 rounded-full
+                        ${isConnected ? "bg-emerald-500/50 shadow-[0_0_8px_rgba(16,185,129,0.3)]" : "bg-red-500/50"}
+                    `} />
+                    <span className={`font-mono text-[10px] ${getStatusColor()} opacity-80`}>
+                        {getStatusMessage()}
+                    </span>
+                </div>
+                {(socket?.id || user?.uid) && (
+                    <span className="text-neutral-600 text-[9px] font-mono truncate max-w-[120px]">
+                        {socket?.id ? `ID: ${socket.id.slice(0, 6)}...` : `UID: ${user?.uid.slice(0, 6)}...`}
+                    </span>
+                )}
+            </div>
+
+            <div className="flex items-center justify-between px-3 py-2 border-b border-white/5 bg-transparent">
+                <h3 className="text-[10px] font-semibold text-neutral-500 uppercase tracking-widest">
+                    Live Logs
+                </h3>
+
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={openLogPopup}
+                        className="text-[10px] text-neutral-600 hover:text-neutral-300 transition-colors uppercase tracking-wider flex items-center gap-1"
+                        title="Open Full Console"
+                    >
+                        Expand
+                    </button>
+
+                    <div className="h-3 w-px bg-white/10"></div>
+
+                    {showClearConfirm ? (
+                        <div className="flex items-center gap-2">
+                            <span className="text-[9px] text-red-400/80 font-medium">Reset?</span>
+                            <button
+                                onClick={() => {
+                                    clearLogs();
+                                    setShowClearConfirm(false);
+                                }}
+                                className="text-[9px] text-red-400 hover:text-red-300 transition-colors"
+                            >
+                                Y
+                            </button>
+                            <button
+                                onClick={() => setShowClearConfirm(false)}
+                                className="text-[9px] text-neutral-500 hover:text-neutral-300 transition-colors"
+                            >
+                                N
+                            </button>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={() => setShowClearConfirm(true)}
+                            className="text-[10px] text-neutral-600 hover:text-neutral-400 transition-colors uppercase tracking-wider"
+                            title="Clear Logs"
+                        >
+                            Clear
+                        </button>
                     )}
                 </div>
             </div>
 
-            <div className="flex items-center justify-between p-3 border-b border-neutral-800 bg-neutral-900">
-                <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                    AI Query Log
-                </h3>
-
-                {showClearConfirm ? (
-                    <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-red-400 font-bold uppercase">Are you sure?</span>
-                        <button
-                            onClick={() => {
-                                clearLogs();
-                                setShowClearConfirm(false);
-                            }}
-                            className="text-[10px] bg-red-900/30 border border-red-900/50 text-red-400 px-2 py-0.5 rounded hover:bg-red-900/50 transition-colors"
-                        >
-                            Yes
-                        </button>
-                        <button
-                            onClick={() => setShowClearConfirm(false)}
-                            className="text-[10px] text-neutral-500 hover:text-neutral-300 transition-colors"
-                        >
-                            Cancel
-                        </button>
-                    </div>
-                ) : (
-                    <button
-                        onClick={() => setShowClearConfirm(true)}
-                        className="text-xs text-neutral-600 hover:text-white transition-colors"
-                    >
-                        Clear
-                    </button>
-                )}
-            </div>
-
             <div
                 ref={scrollRef}
-                className="flex-1 overflow-y-auto p-4 space-y-3 font-mono text-xs"
+                className="flex-1 overflow-y-auto p-2 space-y-0.5 font-mono text-[10px]"
             >
                 {debugLogs.length === 0 ? (
-                    <div className="text-neutral-600 text-center mt-10 italic">
-                        No AI activity recorded yet...
+                    <div className="h-full flex flex-col items-center justify-center text-neutral-700 italic text-[10px] gap-2">
+                        <span>Waiting for activity...</span>
                     </div>
                 ) : (
                     debugLogs.map((log, idx) => (
-                        <div key={idx} className={`p-3 rounded border ${getLogColor(log.type, log.agent_name)}`}>
-                            <div className="flex justify-between items-start mb-1 opacity-75">
-                                <span className="uppercase font-bold text-[10px] flex items-center gap-2">
-                                    {log.agent_name && (
-                                        <span className="px-1.5 py-0.5 rounded bg-black/30 text-[9px]">
-                                            {log.agent_name}
-                                        </span>
-                                    )}
-                                    {log.type.replace('_', ' ')}
+                        <div key={idx} className={`px-2 py-1.5 rounded hover:bg-white/[0.02] transition-colors group ${getLogColor(log.type, log.agent_name)}`}>
+                            <div className="flex justify-between items-baseline opacity-50 group-hover:opacity-100 transition-opacity mb-0.5">
+                                <span className="uppercase font-bold text-[8px] tracking-wider text-neutral-600">
+                                    {log.agent_name || log.type.replace('_', ' ')}
                                 </span>
-                                <span className="text-[10px]">{log.timestamp}</span>
+                                <span className="text-[8px] opacity-50">{log.timestamp.split(' ')[1]}</span>
                             </div>
-                            <div className="whitespace-pre-wrap break-words mb-2">
-                                {log.content}
+
+                            <div className="text-neutral-400/90 leading-tight">
+                                {typeof log.content === 'string' ? log.content : JSON.stringify(log.content)}
                             </div>
-                            {/* Show full content as requested */}
-                            {log.full_content && (
-                                <details className="mt-2 text-[10px] bg-black/20 p-2 rounded">
-                                    <summary className="cursor-pointer opacity-70 hover:opacity-100">Show Full Payload</summary>
-                                    <pre className="mt-2 text-wrap break-all whitespace-pre-wrap overflow-x-auto">
+
+                            {/* Only show expander if there is significant content */}
+                            {!!log.full_content && (
+                                <details className="mt-1 opacity-40 hover:opacity-100 transition-opacity">
+                                    <summary className="cursor-pointer text-[8px] flex items-center gap-1 select-none text-neutral-600 hover:text-neutral-400">
+                                        <span>Show Payload</span>
+                                    </summary>
+                                    <pre className="mt-1 text-[9px] text-neutral-500 overflow-x-auto p-2 rounded bg-black/40 border border-white/5 mx-[-4px]">
                                         {typeof log.full_content === 'string'
                                             ? log.full_content
                                             : JSON.stringify(log.full_content, null, 2)}
@@ -169,6 +176,6 @@ export default function DebugPanel() {
                     ))
                 )}
             </div>
-        </div>
+        </div >
     );
 }

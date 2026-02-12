@@ -1,0 +1,147 @@
+{
+    "campaign_meta": {
+        "id": "combat_test_goblin",
+        "title": "Goblin Combat Test",
+        "genre": "Combat Simulation",
+        "description": "A simple combat starting test scenario where you are in a torchlit room with a hostile goblin.",
+        "setting_system_prompt": "A gritty combat test scenario. The player starts in a room with a hostile goblin.",
+        "time_config": {
+            "day_length_hours": 24,
+            "sunrise": "06:00",
+            "sunset": "18:00",
+            "current_time": "12:00",
+            "day_state": "day"
+        },
+        "starting_location": "loc_room",
+        "starting_npc": ""
+    },
+    "narrative_state": {
+        "active_quests": [],
+        "variables": {},
+        "story_threads": {
+            "primary": "Survive the goblin attack.",
+            "second_story": "",
+            "romance": "",
+            "boss_fight": {
+                "description": "",
+                "trigger": "",
+                "location": ""
+            }
+        },
+        "timeline": []
+    },
+    "quests": [],
+    "atlas": [
+        {
+            "id": "loc_room",
+            "name": "Torchlit Room",
+            "active_hours": "always",
+            "description": {
+                "visual": "A square stone room. Torches flicker in iron sconces on the walls, casting dancing shadows. The air is stale.",
+                "auditory": "The crackle of torches and the heavy breathing of a goblin.",
+                "olfactory": "Smoke, sweat, and unwashed goblin.",
+                "anchors": [
+                    "torches",
+                    "stone walls",
+                    "shadows"
+                ],
+                "anti_drift": "A contained combat arena.",
+                "connections": [],
+                "secrets": []
+            },
+            "environmental_state": {
+                "light_level": "bright",
+                "light_required": false,
+                "hazards": []
+            },
+            "interactables": [],
+            "secrets": []
+        }
+    ],
+    "npcs": [
+        {
+            "id": "npc_goblin",
+            "name": "Grimtooth",
+            "description": "A small, scowling goblin with a jagged tooth.",
+            "role": "Enemy",
+            "race": "Goblin",
+            "stats": {
+                "str": 8,
+                "dex": 14,
+                "con": 10,
+                "int": 10,
+                "wis": 8,
+                "cha": 8
+            },
+            "voice": {
+                "tone": "Scratchy, aggressive, menacing.",
+                "samples": [
+                    "Shiny things! Mine!",
+                    "You die now!"
+                ]
+            },
+            "equipment": [
+                "item_scimitar",
+                "item_leather_armor"
+            ],
+            "schedule": [
+                {
+                    "time": "00:00-24:00",
+                    "location": "loc_room",
+                    "activity": "waiting to ambush"
+                }
+            ],
+            "disposition": {
+                "base": "aggressive",
+                "attitude": "Hostile",
+                "triggers": {},
+                "romance_eligible": false,
+                "player_affinity": -10
+            },
+            "secrets": []
+        }
+    ],
+    "monsters": [
+        {
+            "id": "mon_goblin",
+            "name": "Goblin",
+            "type": "humanoid",
+            "description": "A small, green-skinned humanoid with sharp teeth.",
+            "stats": {
+                "ac": 15,
+                "hp": 7,
+                "spd": 30
+            },
+            "abilities": [
+                "Nimble Escape"
+            ],
+            "behavior": "Hit and run tactics."
+        }
+    ],
+    "items": [
+        {
+            "id": "item_scimitar",
+            "name": "Scimitar",
+            "type": "weapon",
+            "description": "A curved sword with a sharp edge.",
+            "usage": "Weapon",
+            "stats": {
+                "damage": "1d6 slashing"
+            },
+            "abilities": [],
+            "behavior": ""
+        },
+        {
+            "id": "item_leather_armor",
+            "name": "Leather Armor",
+            "type": "armor",
+            "description": "Armor made from stiffened leather.",
+            "usage": "Armor",
+            "stats": {
+                "ac_bonus": 1
+            },
+            "abilities": [],
+            "behavior": ""
+        }
+    ]
+}

@@ -104,7 +104,7 @@ export const RACES: Record<string, RaceData> = {
     'Half-Elf': {
         name: 'Half-Elf',
         speed: 30,
-        bonuses: { Charisma: 2 }, // +1 to two others (handle manually or prompt user? For simplicity, we might just give fixed or ignore the +1s in Lite mode. Full scope needs choice. TODO: Implement +1 choice logic or leave as manual edit for those)
+        bonuses: { Charisma: 2 }, // Future implementation: Implement +1 choice logic for Half-Elf/etc.
         traits: ['Darkvision', 'Fey Ancestry', 'Skill Versatility']
     },
     'Half-Orc': {

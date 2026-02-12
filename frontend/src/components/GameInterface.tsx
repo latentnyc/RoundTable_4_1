@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import ChatInterface from './ChatInterface';
 import DebugPanel from './DebugPanel';
+import AIStatsPanel from './AIStatsPanel';
 import PartyMember from './PartyMember';
 import { useSocketStore } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
 import { useCharacterStore } from '@/store/characterStore';
+import { useCreateCharacterStore } from '@/store/createCharacterStore';
 import { Character } from '@/lib/api';
 import { Users } from 'lucide-react';
 
@@ -49,9 +51,9 @@ export default function GameInterface({ campaignId }: GameInterfaceProps) {
                             <PartyMember
                                 key={char.id}
                                 character={char}
-                                isActive={false} // Todo: highlight active turn
+                                isActive={false} // Future implementation: Highlight active turn based on initiative order
                                 onClick={() => {
-                                    useCharacterStore.getState().loadCharacter(char);
+                                    useCreateCharacterStore.getState().loadCharacter(char);
                                     navigate('/create-character?edit=true');
                                 }}
                             />
@@ -113,8 +115,11 @@ export default function GameInterface({ campaignId }: GameInterfaceProps) {
 
             {/* Right Sidebar: Debug / Info (Hidden on mobile, visible on xl) */}
             <div className="hidden xl:flex w-80 flex-col gap-4 shrink-0">
-                <div className="flex-1 h-full overflow-hidden">
+                <div className="flex-[2] overflow-hidden min-h-0">
                     <DebugPanel />
+                </div>
+                <div className="flex-1 overflow-hidden min-h-0">
+                    <AIStatsPanel />
                 </div>
             </div>
         </div>

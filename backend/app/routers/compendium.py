@@ -27,20 +27,20 @@ async def search_spells(q: str = Query(None), db: AsyncSession = Depends(get_db)
             text("SELECT id, name, data FROM spells LIMIT 25")
         )
     rows = result.mappings().all()
-    
+
     results = []
     for row in rows:
         try:
             data = json.loads(row['data'])
         except:
             data = {}
-        
+
         results.append(CompendiumItem(
             id=row['id'],
             name=row['name'],
             data=data
         ))
-        
+
     return results
 
 @router.get("/feats", response_model=List[CompendiumItem])
@@ -56,20 +56,20 @@ async def search_feats(q: str = Query(None), db: AsyncSession = Depends(get_db))
             text("SELECT id, name, data FROM feats LIMIT 25")
         )
     rows = result.mappings().all()
-    
+
     results = []
     for row in rows:
         try:
             data = json.loads(row['data'])
         except:
             data = {}
-        
+
         results.append(CompendiumItem(
             id=row['id'],
             name=row['name'],
             data=data
         ))
-        
+
     return results
 
 @router.get("/races", response_model=List[CompendiumItem])
@@ -85,20 +85,20 @@ async def search_races(q: str = Query(None), db: AsyncSession = Depends(get_db))
             text("SELECT id, name, data FROM races LIMIT 25")
         )
     rows = result.mappings().all()
-    
+
     results = []
     for row in rows:
         try:
             data = json.loads(row['data'])
         except:
             data = {}
-        
+
         results.append(CompendiumItem(
             id=row['id'],
             name=row['name'],
             data=data
         ))
-        
+
     return results
 
 @router.get("/classes", response_model=List[CompendiumItem])
@@ -114,20 +114,20 @@ async def search_classes(q: str = Query(None), db: AsyncSession = Depends(get_db
             text("SELECT id, name, data FROM classes LIMIT 25")
         )
     rows = result.mappings().all()
-    
+
     results = []
     for row in rows:
         try:
             data = json.loads(row['data'])
         except:
             data = {}
-        
+
         results.append(CompendiumItem(
             id=row['id'],
             name=row['name'],
             data=data
         ))
-        
+
     return results
 
 @router.get("/alignments", response_model=List[CompendiumItem])
@@ -143,20 +143,20 @@ async def search_alignments(q: str = Query(None), db: AsyncSession = Depends(get
             text("SELECT id, name, data FROM alignments LIMIT 25")
         )
     rows = result.mappings().all()
-    
+
     results = []
     for row in rows:
         try:
             data = json.loads(row['data'])
         except:
             data = {}
-        
+
         results.append(CompendiumItem(
             id=row['id'],
             name=row['name'],
             data=data
         ))
-        
+
     return results
 
 @router.get("/subraces", response_model=List[CompendiumItem])
@@ -172,20 +172,20 @@ async def search_subraces(q: str = Query(None), db: AsyncSession = Depends(get_d
             text("SELECT id, name, data FROM subraces LIMIT 25")
         )
     rows = result.mappings().all()
-    
+
     results = []
     for row in rows:
         try:
             data = json.loads(row['data'])
         except:
             data = {}
-        
+
         results.append(CompendiumItem(
             id=row['id'],
             name=row['name'],
             data=data
         ))
-        
+
     return results
 
 
@@ -202,18 +202,18 @@ async def search_backgrounds(q: str = Query(None), db: AsyncSession = Depends(ge
             text("SELECT id, name, data FROM backgrounds LIMIT 50")
         )
     rows = result.mappings().all()
-    
+
     results = []
     for row in rows:
         try:
             data = json.loads(row['data'])
         except:
             data = {}
-        
+
         results.append(CompendiumItem(
             id=row['id'],
             name=row['name'],
             data=data
         ))
-        
+
     return results

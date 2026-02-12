@@ -162,7 +162,7 @@ import { useGetJournalEntriesByUser } from '@dataconnect/generated/react'
 export default function GetJournalEntriesByUserComponent() {
   // The `useGetJournalEntriesByUser` Query hook requires an argument of type `GetJournalEntriesByUserVariables`:
   const getJournalEntriesByUserVars: GetJournalEntriesByUserVariables = {
-    userId: ..., 
+    userId: ...,
   };
 
   // You don't have to do anything to "execute" the Query.
@@ -293,7 +293,7 @@ export default function CreateUserComponent() {
   // After calling the Mutation hook function, you must call `UseMutationResult.mutate()` to execute the Mutation.
   // The `useCreateUser` Mutation requires an argument of type `CreateUserVariables`:
   const createUserVars: CreateUserVariables = {
-    displayName: ..., 
+    displayName: ...,
     email: ..., // optional
     photoUrl: ..., // optional
   };
@@ -391,8 +391,8 @@ export default function CreateJournalEntryComponent() {
   // After calling the Mutation hook function, you must call `UseMutationResult.mutate()` to execute the Mutation.
   // The `useCreateJournalEntry` Mutation requires an argument of type `CreateJournalEntryVariables`:
   const createJournalEntryVars: CreateJournalEntryVariables = {
-    userId: ..., 
-    content: ..., 
+    userId: ...,
+    content: ...,
     title: ..., // optional
   };
   mutation.mutate(createJournalEntryVars);
@@ -487,7 +487,7 @@ export default function DeleteJournalEntryComponent() {
   // After calling the Mutation hook function, you must call `UseMutationResult.mutate()` to execute the Mutation.
   // The `useDeleteJournalEntry` Mutation requires an argument of type `DeleteJournalEntryVariables`:
   const deleteJournalEntryVars: DeleteJournalEntryVariables = {
-    id: ..., 
+    id: ...,
   };
   mutation.mutate(deleteJournalEntryVars);
   // Variables can be defined inline as well.
@@ -515,4 +515,3 @@ export default function DeleteJournalEntryComponent() {
   return <div>Mutation execution {mutation.isSuccess ? 'successful' : 'failed'}!</div>;
 }
 ```
-

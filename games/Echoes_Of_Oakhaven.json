@@ -1,0 +1,778 @@
+{
+  "campaign_meta": {
+    "id": "adv_002_vampire",
+    "title": "Echoes of Oakhaven",
+    "genre": "Gothic Horror",
+    "description": "A gothic horror tale set in a village shrouded in eternal fog. Unravel the mystery of Count Valerius, survive the night against wolves and the undead, and decide whether to slay the monster or save the man.",
+    "setting_system_prompt": "A serious, atmospheric horror setting. The \"Second Story\" is the tragic backstory of Count Valerius, who is not just a monster but a cursed figure seeking his lost love.",
+    "time_config": {
+      "day_length_hours": 24,
+      "sunrise": "07:00",
+      "sunset": "17:00",
+      "current_time": "16:45",
+      "day_state": "evening"
+    },
+    "starting_location": "loc_tavern_oakhaven",
+    "starting_npc": "npc_bork"
+  },
+  "narrative_state": {
+    "active_quests": [
+      "quest_survive_night",
+      "quest_find_reincarnation"
+    ],
+    "variables": {
+      "fear_level": 20,
+      "count_suspicion": 0,
+      "elara_corruption": 0,
+      "madame_eva_trust": 0
+    },
+    "story_threads": {
+      "primary": "Survive the night and slay the beast haunting Oakhaven.",
+      "second_story": "The beast is Count Valerius, who believes the barmaid Elara is his dead wife returned.",
+      "romance": "A tragic romance between the PC and Elara, which puts them in direct conflict with the Count.",
+      "boss_fight": {
+        "description": "Confrontation with Count Valerius during the interrupted midnight mass.",
+        "trigger": "midnight_mass_interruption",
+        "location": "loc_church_interior"
+      }
+    },
+    "timeline": [
+      {
+        "trigger": "time_2000",
+        "event_description": "The sun sets completely. Wolves begin to howl.",
+        "consequences": [
+          "Fear level increases",
+          "Villagers lock doors"
+        ]
+      },
+      {
+        "trigger": "midnight_mass",
+        "event_description": "Count Valerius interrupts the service.",
+        "consequences": [
+          "Boss fight approaches",
+          "Elara faints"
+        ]
+      }
+    ]
+  },
+  "quests": [
+    {
+      "id": "quest_survive_night",
+      "title": "Survive the Night",
+      "description": "Keep Elara and yourself alive until sunrise.",
+      "steps": [
+        "Secure a safehouse",
+        "Defend against the first wave",
+        "Confront the source"
+      ],
+      "rewards": [
+        "Survival",
+        "XP"
+      ]
+    },
+    {
+      "id": "quest_find_reincarnation",
+      "title": "The Count's Obsession",
+      "description": "Investigate why the Count is obsessed with Elara.",
+      "steps": [
+        "Speak to Madame Eva",
+        "Find the portrait in the Manor"
+      ],
+      "rewards": [
+        "Knowledge of Valerius's weakness",
+        "Peaceful resolution option"
+      ]
+    }
+  ],
+  "atlas": [
+    {
+      "id": "loc_village_square",
+      "name": "Oakhaven Village Square",
+      "active_hours": "always",
+      "description": {
+        "visual": "A desolate square with boarded up windows. Fog swirls around the ankles. A crow caws from a dead tree.",
+        "auditory": "Silence, broken only by the wind and distant howling.",
+        "olfactory": "Woodsmoke, damp earth, rot.",
+        "anchors": [
+          "fountain (dry)",
+          "statue (defaced)",
+          "boarded windows"
+        ],
+        "anti_drift": "Always mention the oppressive fog. Never describe the sun as bright.",
+        "connections": [
+          "loc_tavern_oakhaven",
+          "loc_apothecary",
+          "loc_church_interior",
+          "loc_graveyard"
+        ],
+        "secrets": [
+          "The defaced statue is of Valerius's father."
+        ]
+      },
+      "environmental_state": {
+        "light_level": "dim",
+        "effect": "light_drain_aura",
+        "hazards": []
+      },
+      "interactables": [
+        {
+          "id": "obj_fountain",
+          "name": "Dry Fountain",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "id": "loc_tavern_oakhaven",
+      "name": "The Bleeding Heart Tavern",
+      "active_hours": "always",
+      "description": {
+        "visual": "Low ceilings, thick smoke, frightened patrons huddled together. Garlic hangs from the rafters.",
+        "auditory": "Hushed whispers, the clatter of mugs, no music.",
+        "olfactory": "Stale beer, garlic, unwashed bodies.",
+        "anchors": [
+          "bar",
+          "hearth",
+          "corner table"
+        ],
+        "anti_drift": "A place of fear, not celebration.",
+        "connections": [
+          "loc_village_square"
+        ],
+        "secrets": [
+          "Wait, are these garlic bundles just onions painted white?"
+        ]
+      },
+      "environmental_state": {
+        "light_level": "dim",
+        "light_required": false,
+        "hazards": []
+      },
+      "interactables": [
+        {
+          "id": "obj_garlic_bundle",
+          "name": "Garlic Bundle",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "id": "loc_apothecary",
+      "name": "Eva's Elixirs",
+      "active_hours": "08:00-20:00",
+      "description": {
+        "visual": "Shelves packed with jars of organs, dried herbs, and tarot cards on a round table.",
+        "auditory": "Bubbling liquids, a cat purring.",
+        "olfactory": "Incense, formaldehyde, dried sage.",
+        "anchors": [
+          "counter",
+          "tarot table",
+          "crystal ball"
+        ],
+        "anti_drift": "Mystical and slightly unsettling.",
+        "connections": [
+          "loc_village_square"
+        ],
+        "secrets": [
+          "Hidden stash of wolf-bane under the counter."
+        ]
+      },
+      "environmental_state": {
+        "light_level": "dim",
+        "light_required": false,
+        "hazards": []
+      },
+      "interactables": []
+    },
+    {
+      "id": "loc_graveyard",
+      "name": "Oakhaven Graveyard",
+      "active_hours": "always",
+      "description": {
+        "visual": "Tilted tombstones, fresh graves, creeping mist. An open mausoleum gate.",
+        "auditory": "Rustling leaves, an owl hooting, scratching from below.",
+        "olfactory": "Wet dirt, decaying flowers.",
+        "anchors": [
+          "mausoleum",
+          "fresh grave",
+          "angel statue"
+        ],
+        "anti_drift": "Classic gothic graveyard. Spooky.",
+        "connections": [
+          "loc_village_square",
+          "loc_manor_garden"
+        ],
+        "secrets": [
+          "One fresh grave is completely empty (Mina's)."
+        ]
+      },
+      "environmental_state": {
+        "light_level": "darkness",
+        "light_required": true,
+        "hazards": [
+          "fog_obscurement"
+        ]
+      },
+      "interactables": [
+        {
+          "id": "obj_mausoleum_gate",
+          "name": "Iron Gate",
+          "locked": true,
+          "key_id": "key_crypt"
+        }
+      ]
+    },
+    {
+      "id": "loc_manor_garden",
+      "name": "Valerius Manor Gardens",
+      "active_hours": "always",
+      "description": {
+        "visual": "Overgrown rose bushes with thorns like daggers. Statues that seem to move when you look away.",
+        "auditory": "Wind howling through dead branches.",
+        "olfactory": "Rotting roses.",
+        "anchors": [
+          "maze entrance",
+          "weeping statue",
+          "fountain of blood"
+        ],
+        "anti_drift": "Labyrinthine and hostile nature.",
+        "connections": [
+          "loc_graveyard",
+          "loc_manor_crypt",
+          "loc_manor_study"
+        ],
+        "secrets": [
+          "The fountain pumps blood on full moons."
+        ]
+      },
+      "environmental_state": {
+        "light_level": "moonlight",
+        "light_required": false,
+        "hazards": [
+          "thorns"
+        ]
+      },
+      "interactables": []
+    },
+    {
+      "id": "loc_manor_crypt",
+      "name": "Valerius Manor Crypt",
+      "active_hours": "always",
+      "description": {
+        "visual": "Opulent but decayed. Red velvet rotting off the walls. A massive stone sarcophagus.",
+        "auditory": "Dripping water, slow heartbeat sound.",
+        "olfactory": "Smell of old blood, dust.",
+        "anchors": [
+          "sarcophagus",
+          "dust",
+          "cold draft"
+        ],
+        "anti_drift": "Contrast wealth with decay.",
+        "connections": [
+          "loc_manor_garden",
+          "loc_manor_study"
+        ],
+        "secrets": [
+          "The sarcophagus has a false bottom leading to the sewers (escape route)."
+        ]
+      },
+      "environmental_state": {
+        "light_level": "magical_darkness",
+        "light_required": true,
+        "hazards": []
+      },
+      "interactables": []
+    },
+    {
+      "id": "loc_manor_study",
+      "name": "Valerius Manor Study",
+      "active_hours": "always",
+      "description": {
+        "visual": "High bookshelves, a large mahogany desk, portraits of a beautiful woman.",
+        "auditory": "Crackling fireplace.",
+        "olfactory": "Old paper and sherry.",
+        "anchors": [
+          "desk",
+          "portrait",
+          "books"
+        ],
+        "anti_drift": "The portraits always seem to be watching.",
+        "connections": [
+          "loc_manor_crypt",
+          "loc_manor_garden"
+        ],
+        "secrets": [
+          "A love letter to Elara (unfinished) is on the desk."
+        ]
+      },
+      "environmental_state": {
+        "light_level": "dim",
+        "light_required": false,
+        "hazards": []
+      },
+      "interactables": []
+    },
+    {
+      "id": "loc_church_interior",
+      "name": "Oakhaven Church",
+      "active_hours": "always",
+      "description": {
+        "visual": "Shattered stained glass, pews overturned. The altar is defiled.",
+        "auditory": "Wind whistling through gaps.",
+        "olfactory": "Incense and rot.",
+        "anchors": [
+          "altar",
+          "pews",
+          "stained glass"
+        ],
+        "anti_drift": "A place of desecrated holiness.",
+        "connections": [
+          "loc_village_square",
+          "loc_graveyard"
+        ],
+        "secrets": [
+          "The altar hides a holy relic that can weaken the Count."
+        ]
+      },
+      "environmental_state": {
+        "light_level": "dim",
+        "light_required": false,
+        "hazards": []
+      },
+      "interactables": []
+    }
+  ],
+  "npcs": [
+    {
+      "id": "npc_valerius",
+      "name": "Count Valerius",
+      "role": "Antagonist",
+      "race": "Vampire Lord",
+      "stats": {
+        "str": 20,
+        "dex": 18,
+        "con": 18,
+        "int": 20,
+        "wis": 16,
+        "cha": 20
+      },
+      "voice": {
+        "tone": "Melancholic, aristocratic, cultured.",
+        "samples": [
+          "My heart has been missing for centuries.",
+          "You do not understand true loss."
+        ]
+      },
+      "secrets": [
+        "Incredibly lonely."
+      ],
+      "equipment": [
+        "item_ring_of_resistance",
+        "item_ancestral_sword"
+      ],
+      "schedule": [
+        {
+          "time": "06:00-18:00",
+          "location": "loc_manor_crypt",
+          "activity": "slumbering"
+        },
+        {
+          "time": "18:00-20:00",
+          "location": "loc_manor_study",
+          "activity": "brooding"
+        },
+        {
+          "time": "20:00-04:00",
+          "location": "loc_village_square",
+          "activity": "hunting"
+        }
+      ],
+      "disposition": {
+        "base": "melancholic",
+        "attitude": "Neutral",
+        "triggers": {
+          "mention_elara": "obsessed",
+          "see_sunlight": "enraged"
+        },
+        "romance_eligible": false
+      }
+    },
+    {
+      "id": "npc_elara",
+      "name": "Elara",
+      "role": "Victim / Love Interest",
+      "race": "Human",
+      "stats": {
+        "str": 10,
+        "dex": 12,
+        "con": 10,
+        "int": 14,
+        "wis": 16,
+        "cha": 16
+      },
+      "voice": {
+        "tone": "Soft, fearful, kind.",
+        "samples": [
+          "Please, don't tell him I was here.",
+          "Something feels... familiar about you."
+        ]
+      },
+      "secrets": [
+        "Has dreams of a past life she doesn't understand."
+      ],
+      "equipment": [],
+      "schedule": [
+        {
+          "time": "08:00-22:00",
+          "location": "loc_tavern_oakhaven",
+          "activity": "working"
+        }
+      ],
+      "disposition": {
+        "base": "fearful",
+        "attitude": "Friendly",
+        "triggers": {},
+        "romance_eligible": true,
+        "fear_of_count": 100
+      }
+    },
+    {
+      "id": "npc_father_thomas",
+      "name": "Father Thomas",
+      "role": "Priest",
+      "race": "Human",
+      "stats": {
+        "str": 10,
+        "dex": 8,
+        "con": 12,
+        "int": 14,
+        "wis": 18,
+        "cha": 14
+      },
+      "voice": {
+        "tone": "Deep, resonant, doubtful.",
+        "samples": [
+          "May the... light protect you.",
+          "I have prayed, but no one answers."
+        ]
+      },
+      "secrets": [
+        "Lost his faith years ago."
+      ],
+      "equipment": [
+        "item_holy_symbol",
+        "item_holy_water"
+      ],
+      "schedule": [
+        {
+          "time": "00:00-24:00",
+          "location": "loc_church_interior",
+          "activity": "praying"
+        }
+      ],
+      "disposition": {
+        "base": "desperate yet faithful",
+        "attitude": "Friendly",
+        "triggers": {},
+        "romance_eligible": false,
+        "player_affinity": 10
+      }
+    },
+    {
+      "id": "npc_madame_eva",
+      "name": "Madame Eva",
+      "role": "Fortune Teller",
+      "race": "Vistani",
+      "stats": {
+        "str": 8,
+        "dex": 10,
+        "con": 10,
+        "int": 16,
+        "wis": 20,
+        "cha": 14
+      },
+      "voice": {
+        "tone": "Raspy, mysterious, knowing.",
+        "samples": [
+          "The cards reveal all if you dare look.",
+          "Fate is a fickle mistress."
+        ]
+      },
+      "secrets": [
+        "Is actually Valerius's half-sister."
+      ],
+      "equipment": [
+        "item_tarot_deck"
+      ],
+      "schedule": [
+        {
+          "time": "10:00-22:00",
+          "location": "loc_apothecary",
+          "activity": "reading fortunes"
+        }
+      ],
+      "disposition": {
+        "base": "cryptic",
+        "attitude": "Neutral",
+        "triggers": {},
+        "romance_eligible": false,
+        "player_affinity": 0
+      }
+    },
+    {
+      "id": "npc_bork",
+      "name": "Bork",
+      "role": "Tavern Keeper",
+      "race": "Human",
+      "stats": {
+        "str": 16,
+        "dex": 10,
+        "con": 16,
+        "int": 10,
+        "wis": 12,
+        "cha": 10
+      },
+      "voice": {
+        "tone": "Gruff, curt, suspicious.",
+        "samples": [
+          "Drink up or get out.",
+          "No trouble tonight."
+        ]
+      },
+      "secrets": [
+        "Sold his soul to keep the tavern running (literally)."
+      ],
+      "equipment": [
+        "item_crossbow"
+      ],
+      "schedule": [
+        {
+          "time": "08:00-02:00",
+          "location": "loc_tavern_oakhaven",
+          "activity": "serving"
+        }
+      ],
+      "disposition": {
+        "base": "surly and protective",
+        "attitude": "Neutral",
+        "triggers": {},
+        "romance_eligible": false,
+        "player_affinity": 0
+      }
+    },
+    {
+      "id": "npc_igor",
+      "name": "Igor",
+      "role": "Servant",
+      "race": "Human",
+      "stats": {
+        "str": 14,
+        "dex": 8,
+        "con": 16,
+        "int": 8,
+        "wis": 10,
+        "cha": 6
+      },
+      "voice": {
+        "tone": "Mumbling, slurping.",
+        "samples": [
+          "Yes master... *slurp*",
+          "Digging... digging..."
+        ]
+      },
+      "secrets": [
+        "Secretly eats the spiders in the crypt."
+      ],
+      "equipment": [
+        "item_shovel"
+      ],
+      "schedule": [
+        {
+          "time": "06:00-18:00",
+          "location": "loc_manor_garden",
+          "activity": "digging"
+        }
+      ],
+      "disposition": {
+        "base": "servile and creepy",
+        "attitude": "Hostile",
+        "triggers": {},
+        "romance_eligible": false,
+        "player_affinity": -10
+      }
+    },
+    {
+      "id": "npc_mina",
+      "name": "Mina",
+      "role": "Vampire Spawn",
+      "race": "Vampire Spawn",
+      "stats": {
+        "str": 16,
+        "dex": 16,
+        "con": 16,
+        "int": 10,
+        "wis": 10,
+        "cha": 14
+      },
+      "voice": {
+        "tone": "Wailing, childlike, eerie.",
+        "samples": [
+          "Where is my dolly?",
+          "Don't leave me alone in the dark."
+        ]
+      },
+      "secrets": [
+        "Hides her victims' toys in her grave."
+      ],
+      "equipment": [],
+      "schedule": [
+        {
+          "time": "20:00-04:00",
+          "location": "loc_graveyard",
+          "activity": "weeping"
+        }
+      ],
+      "disposition": {
+        "base": "tragic and hungry",
+        "attitude": "Hostile",
+        "triggers": {},
+        "romance_eligible": false,
+        "player_affinity": 0
+      }
+    },
+    {
+      "id": "npc_midnight",
+      "name": "Midnight",
+      "role": "Graveyard Cat",
+      "race": "Beast",
+      "stats": {
+        "str": 4,
+        "dex": 18,
+        "con": 10,
+        "int": 12,
+        "wis": 16,
+        "cha": 14
+      },
+      "voice": {
+        "tone": "Silent but intelligent.",
+        "samples": [
+          "Meow.",
+          "*Meaningful stare*"
+        ]
+      },
+      "secrets": [
+        "Is actually a celestial sent to watch the graveyard."
+      ],
+      "equipment": [
+        "item_collar"
+      ],
+      "schedule": [
+        {
+          "time": "00:00-24:00",
+          "location": "loc_graveyard",
+          "activity": "prowling"
+        }
+      ],
+      "disposition": {
+        "base": "aloof and knowing",
+        "attitude": "Neutral",
+        "triggers": {
+          "offer_food": "friendly"
+        },
+        "romance_eligible": false,
+        "player_affinity": 0
+      }
+    }
+  ],
+  "monsters": [
+    {
+      "id": "mon_valerius",
+      "name": "Count Valerius",
+      "type": "undead",
+      "description": "The vampire lord of Oakhaven.",
+      "stats": {
+        "ac": 18,
+        "hp": 120,
+        "spd": 40
+      },
+      "abilities": [
+        "Drain Life",
+        "Charm",
+        "Summon Bats"
+      ],
+      "behavior": "Arrogant. Targets the character with the highest Charisma first."
+    }
+  ],
+  "items": [
+    {
+      "id": "item_ring_of_resistance",
+      "name": "Ring of Resistance",
+      "type": "accessory",
+      "description": "A silver ring with a ruby.",
+      "usage": "Wearable. Resist necrotic damage.",
+      "stats": {},
+      "abilities": [],
+      "behavior": ""
+    },
+    {
+      "id": "item_ancestral_sword",
+      "name": "Ancestral Sword",
+      "type": "weapon",
+      "description": "A fine steel blade with the Valerius crest.",
+      "usage": "Weapon. Effective against undead.",
+      "stats": {},
+      "abilities": [],
+      "behavior": ""
+    },
+    {
+      "id": "item_stake",
+      "name": "Wooden Stake",
+      "type": "weapon",
+      "description": "Sharpened ash wood. Good for hearts.",
+      "usage": "Weapon. Kill vampires.",
+      "stats": {},
+      "abilities": [],
+      "behavior": ""
+    },
+    {
+      "id": "item_holy_water",
+      "name": "Flask of Holy Water",
+      "type": "consumable",
+      "description": "Blessed by the High Priest.",
+      "usage": "Consumable. Damage undead.",
+      "stats": {},
+      "abilities": [],
+      "behavior": ""
+    },
+    {
+      "id": "item_garlic",
+      "name": "Braid of Garlic",
+      "type": "tool",
+      "description": "Pungent protection.",
+      "usage": "Warding. Repel vampires.",
+      "stats": {},
+      "abilities": [],
+      "behavior": ""
+    },
+    {
+      "id": "item_tarot_deck",
+      "name": "Tarokka Deck",
+      "type": "tool",
+      "description": "Worn cards depicting fate.",
+      "usage": "Read fortunes.",
+      "stats": {},
+      "abilities": [],
+      "behavior": ""
+    },
+    {
+      "id": "item_collar",
+      "name": "Silver Cat Collar",
+      "type": "accessory",
+      "description": "Engraved with the name 'Midnight'.",
+      "usage": "Return to owner.",
+      "stats": {},
+      "abilities": [],
+      "behavior": ""
+    }
+  ]
+}

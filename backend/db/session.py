@@ -18,9 +18,9 @@ if DATABASE_URL:
     # Ensure usage of asyncpg driver
     if DATABASE_URL.startswith("postgresql://"):
         DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
-    
+
     print(f"Using Database: PostgreSQL ({DATABASE_URL.split('@')[-1]}) with timeout=10s", flush=True) # Hide credentials
-    
+
     print("TRACE: Calling create_async_engine (postgres)...", flush=True)
     try:
         engine = create_async_engine(

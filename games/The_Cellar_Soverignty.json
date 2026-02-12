@@ -1,0 +1,1071 @@
+{
+  "campaign_meta": {
+    "id": "adv_001_rats",
+    "title": "The Cellar Sovereignty",
+    "genre": "Fantasy Comedy",
+    "description": "A lighthearted fantasy romp! You've been hired to clear some rats from a cellar, but these aren't your average rodents. Discover a secret society, a heist in progress, and maybe even join a union in this comedy-focused adventure.",
+    "setting_system_prompt": "A subversion of the \"kill rats\" trope. The \"Second Story\" is that the rats are (unknown to the party) actually a sentient, unionized labor force planning a heist on the bank next door.",
+    "time_config": {
+      "day_length_hours": 24,
+      "sunrise": "06:00",
+      "sunset": "18:00",
+      "current_time": "19:00",
+      "day_state": "evening"
+    },
+    "starting_location": "loc_tavern_main",
+    "starting_npc": "npc_gilda"
+  },
+  "narrative_state": {
+    "active_quests": [
+      "quest_clear_cellar"
+    ],
+    "variables": {
+      "rats_negotiated": false,
+      "innkeeper_romance": 5,
+      "heist_alert_level": 0,
+      "town_suspicion": 0
+    },
+    "story_threads": {
+      "primary": "Clear the infestation for the Innkeeper.",
+      "second_story": "The rats are digging a tunnel to rob the Royal Bank vault next door.",
+      "romance": "Woo the stressed Innkeeper by proving competence without unnecessary violence.",
+      "heist_defense": "The bank is on high alert due to recent tremors (rat digging).",
+      "boss_fight": {
+        "description": "Confrontation with King Rattigan IV.",
+        "trigger": "enter_throne_room",
+        "location": "loc_cellar_deep"
+      }
+    },
+    "timeline": [
+      {
+        "trigger": "rats_negotiated",
+        "event_description": "The Heist Begins",
+        "consequences": [
+          "Bank increases security",
+          "Explosion sound heard from cellar"
+        ]
+      },
+      {
+        "trigger": "rats_killed",
+        "event_description": "Gilda is relieved",
+        "consequences": [
+          "Free lodging unlocked",
+          "Rattigan swears vengeance"
+        ]
+      }
+    ]
+  },
+  "quests": [
+    {
+      "id": "quest_clear_cellar",
+      "title": "Rat Problems",
+      "description": "Clear the rats from the cellar for Gilda.",
+      "steps": [
+        "Investigate the cellar",
+        "Defeat or Negotiate with the Rat King"
+      ],
+      "rewards": [
+        "100 gp",
+        "Free lodging"
+      ]
+    },
+    {
+      "id": "quest_heist",
+      "title": "The Bank Heist",
+      "description": "Help (or stop) the rats rob the Royal Bank.",
+      "steps": [
+        "Find the tunnel map",
+        "Secure explosives from Sparky",
+        "Distract the guard"
+      ],
+      "rewards": [
+        "Share of the vault loot",
+        "Rat King's favor"
+      ]
+    }
+  ],
+  "atlas": [
+    {
+      "id": "loc_town_square",
+      "name": "Barleyrest Town Square",
+      "active_hours": "always",
+      "description": {
+        "visual": "A cobblestone square with a central fountain depicting a sheaf of wheat. To the North, the Royal Bank. To the East, the General Store. To the West, The Rusty Tankard.",
+        "auditory": "Distant chatter, splashing water, carriage wheels.",
+        "olfactory": "Fresh bread, horse manure, dust.",
+        "anchors": [
+          "fountain",
+          "notice board",
+          "statue"
+        ],
+        "anti_drift": "A quaint, sleepy fantasy town square.",
+        "connections": [
+          "loc_tavern_main",
+          "loc_general_store",
+          "loc_bank_lobby"
+        ],
+        "secrets": [
+          "The fountain hides a small coin stash under the loose stone."
+        ]
+      },
+      "environmental_state": {
+        "light_level": "dim",
+        "light_required": false,
+        "hazards": []
+      },
+      "interactables": [
+        {
+          "id": "obj_fountain",
+          "name": "Wheat Fountain",
+          "locked": false
+        },
+        {
+          "id": "obj_notice_board",
+          "name": "Notice Board",
+          "locked": false
+        }
+      ]
+    },
+    {
+      "id": "loc_tavern_main",
+      "name": "The Rusty Tankard",
+      "active_hours": "always",
+      "description": {
+        "visual": "Warm, noisy, smoky. Adventurers drinking. A card game in the corner.",
+        "auditory": "Laughter, clinking glasses, bad lute music.",
+        "olfactory": "Ale, roasting meat, old wood.",
+        "anchors": [
+          "bar",
+          "hearth",
+          "card table"
+        ],
+        "anti_drift": "A classic fantasy tavern.",
+        "connections": [
+          "loc_town_square",
+          "loc_cellar_upper",
+          "loc_bedroom"
+        ],
+        "secrets": [
+          "Loose floorboard near the bar hides a small pouch."
+        ]
+      },
+      "environmental_state": {
+        "light_level": "bright",
+        "light_required": false,
+        "hazards": []
+      },
+      "interactables": [
+        {
+          "id": "obj_cellar_door",
+          "name": "Reinforced Oak Door",
+          "locked": true,
+          "key_id": "key_cellar"
+        }
+      ]
+    },
+    {
+      "id": "loc_general_store",
+      "name": "Thaddeus's Goods",
+      "active_hours": "08:00-18:00",
+      "description": {
+        "visual": "Cluttered shelves, jars of strange pickles, tools hanging from the ceiling.",
+        "auditory": "Ticking clock, creaking floorboards.",
+        "olfactory": "Pickle brine, sawdust, spices.",
+        "anchors": [
+          "counter",
+          "shelves",
+          "pickle barrel"
+        ],
+        "anti_drift": "A messy but well-stocked general store.",
+        "connections": [
+          "loc_town_square"
+        ],
+        "secrets": [
+          "Thaddeus keeps a 'special' stock in the back for trusted customers."
+        ]
+      },
+      "environmental_state": {
+        "light_level": "bright",
+        "light_required": false,
+        "hazards": []
+      },
+      "interactables": []
+    },
+    {
+      "id": "loc_bank_lobby",
+      "name": "Royal Bank of Barleyrest",
+      "active_hours": "09:00-15:00",
+      "description": {
+        "visual": "Marble floors, high pillars, teller cages with iron bars. Very imposing.",
+        "auditory": "Echoing footsteps, scratching of quills, hushed whispers.",
+        "olfactory": "Old paper, ink, cold stone.",
+        "anchors": [
+          "teller cage",
+          "vault door (huge)",
+          "marble pillars"
+        ],
+        "anti_drift": "Serious, secure, and slightly intimidating.",
+        "connections": [
+          "loc_town_square",
+          "loc_vault"
+        ],
+        "secrets": [
+          "The manager's desk has a false bottom with a ledger of debts."
+        ]
+      },
+      "environmental_state": {
+        "light_level": "bright",
+        "light_required": false,
+        "hazards": []
+      },
+      "interactables": [
+        {
+          "id": "obj_vault_door",
+          "name": "The Vault",
+          "locked": true
+        }
+      ]
+    },
+    {
+      "id": "loc_cellar_upper",
+      "name": "Musty Storage",
+      "active_hours": "always",
+      "description": {
+        "visual": "Stacks of barrels, cobwebs, scratching sounds in walls.",
+        "auditory": "Squeaking, dripping.",
+        "olfactory": "Dust, mold, sour wine.",
+        "anchors": [
+          "dust motes",
+          "shadows",
+          "squeaking"
+        ],
+        "anti_drift": "Emphasize claustrophobia and the sound of movement inside walls.",
+        "connections": [
+          "loc_tavern_main",
+          "loc_cellar_deep"
+        ],
+        "secrets": [
+          "A hidden message from a previous adventurer is carved behind a barrel: 'Beware the King'."
+        ]
+      },
+      "environmental_state": {
+        "light_level": "darkness",
+        "light_required": true,
+        "hazards": []
+      },
+      "interactables": []
+    },
+    {
+      "id": "loc_cellar_deep",
+      "name": "The Rat War Room",
+      "active_hours": "always",
+      "description": {
+        "visual": "Tiny furniture made of matchboxes, a chalkboard map of the bank, military discipline.",
+        "auditory": "Tiny marching footsteps, chittering orders.",
+        "olfactory": "Chalk dust, clean fur, old cheese.",
+        "anchors": [
+          "chalk dust",
+          "tiny uniforms",
+          "map of bank"
+        ],
+        "anti_drift": "This is a civilized area. Describe it as a miniature military HQ, not a nest.",
+        "connections": [
+          "loc_cellar_upper",
+          "loc_bank_vault"
+        ],
+        "secrets": [
+          "The tunnel to the bank is unstable and requires shoring up."
+        ]
+      },
+      "environmental_state": {
+        "light_level": "dim",
+        "light_required": false,
+        "hazards": []
+      },
+      "interactables": []
+    },
+    {
+      "id": "loc_bedroom",
+      "name": "Gilda's Bedroom",
+      "active_hours": "always",
+      "description": {
+        "visual": "Simple but tidy. A ledger open on the desk.",
+        "auditory": "Quiet street sounds.",
+        "olfactory": "Lavender.",
+        "anchors": [
+          "bed",
+          "desk",
+          "window"
+        ],
+        "anti_drift": "Personal and private.",
+        "connections": [
+          "loc_tavern_main"
+        ],
+        "secrets": [
+          "Gilda's diary is under the pillow, detailing her crush."
+        ]
+      },
+      "environmental_state": {
+        "light_level": "dim",
+        "light_required": false,
+        "hazards": []
+      },
+      "interactables": []
+    }
+  ],
+  "npcs": [
+    {
+      "id": "npc_gilda",
+      "name": "Gilda the Innkeeper",
+      "role": "Quest Giver",
+      "race": "Human",
+      "stats": {
+        "str": 12,
+        "dex": 10,
+        "con": 14,
+        "int": 12,
+        "wis": 14,
+        "cha": 16
+      },
+      "voice": {
+        "tone": "Stressed, weary, frantic.",
+        "samples": [
+          "I don't have time for this!",
+          "Please, just get those rats out of here."
+        ]
+      },
+      "secrets": [
+        "Secretly in love with the Baker next door."
+      ],
+      "equipment": [
+        "item_apron",
+        "item_cudgel",
+        "key_cellar"
+      ],
+      "schedule": [
+        {
+          "time": "08:00-02:00",
+          "location": "loc_tavern_main",
+          "activity": "working"
+        },
+        {
+          "time": "02:00-08:00",
+          "location": "loc_bedroom",
+          "activity": "sleeping"
+        }
+      ],
+      "disposition": {
+        "base": "stressed",
+        "attitude": "Friendly",
+        "triggers": {},
+        "romance_eligible": true,
+        "player_affinity": 10
+      }
+    },
+    {
+      "id": "npc_old_tom",
+      "name": "Old Tom",
+      "role": "Patron",
+      "race": "Human",
+      "stats": {
+        "str": 8,
+        "dex": 8,
+        "con": 10,
+        "int": 14,
+        "wis": 8,
+        "cha": 10
+      },
+      "voice": {
+        "tone": "Slurred, rambling, hiccuping.",
+        "samples": [
+          "You look like... *hic* my brother.",
+          "Another round, barkeep!"
+        ]
+      },
+      "secrets": [
+        "Knows where the cellar key is hidden."
+      ],
+      "equipment": [
+        "item_mug"
+      ],
+      "schedule": [
+        {
+          "time": "10:00-22:00",
+          "location": "loc_tavern_main",
+          "activity": "drinking"
+        }
+      ],
+      "disposition": {
+        "base": "drunk and chatty",
+        "attitude": "Neutral",
+        "triggers": {},
+        "romance_eligible": false,
+        "player_affinity": 0
+      }
+    },
+    {
+      "id": "npc_elara",
+      "name": "Elara",
+      "role": "Bard",
+      "race": "Elf",
+      "stats": {
+        "str": 10,
+        "dex": 14,
+        "con": 10,
+        "int": 12,
+        "wis": 10,
+        "cha": 16
+      },
+      "voice": {
+        "tone": "Overly enthusiastic, slightly off-key.",
+        "samples": [
+          "And then the dragon roared! Roaaar!",
+          "Listen to this new ballad I wrote."
+        ]
+      },
+      "secrets": [
+        "Is actually tone deaf but thinks she is great."
+      ],
+      "equipment": [
+        "item_lute"
+      ],
+      "schedule": [
+        {
+          "time": "18:00-24:00",
+          "location": "loc_tavern_main",
+          "activity": "performing"
+        }
+      ],
+      "disposition": {
+        "base": "enthusiastic but untalented",
+        "attitude": "Friendly",
+        "triggers": {},
+        "romance_eligible": true,
+        "player_affinity": 5
+      }
+    },
+    {
+      "id": "npc_silas",
+      "name": "Slick Silas",
+      "role": "Gambler",
+      "race": "Half-Elf",
+      "stats": {
+        "str": 10,
+        "dex": 18,
+        "con": 12,
+        "int": 14,
+        "wis": 10,
+        "cha": 14
+      },
+      "voice": {
+        "tone": "Smooth, charming, whispering.",
+        "samples": [
+          "Care to make a little wager?",
+          "The cards never lie, my friend."
+        ]
+      },
+      "secrets": [
+        "Cheats at cards using marked decks."
+      ],
+      "equipment": [
+        "item_deck_of_cards",
+        "item_dagger"
+      ],
+      "schedule": [
+        {
+          "time": "14:00-02:00",
+          "location": "loc_tavern_main",
+          "activity": "gambling"
+        }
+      ],
+      "disposition": {
+        "base": "charming and deceptive",
+        "attitude": "Neutral",
+        "triggers": {},
+        "romance_eligible": false,
+        "player_affinity": 0
+      }
+    },
+    {
+      "id": "npc_marge",
+      "name": "Big Marge",
+      "role": "Gambler/Muscle",
+      "race": "Orc",
+      "stats": {
+        "str": 18,
+        "dex": 10,
+        "con": 16,
+        "int": 8,
+        "wis": 10,
+        "cha": 8
+      },
+      "voice": {
+        "tone": "Deep, slow, threatening.",
+        "samples": [
+          "You talk too much.",
+          "Hmph."
+        ]
+      },
+      "secrets": [
+        "Terrified of mice (and rats)."
+      ],
+      "equipment": [
+        "item_heavy_club"
+      ],
+      "schedule": [
+        {
+          "time": "14:00-02:00",
+          "location": "loc_tavern_main",
+          "activity": "gambling"
+        }
+      ],
+      "disposition": {
+        "base": "stoic and intimidating",
+        "attitude": "Neutral",
+        "triggers": {},
+        "romance_eligible": true,
+        "player_affinity": 0
+      }
+    },
+    {
+      "id": "npc_thaddeus",
+      "name": "Thaddeus",
+      "role": "Shopkeeper",
+      "race": "Gnome",
+      "stats": {
+        "str": 8,
+        "dex": 12,
+        "con": 10,
+        "int": 16,
+        "wis": 14,
+        "cha": 12
+      },
+      "voice": {
+        "tone": "Fast, suspicious, nasal.",
+        "samples": [
+          "Don't touch that! It's fragile.",
+          "Are you buying or looking?"
+        ]
+      },
+      "secrets": [
+        "Sells fake potions to tourists."
+      ],
+      "equipment": [
+        "item_spectacles"
+      ],
+      "schedule": [
+        {
+          "time": "08:00-18:00",
+          "location": "loc_general_store",
+          "activity": "working"
+        }
+      ],
+      "disposition": {
+        "base": "suspicious of rats",
+        "attitude": "Neutral",
+        "triggers": {},
+        "romance_eligible": false,
+        "player_affinity": 0
+      }
+    },
+    {
+      "id": "npc_barnaby",
+      "name": "Barnaby",
+      "role": "Shop Assistant",
+      "race": "Halfling",
+      "stats": {
+        "str": 10,
+        "dex": 14,
+        "con": 10,
+        "int": 10,
+        "wis": 8,
+        "cha": 14
+      },
+      "voice": {
+        "tone": "High-pitched, eager, helpful.",
+        "samples": [
+          "Can I help? Can I carry that?",
+          "Mr. Thaddeus says I'm doing a good job!"
+        ]
+      },
+      "secrets": [
+        "Steals candy from the jar when Thaddeus isn't looking."
+      ],
+      "equipment": [
+        "item_broom"
+      ],
+      "schedule": [
+        {
+          "time": "08:00-18:00",
+          "location": "loc_general_store",
+          "activity": "working"
+        }
+      ],
+      "disposition": {
+        "base": "eager to please",
+        "attitude": "Friendly",
+        "triggers": {},
+        "romance_eligible": true,
+        "player_affinity": 5
+      }
+    },
+    {
+      "id": "npc_guard_bernie",
+      "name": "Guard Bernie",
+      "role": "Bank Guard",
+      "race": "Human",
+      "stats": {
+        "str": 14,
+        "dex": 10,
+        "con": 12,
+        "int": 8,
+        "wis": 10,
+        "cha": 10
+      },
+      "voice": {
+        "tone": "Yawning, sleepy, bored.",
+        "samples": [
+          "Nothing creates interest like... *yawn* compound interest.",
+          "Just move along."
+        ]
+      },
+      "secrets": [
+        "Sleeps on duty inside the vault antechamber."
+      ],
+      "equipment": [
+        "item_spear",
+        "item_rusty_chainmail"
+      ],
+      "schedule": [
+        {
+          "time": "09:00-17:00",
+          "location": "loc_bank_lobby",
+          "activity": "guarding (sleeping)"
+        }
+      ],
+      "disposition": {
+        "base": "sleepy and bored",
+        "attitude": "Neutral",
+        "triggers": {},
+        "romance_eligible": false,
+        "player_affinity": 0
+      }
+    },
+    {
+      "id": "npc_manager_sterling",
+      "name": "Manager Sterling",
+      "role": "Bank Manager",
+      "race": "High Elf",
+      "stats": {
+        "str": 10,
+        "dex": 12,
+        "con": 10,
+        "int": 16,
+        "wis": 14,
+        "cha": 12
+      },
+      "voice": {
+        "tone": "Arrogant, precise, cold.",
+        "samples": [
+          "Do you have an appointment?",
+          "This bank is a pillar of the community."
+        ]
+      },
+      "secrets": [
+        "Embezzling from the widows' fund."
+      ],
+      "equipment": [
+        "item_quill",
+        "item_ledger"
+      ],
+      "schedule": [
+        {
+          "time": "09:00-17:00",
+          "location": "loc_bank_lobby",
+          "activity": "managing"
+        }
+      ],
+      "disposition": {
+        "base": "officious and arrogant",
+        "attitude": "Neutral",
+        "triggers": {},
+        "romance_eligible": false,
+        "player_affinity": -5
+      }
+    },
+    {
+      "id": "npc_teller_penny",
+      "name": "Penny",
+      "role": "Bank Teller",
+      "race": "Human",
+      "stats": {
+        "str": 8,
+        "dex": 12,
+        "con": 10,
+        "int": 12,
+        "wis": 10,
+        "cha": 14
+      },
+      "voice": {
+        "tone": "Jittery, fast, nervous.",
+        "samples": [
+          "Did you hear that? I heard scratching.",
+          "I need a holiday."
+        ]
+      },
+      "secrets": [
+        "Saw a rat wearing a tiny hat but no one believes her."
+      ],
+      "equipment": [
+        "item_stamp"
+      ],
+      "schedule": [
+        {
+          "time": "09:00-17:00",
+          "location": "loc_bank_lobby",
+          "activity": "working"
+        }
+      ],
+      "disposition": {
+        "base": "nervous and twitchy",
+        "attitude": "Neutral",
+        "triggers": {},
+        "romance_eligible": true,
+        "player_affinity": 0
+      }
+    },
+    {
+      "id": "npc_king_rattigan",
+      "name": "King Rattigan IV",
+      "role": "Boss / Negotiator",
+      "race": "Awakened Giant Rat",
+      "stats": {
+        "str": 8,
+        "dex": 16,
+        "con": 12,
+        "int": 14,
+        "wis": 12,
+        "cha": 14
+      },
+      "voice": {
+        "tone": "Regal, squeaky but commanding.",
+        "samples": [
+          "We demand... cheese!",
+          "You face the King of the Cellar!"
+        ]
+      },
+      "secrets": [
+        "Terrified of cats."
+      ],
+      "equipment": [
+        "item_tiny_crown",
+        "item_needle_sword"
+      ],
+      "schedule": [],
+      "disposition": {
+        "base": "haughty",
+        "attitude": "Neutral",
+        "triggers": {},
+        "romance_eligible": false,
+        "dialogue_hooks": {}
+      }
+    },
+    {
+      "id": "npc_lt_whiskers",
+      "name": "Lt. Whiskers",
+      "role": "Rat Commander",
+      "race": "Awakened Rat",
+      "stats": {
+        "str": 6,
+        "dex": 14,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 12
+      },
+      "voice": {
+        "tone": "Barking (squeaking) orders, disciplined.",
+        "samples": [
+          "Squad A, flank left!",
+          "Protect the King!"
+        ]
+      },
+      "secrets": [
+        "Wants to overthrow the King."
+      ],
+      "equipment": [
+        "item_toothpick_spear",
+        "item_bottle_cap_shield"
+      ],
+      "schedule": [],
+      "disposition": {
+        "base": "stern and disciplined",
+        "attitude": "Hostile",
+        "triggers": {},
+        "romance_eligible": false,
+        "player_affinity": 0
+      }
+    },
+    {
+      "id": "npc_sparky",
+      "name": "Sparky",
+      "role": "Rat Demolitions",
+      "race": "Awakened Rat",
+      "stats": {
+        "str": 4,
+        "dex": 16,
+        "con": 8,
+        "int": 14,
+        "wis": 8,
+        "cha": 10
+      },
+      "voice": {
+        "tone": "Manic, whispering, giggling.",
+        "samples": [
+          "Boom? Big boom?",
+          "Fire is pretty..."
+        ]
+      },
+      "secrets": [
+        "Constructed a bomb big enough to blow up the tavern."
+      ],
+      "equipment": [
+        "item_black_powder_pouch"
+      ],
+      "schedule": [],
+      "disposition": {
+        "base": "twitchy and pyromaniac",
+        "attitude": "Hostile",
+        "triggers": {},
+        "romance_eligible": false,
+        "player_affinity": 0
+      }
+    },
+    {
+      "id": "npc_shadow",
+      "name": "Shadow",
+      "role": "Rat Spy",
+      "race": "Awakened Rat",
+      "stats": {
+        "str": 4,
+        "dex": 18,
+        "con": 8,
+        "int": 12,
+        "wis": 14,
+        "cha": 8
+      },
+      "voice": {
+        "tone": "Silent, whispering.",
+        "samples": [
+          "...",
+          "(Stares intensely)"
+        ]
+      },
+      "secrets": [
+        "Spying on the King for the Bank Manager."
+      ],
+      "equipment": [
+        "item_cloak_of_shadows"
+      ],
+      "schedule": [],
+      "disposition": {
+        "base": "silent and observant",
+        "attitude": "Hostile",
+        "triggers": {},
+        "romance_eligible": false,
+        "player_affinity": 0
+      }
+    },
+    {
+      "id": "npc_gorgonzola",
+      "name": "Gorgonzola",
+      "role": "Rat Cook",
+      "race": "Awakened Rat",
+      "stats": {
+        "str": 8,
+        "dex": 10,
+        "con": 14,
+        "int": 10,
+        "wis": 10,
+        "cha": 12
+      },
+      "voice": {
+        "tone": "Booming, jolly, mouth full.",
+        "samples": [
+          "More soup?",
+          "Best garbage in town!"
+        ]
+      },
+      "secrets": [
+        "Uses gutter oil for his soup."
+      ],
+      "equipment": [
+        "item_ladle"
+      ],
+      "schedule": [],
+      "disposition": {
+        "base": "jolly and gluttonous",
+        "attitude": "Neutral",
+        "triggers": {},
+        "romance_eligible": false,
+        "player_affinity": 5
+      }
+    }
+  ],
+  "monsters": [
+    {
+      "id": "mon_rat_guard",
+      "name": "Royal Rat Guard",
+      "type": "beast",
+      "description": "A rat standing on two legs, holding a toothpick spear.",
+      "stats": {
+        "ac": 12,
+        "hp": 10,
+        "spd": 30
+      },
+      "abilities": [],
+      "behavior": "Will attempt to grapple and disarm rather than kill. They want leverage."
+    },
+    {
+      "id": "mon_king_rattigan",
+      "name": "King Rattigan IV",
+      "type": "beast",
+      "description": "The Rat King himself.",
+      "stats": {
+        "ac": 15,
+        "hp": 40,
+        "spd": 40
+      },
+      "abilities": [
+        "Command",
+        "Needle Strike"
+      ],
+      "behavior": "Fights with elegance but flees if low on health."
+    },
+    {
+      "id": "mon_boss_exterminator",
+      "name": "The Automaton Cat",
+      "type": "construct",
+      "description": "A rogue mechanical cat left by a previous adventurer.",
+      "stats": {
+        "ac": 14,
+        "hp": 45,
+        "spd": 40
+      },
+      "abilities": [],
+      "behavior": ""
+    }
+  ],
+  "items": [
+    {
+      "id": "item_cudgel",
+      "name": "Innkeeper's Cudgel",
+      "type": "weapon",
+      "description": "A sturdy stick for unruly patrons.",
+      "usage": "Weapon.",
+      "stats": {},
+      "abilities": [],
+      "behavior": ""
+    },
+    {
+      "id": "key_cellar",
+      "name": "Cellar Key",
+      "type": "key",
+      "description": "A heavy iron key.",
+      "usage": "Unlocks the cellar door.",
+      "stats": {},
+      "abilities": [],
+      "behavior": ""
+    },
+    {
+      "id": "item_apron",
+      "name": "Greasy Apron",
+      "type": "armor",
+      "description": "Stained with ale and stew.",
+      "usage": "Wearable.",
+      "stats": {},
+      "abilities": [],
+      "behavior": ""
+    },
+    {
+      "id": "item_mug",
+      "name": "Wooden Mug",
+      "type": "misc",
+      "description": "Smells of cheap ale.",
+      "usage": "Drink ale.",
+      "stats": {},
+      "abilities": [],
+      "behavior": ""
+    },
+    {
+      "id": "item_lute",
+      "name": "Out-of-Tune Lute",
+      "type": "tool",
+      "description": "Missing a string.",
+      "usage": "Perform (badly).",
+      "stats": {},
+      "abilities": [],
+      "behavior": ""
+    },
+    {
+      "id": "item_deck_of_cards",
+      "name": "Marked Cards",
+      "type": "tool",
+      "description": "Subtly marked on the back.",
+      "usage": "Cheat at cards.",
+      "stats": {},
+      "abilities": [],
+      "behavior": ""
+    },
+    {
+      "id": "item_dagger",
+      "name": "Concealed Dagger",
+      "type": "weapon",
+      "description": "Sharp and nasty.",
+      "usage": "Concealed weapon.",
+      "stats": {},
+      "abilities": [],
+      "behavior": ""
+    },
+    {
+      "id": "item_spectacles",
+      "name": "Magnifying Spectacles",
+      "type": "accessory",
+      "description": "For close inspection of goods.",
+      "usage": "Inspect items.",
+      "stats": {},
+      "abilities": [],
+      "behavior": ""
+    },
+    {
+      "id": "item_quill",
+      "name": "Fancy Quill",
+      "type": "tool",
+      "description": "Made from a peacock feather.",
+      "usage": "Write ledger entries.",
+      "stats": {},
+      "abilities": [],
+      "behavior": ""
+    },
+    {
+      "id": "item_tiny_crown",
+      "name": "Tiny Gold Crown",
+      "type": "accessory",
+      "description": "Fit for a rat king.",
+      "usage": "Trade with Rats.",
+      "stats": {},
+      "abilities": [],
+      "behavior": ""
+    },
+    {
+      "id": "item_needle_sword",
+      "name": "Needle Sword",
+      "type": "weapon",
+      "description": "A sewing needle fashioned into a rapier.",
+      "usage": "Finesse weapon.",
+      "stats": {},
+      "abilities": [],
+      "behavior": ""
+    }
+  ]
+}

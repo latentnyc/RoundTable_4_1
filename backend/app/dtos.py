@@ -25,7 +25,7 @@ class CreateCharacterRequest(BaseModel):
     xp: int = 0
     control_mode: str = "human"
     # dict for flexible storage of stats, skills, feats, inventory, etc.
-    sheet_data: Dict = {} 
+    sheet_data: Dict = {}
     backstory: Optional[str] = None
 
 class CharacterResponse(BaseModel):
@@ -70,6 +70,14 @@ class CampaignCreateRequest(BaseModel):
     api_key: str | None = None
     model: str | None = None
     system_prompt: str | None = None
+    template_id: str | None = None
+
+class CampaignTemplateResponse(BaseModel):
+    id: str
+    name: str
+    description: str
+    genre: str
+
 
 class CampaignResponse(BaseModel):
     id: str
@@ -77,6 +85,7 @@ class CampaignResponse(BaseModel):
     gm_id: str
     status: str
     created_at: str | datetime = None
+    template_id: str | None = None
     api_key_verified: bool = False
     api_key_configured: bool = False
 
@@ -84,6 +93,30 @@ class CampaignDetailsResponse(CampaignResponse):
     api_key: Optional[str] = None
     model: Optional[str] = None
     system_prompt: Optional[str] = None
+    user_status: Optional[str] = None # 'active', 'interested', 'banned', or None (not joined)
+    user_role: Optional[str] = None # 'gm', 'player'
+    total_input_tokens: int = 0
+    total_output_tokens: int = 0
+    query_count: int = 0
+
+class ParticipantCharacter(BaseModel):
+    id: str
+    name: str
+    race: str
+    class_name: str # 'role' in DB
+    level: int
+
+class CampaignParticipantResponse(BaseModel):
+    id: str # user_id
+    username: str
+    role: str
+    status: str
+    joined_at: str | datetime
+    characters: List[ParticipantCharacter] = []
+
+class UpdateParticipantRequest(BaseModel):
+    role: Optional[str] = None
+    status: Optional[str] = None
 
 class UpdateCampaignRequest(BaseModel):
     name: Optional[str] = None
@@ -91,4 +124,3 @@ class UpdateCampaignRequest(BaseModel):
     api_key_verified: Optional[bool] = None
     model: Optional[str] = None
     system_prompt: Optional[str] = None
-

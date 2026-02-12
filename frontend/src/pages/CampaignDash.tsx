@@ -2,10 +2,10 @@
 import { useCharacterStore } from '@/store/characterStore';
 import { useAuthStore } from '@/store/authStore';
 import { useCampaignStore } from '@/store/campaignStore';
-import { useEffect, useState } from 'react';
-import { campaignApi, characterApi, settingsApi, Character, Campaign, DatasetInfo } from '@/lib/api';
+import { useEffect, useState, useCallback } from 'react';
+import { campaignApi, characterApi, settingsApi, Character, Campaign, CampaignParticipant } from '@/lib/api';
 import { useNavigate, Link } from 'react-router-dom';
-import { Trash2, User, Bot, Ghost, Play, Settings, Loader2, Check, X } from 'lucide-react';
+import { Trash2, User, Bot, Ghost, Play, Settings, Loader2, Check, X, Shield, Users } from 'lucide-react';
 
 import { useParams } from 'react-router-dom';
 
@@ -20,28 +20,70 @@ export default function CampaignDash() {
     const [showSettings, setShowSettings] = useState(false);
     const [currentCampaign, setCurrentCampaign] = useState<Campaign | null>(null);
     const [modelList, setModelList] = useState<string[]>([]);
+    // Datasets & Templates removed from settings UI
+
     const [isTesting, setIsTesting] = useState(false);
     const [testStatus, setTestStatus] = useState<'idle' | 'success' | 'error'>('idle');
+    const [errorCountdown, setErrorCountdown] = useState(0);
 
-    // Dataset State
-    const [datasetList, setDatasetList] = useState<DatasetInfo[]>([]);
-    const [selectedDatasetId, setSelectedDatasetId] = useState<string>("basic");
-    const [loadActionStatus, setLoadActionStatus] = useState<Record<string, 'idle' | 'loading' | 'success' | 'error'>>({});
+    // Participant State
+    const [participantStatus, setParticipantStatus] = useState<string | null>(null);
+    const [participantRole, setParticipantRole] = useState<string | null>(null);
+    const [showMemberlist, setShowMemberlist] = useState(false);
+    const [showManagePlayers, setShowManagePlayers] = useState(false);
+    const [participants, setParticipants] = useState<CampaignParticipant[]>([]);
+    const [isLoadingParticipants, setIsLoadingParticipants] = useState(false);
 
     // Status Checks
     const [apiKeyPresent, setApiKeyPresent] = useState(false);
     const [datasetLoaded, setDatasetLoaded] = useState(false);
     const [checksLoaded, setChecksLoaded] = useState(false);
+    const [joinCheckDone, setJoinCheckDone] = useState(false);
 
     const navigate = useNavigate();
 
-    const fetchStatusChecks = async () => {
+    // Countdown Effect for Error Revert
+    useEffect(() => {
+        let interval: NodeJS.Timeout;
+        if (testStatus === 'error') {
+            setErrorCountdown(5);
+            interval = setInterval(() => {
+                setErrorCountdown(prev => {
+                    if (prev <= 1) {
+                        setTestStatus('idle');
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+        } else {
+            setErrorCountdown(0);
+        }
+        return () => clearInterval(interval);
+    }, [testStatus]);
+
+    const fetchStatusChecks = useCallback(async () => {
         if (!id) return;
         try {
-            // Check Campaign API Key
-            // We fetch the latest campaign data to be sure
+            // Check Campaign API Key AND Participant Status
             const camp = await campaignApi.get(id);
-            setApiKeyPresent(!!camp.api_key_verified || !!camp.api_key_configured);
+            // Strict check: Only green if verified
+            setApiKeyPresent(!!camp.api_key_verified);
+
+            // Participant Logic
+            if (camp.user_status) {
+                setParticipantStatus(camp.user_status);
+                setParticipantRole(camp.user_role || 'player');
+            } else {
+                // Not joined? Auto-join
+                try {
+                    const res = await campaignApi.join(id);
+                    setParticipantStatus(res.status);
+                    setParticipantRole(res.role);
+                } catch (e) {
+                    console.error("Failed to join campaign", e);
+                }
+            }
 
             // Check Dataset Status
             const datasets = await settingsApi.getDatasets();
@@ -49,10 +91,11 @@ export default function CampaignDash() {
             setDatasetLoaded(isLoaded);
 
             setChecksLoaded(true);
+            setJoinCheckDone(true);
         } catch (e) {
             console.error("Failed to perform status checks", e);
         }
-    };
+    }, [id]);
 
     const openSettings = async () => {
         if (!id) return;
@@ -62,20 +105,17 @@ export default function CampaignDash() {
             setShowSettings(true);
             setTestStatus('idle');
 
-            // Fetch datasets
-            try {
-                const list = await settingsApi.getDatasets();
-                setDatasetList(list);
-                // Default selection logic: Pick loaded one, or first, or 'basic'
-                const loaded = list.find(d => d.is_loaded);
-                if (loaded) setSelectedDatasetId(loaded.id);
-                else if (list.length > 0) setSelectedDatasetId(list[0].id);
-            } catch (e) {
-                console.error("Failed to fetch datasets", e);
-            }
+            // Datasets/Templates fetching removed
+            // try {
+            //     const [dList, tList] = await Promise.all([
+            //         settingsApi.getDatasets(),
+            //         settingsApi.getGameTemplates()
+            //     ]);
+            //     ...
+            // } catch (e) { ... }
 
             // Also update our top-level status
-            setApiKeyPresent(!!camp.api_key_verified || !!camp.api_key_configured);
+            setApiKeyPresent(!!camp.api_key_verified);
             // We will update datasetLoaded after closing settings or if we load it inside settings
 
             if (camp.api_key) {
@@ -98,21 +138,29 @@ export default function CampaignDash() {
         }
     };
 
-    const handleLoadDataset = async (datasetId: string) => {
-        setLoadActionStatus(prev => ({ ...prev, [datasetId]: 'loading' }));
+    const fetchParticipants = async () => {
+        if (!id) return;
+        setIsLoadingParticipants(true);
         try {
-            await settingsApi.loadDataset(datasetId);
-            // Refresh list to update status
-            const list = await settingsApi.getDatasets();
-            setDatasetList(list);
-            setLoadActionStatus(prev => ({ ...prev, [datasetId]: 'success' }));
+            const data = await campaignApi.getParticipants(id);
 
-            // Update global status
-            setDatasetLoaded(true);
+            setParticipants(data);
+
         } catch (e) {
-            console.error("Failed to load dataset", e);
-            setLoadActionStatus(prev => ({ ...prev, [datasetId]: 'error' }));
-            alert("Failed to load dataset. Check server logs.");
+            console.error("Failed to fetch participants", e);
+        } finally {
+            setIsLoadingParticipants(false);
+        }
+    };
+
+    const handleUpdateParticipant = async (userId: string, status: string) => {
+        if (!id) return;
+        try {
+            await campaignApi.updateParticipant(id, userId, { status });
+            fetchParticipants(); // Refresh
+        } catch (e) {
+            console.error("Failed to update participant", e);
+            alert("Failed to update participant status");
         }
     };
 
@@ -124,7 +172,7 @@ export default function CampaignDash() {
                 api_key: currentCampaign.api_key,
                 // If we successfully tested THIS key in THIS session, verify it.
                 // Otherwise if it was ALREADY verified and we didn't change it, it stays verified (handled by backend if we don't send false)
-                // But simplified: If testStatus is success, we send true. 
+                // But simplified: If testStatus is success, we send true.
                 // If we didn't test but we touched the key? Backend handles resetting if key passes but verified not passed.
                 // Safest: Send verified=true if testStatus='success'.
                 api_key_verified: testStatus === 'success' ? true : undefined,
@@ -134,12 +182,17 @@ export default function CampaignDash() {
 
             // Update status - fetch fresh to be sure or optimistic
             // optimistic:
-            setApiKeyPresent(testStatus === 'success' || (!!currentCampaign.api_key_verified && testStatus === 'idle') || !!currentCampaign.api_key_configured);
-            // Actually relying on the save result would be better but let's just use what we know.
+            // Only strictly verified keys get the green light
             if (testStatus === 'success') {
                 setApiKeyPresent(true);
             } else {
-                setApiKeyPresent(false);
+                // If status was 'idle', we might have kept previous verified state...
+                // But better to be safe and assume false unless we just proved it or we re-fetch.
+                // Re-fetching is safer.
+                try {
+                    const fresh = await campaignApi.get(id);
+                    setApiKeyPresent(!!fresh.api_key_verified);
+                } catch { setApiKeyPresent(false); }
             }
 
             setShowSettings(false);
@@ -149,12 +202,12 @@ export default function CampaignDash() {
         }
     };
 
-    const fetchCharacters = () => {
+    const fetchCharacters = useCallback(() => {
         if (profile?.id && id) {
             // Fetch characters for the specific campaign
             characterApi.list(profile.id, id).then(setCharacters);
         }
-    };
+    }, [profile?.id, id]);
 
     useEffect(() => {
         if (id) {
@@ -162,7 +215,7 @@ export default function CampaignDash() {
             fetchCharacters();
             fetchStatusChecks();
         }
-    }, [profile, id]);
+    }, [id, setSelectedCampaignId, fetchCharacters, fetchStatusChecks]);
 
     const handleToggleMode = async (e: React.MouseEvent, char: Character) => {
         e.stopPropagation();
@@ -207,6 +260,50 @@ export default function CampaignDash() {
     };
 
     const isReady = apiKeyPresent && datasetLoaded;
+    const isGM = participantRole === 'gm' || profile?.is_admin;
+
+
+    if (!joinCheckDone) {
+        return <div className="min-h-screen bg-black text-white flex items-center justify-center">Loading...</div>;
+    }
+
+    if (participantStatus === 'interested') {
+        return (
+            <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center space-y-6">
+                <div className="w-16 h-16 bg-purple-900/30 rounded-full flex items-center justify-center mb-4 animate-pulse">
+                    <Shield className="w-8 h-8 text-purple-400" />
+                </div>
+                <h1 className="text-3xl font-bold">Request Pending</h1>
+                <p className="text-neutral-400 max-w-md">
+                    You have joined the campaign as an interested player.
+                    <br />
+                    Please wait for the GM to approve your request.
+                </p>
+                <button
+                    onClick={() => { window.location.reload(); }}
+                    className="px-6 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg transition-colors"
+                >
+                    Check Status
+                </button>
+                <button
+                    onClick={() => navigate('/campaign_start')}
+                    className="text-neutral-500 hover:text-white text-sm"
+                >
+                    Back to Campaign List
+                </button>
+            </div>
+        );
+    }
+
+    if (participantStatus === 'banned') {
+        return (
+            <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center space-y-6">
+                <h1 className="text-3xl font-bold text-red-500">Access Denied</h1>
+                <p className="text-neutral-400">You have been banned from this campaign.</p>
+                <button onClick={() => navigate('/campaign_start')} className="text-neutral-300 hover:text-white">Back</button>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-neutral-950 text-white p-8">
@@ -218,7 +315,7 @@ export default function CampaignDash() {
                             <div className="flex gap-2">
                                 <div
                                     className={`flex items-center gap-1 text-xs px-2 py-1 rounded border ${apiKeyPresent ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}
-                                    title={apiKeyPresent ? "API Key Configured" : "API Key Missing"}
+                                    title={apiKeyPresent ? "API Key Configured & Verified" : "API Key Missing or Unverified"}
                                 >
                                     <div className={`w-2 h-2 rounded-full ${apiKeyPresent ? 'bg-green-500' : 'bg-red-500'}`} />
                                     <span className="font-mono">API_KEY</span>
@@ -235,20 +332,41 @@ export default function CampaignDash() {
                     </div>
                     {profile && <p className="text-neutral-400">Welcome, {profile.username}</p>}
                 </div>
-                <div className="flex">
+                <div className="flex gap-3">
+                    <button
+                        onClick={() => {
+                            fetchParticipants();
+                            setShowMemberlist(true);
+                        }}
+                        className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                    >
+                        <Users className="w-5 h-5" />
+                        Members
+                    </button>
+                    {isGM && (
+                        <button
+                            onClick={() => {
+                                fetchParticipants();
+                                setShowManagePlayers(true);
+                            }}
+                            className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-purple-300 border border-purple-500/30 px-4 py-2 rounded-lg font-medium transition-colors"
+                        >
+                            <Shield className="w-5 h-5" />
+                            Manage
+                        </button>
+                    )}
                     <button
                         onClick={openSettings}
-                        className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white px-6 py-3 rounded-lg font-bold transition-colors mr-3"
+                        className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
                     >
                         <Settings className="w-5 h-5" />
-                        Settings
                     </button>
                     <button
                         onClick={() => navigate('/campaign_start')}
-                        className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-bold transition-colors shadow-lg shadow-purple-900/20"
+                        className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold transition-colors shadow-lg shadow-purple-900/20"
                     >
                         <Play className="w-5 h-5" />
-                        Switch Campaign
+                        Switch
                     </button>
                 </div>
             </div>
@@ -420,14 +538,17 @@ export default function CampaignDash() {
                                             }
                                         }}
                                         disabled={!currentCampaign.api_key || isTesting}
-                                        className="w-full bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50 text-white text-sm py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+                                        className={`w-full text-white text-sm py-2 rounded-lg transition-all duration-300 flex items-center justify-center gap-2 ${testStatus === 'error'
+                                            ? 'bg-red-500/20 border border-red-500/50 text-red-200'
+                                            : 'bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50'
+                                            }`}
                                     >
                                         {isTesting ? <Loader2 className="w-4 h-4 animate-spin" /> :
                                             testStatus === 'success' ? <Check className="w-4 h-4 text-green-500" /> :
                                                 testStatus === 'error' ? <X className="w-4 h-4 text-red-500" /> : null}
                                         {isTesting ? 'Testing...' :
                                             testStatus === 'success' ? 'Validated & Models Loaded' :
-                                                testStatus === 'error' ? 'Validation Failed' : 'Save & Test Key'}
+                                                testStatus === 'error' ? `Validation Failed (Reverting in ${errorCountdown}s)` : 'Save & Test Key'}
                                     </button>
                                 </div>
                             </div>
@@ -452,68 +573,6 @@ export default function CampaignDash() {
                                     )}
                                 </select>
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-neutral-400 mb-1">System Prompt</label>
-                                <textarea
-                                    value={currentCampaign.system_prompt || ''}
-                                    onChange={e => setCurrentCampaign({ ...currentCampaign, system_prompt: e.target.value })}
-                                    placeholder="Enter custom system prompt..."
-                                    className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white min-h-[100px]"
-                                />
-                            </div>
-
-                            {/* Dataset Selection */}
-                            <div className="pt-4 border-t border-neutral-800 text-sm">
-                                <label className="block text-sm font-medium text-neutral-400 mb-1">Game Data (Global)</label>
-                                <div className="flex gap-2">
-                                    <select
-                                        value={selectedDatasetId}
-                                        onChange={e => setSelectedDatasetId(e.target.value)}
-                                        className="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white"
-                                    >
-                                        {datasetList.map(d => (
-                                            <option key={d.id} value={d.id}>
-                                                {d.name} {d.is_loaded ? '(Loaded)' : '(Not Loaded)'}
-                                            </option>
-                                        ))}
-                                        {datasetList.length === 0 && <option value="basic">Basic (Default)</option>}
-                                    </select>
-
-                                    {(() => {
-                                        const selected = datasetList.find(d => d.id === selectedDatasetId);
-                                        // If selected is not loaded, show Load button
-                                        // OR if we just want to allow reloading? 
-                                        // The prompt says "logic to investigate if this json data has been loaded... with a 'load' button to accomplish this."
-                                        // Implies if not loaded, show load.
-                                        if (selected && !selected.is_loaded) {
-                                            const status = loadActionStatus[selected.id] || 'idle';
-                                            return (
-                                                <button
-                                                    onClick={() => handleLoadDataset(selected.id)}
-                                                    disabled={status === 'loading'}
-                                                    className="bg-neutral-700 hover:bg-neutral-600 text-white px-3 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
-                                                >
-                                                    {status === 'loading' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                                                    {status === 'loading' ? 'Loading...' : 'Load'}
-                                                </button>
-                                            )
-                                        }
-                                        // If loaded, maybe show a checkmark or nothing
-                                        if (selected && selected.is_loaded) {
-                                            return (
-                                                <div className="flex items-center gap-2 px-3 py-2 text-green-500 bg-green-500/10 rounded-lg border border-green-500/20">
-                                                    <Check className="w-4 h-4" />
-                                                    <span className="text-xs font-bold">Active</span>
-                                                </div>
-                                            )
-                                        }
-                                        return null;
-                                    })()}
-                                </div>
-                                <p className="text-xs text-neutral-500 mt-1">
-                                    {datasetList.find(d => d.id === selectedDatasetId)?.description || "Standard 5e Data"}
-                                </p>
-                            </div>
                         </div>
 
                         <div className="flex gap-3 pt-2">
@@ -533,6 +592,136 @@ export default function CampaignDash() {
                     </div>
                 </div>
             )}
+
+
+            {/* Member List Modal */}
+            {
+                showMemberlist && (
+                    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+                        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 max-w-2xl w-full max-h-[80vh] flex flex-col">
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-2xl font-bold flex items-center gap-2">
+                                    <Users className="w-6 h-6 text-purple-400" />
+                                    Campaign Members
+                                </h2>
+                                <button onClick={() => setShowMemberlist(false)} className="text-neutral-500 hover:text-white">
+                                    <X className="w-6 h-6" />
+                                </button>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4">
+                                {isLoadingParticipants ? (
+                                    <div className="text-center py-8 text-neutral-500">Loading members...</div>
+                                ) : (
+                                    participants
+                                        .filter(p => p.status === 'active' || p.status === 'interested') // Show interested too? Maybe just active for general list
+                                        .map(p => (
+                                            <div key={p.id} className="bg-black/40 border border-white/5 rounded-lg p-4">
+                                                <div className="flex justify-between items-center mb-2">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className={`font-bold ${p.role === 'gm' ? 'text-purple-400' : 'text-neutral-200'}`}>
+                                                            {p.username}
+                                                        </span>
+                                                        {p.role === 'gm' && <span className="text-xs bg-purple-900/50 text-purple-300 px-2 py-0.5 rounded border border-purple-500/30">GM</span>}
+                                                        {p.status === 'interested' && <span className="text-xs bg-yellow-900/50 text-yellow-300 px-2 py-0.5 rounded border border-yellow-500/30">Pending</span>}
+                                                    </div>
+                                                </div>
+
+                                                {/* Character List */}
+                                                {p.characters && p.characters.length > 0 ? (
+                                                    <div className="grid gap-2 mt-2 pl-4 border-l-2 border-white/5">
+                                                        {p.characters.map(c => (
+                                                            <div key={c.id} className="text-sm flex items-center gap-2 text-neutral-400">
+                                                                <span className="text-neutral-300 font-medium">{c.name}</span>
+                                                                <span className="w-1 h-1 rounded-full bg-neutral-600" />
+                                                                <span>{c.race} {c.class_name}</span>
+                                                                <span className="w-1 h-1 rounded-full bg-neutral-600" />
+                                                                <span className="text-neutral-500">Lvl {c.level}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-xs text-neutral-600 italic pl-4">No characters yet.</p>
+                                                )}
+                                            </div>
+                                        ))
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Manage Players Modal (GM Only) */}
+            {
+                showManagePlayers && isGM && (
+                    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+                        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 max-w-2xl w-full max-h-[80vh] flex flex-col">
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-2xl font-bold flex items-center gap-2">
+                                    <Shield className="w-6 h-6 text-purple-400" />
+                                    Manage Players
+                                </h2>
+                                <button onClick={() => setShowManagePlayers(false)} className="text-neutral-500 hover:text-white">
+                                    <X className="w-6 h-6" />
+                                </button>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4">
+                                {isLoadingParticipants ? (
+                                    <div className="text-center py-8 text-neutral-500">Loading...</div>
+                                ) : (
+                                    participants.map(p => (
+                                        <div key={p.id} className="bg-black/40 border border-white/5 rounded-lg p-4 flex items-center justify-between">
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-bold text-neutral-200">{p.username}</span>
+                                                    {p.role === 'gm' && <span className="text-xs bg-purple-900/50 text-purple-300 px-2 py-0.5 rounded border border-purple-500/30">GM</span>}
+                                                </div>
+                                                <p className="text-sm text-neutral-500">
+                                                    Joined: {new Date(p.joined_at).toLocaleDateString()}
+                                                    {p.characters.length > 0 && ` • ${p.characters.length} Character(s)`}
+                                                </p>
+                                            </div>
+
+                                            <div className="flex items-center gap-2">
+                                                {p.role !== 'gm' && (
+                                                    <>
+                                                        {p.status === 'interested' && (
+                                                            <button
+                                                                onClick={() => handleUpdateParticipant(p.id, 'active')}
+                                                                className="px-3 py-1 bg-green-900/30 hover:bg-green-900/50 text-green-400 border border-green-500/30 rounded text-sm transition-colors"
+                                                            >
+                                                                Approve
+                                                            </button>
+                                                        )}
+                                                        {p.status === 'active' && (
+                                                            <button
+                                                                onClick={() => handleUpdateParticipant(p.id, 'banned')}
+                                                                className="px-3 py-1 bg-red-900/20 hover:bg-red-900/40 text-red-400 border border-red-500/20 rounded text-sm transition-colors"
+                                                            >
+                                                                Ban
+                                                            </button>
+                                                        )}
+                                                        {p.status === 'banned' && (
+                                                            <button
+                                                                onClick={() => handleUpdateParticipant(p.id, 'active')}
+                                                                className="px-3 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 rounded text-sm transition-colors"
+                                                            >
+                                                                Unban
+                                                            </button>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
         </div>
     );
 }

@@ -49,4 +49,3 @@ deleteJournalEntryRef.operationName = 'DeleteJournalEntry';
 export function deleteJournalEntry(dcOrVars, vars) {
   return executeMutation(deleteJournalEntryRef(dcOrVars, vars));
 }
-

@@ -6,9 +6,10 @@ const api = axios.create({
     headers: {
         'Content-Type': 'application/json',
     },
+    timeout: 10000,
 });
 
-console.log("API URL Configured:", api.defaults.baseURL); // Debugging
+
 
 
 let tokenGetter: () => string | null = () => null;
@@ -43,7 +44,7 @@ export const authApi = {
         const response = await api.post('/auth/login');
         return response.data;
     },
-    updateProfile: async (data: any) => {
+    updateProfile: async (data: Partial<Profile>) => {
         const response = await api.put('/auth/profile', data);
         return response.data;
     }
@@ -75,14 +76,16 @@ export const usersApi = {
 export interface Character {
     id: string;
     user_id?: string;
+    campaign_id?: string;
     name: string;
     role: string; // Class
     level: number;
     race?: string;
     xp?: number;
     backstory?: string;
-    sheet_data?: any;
-    control_mode?: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    sheet_data?: Record<string, any>;
+    control_mode?: 'human' | 'ai' | 'disabled';
     is_ai?: boolean;
 }
 
@@ -97,6 +100,29 @@ export interface Campaign {
     api_key_configured?: boolean;
     model?: string;
     system_prompt?: string;
+    user_status?: string; // 'active', 'interested', 'banned', or undefined
+    user_role?: string; // 'gm', 'player'
+    total_input_tokens?: number;
+    total_output_tokens?: number;
+    query_count?: number;
+    template_id?: string;
+}
+
+export interface ParticipantCharacter {
+    id: string;
+    name: string;
+    race: string;
+    class_name: string;
+    level: number;
+}
+
+export interface CampaignParticipant {
+    id: string;
+    username: string;
+    role: string;
+    status: string;
+    joined_at: string;
+    characters: ParticipantCharacter[];
 }
 
 export const campaignApi = {
@@ -108,7 +134,11 @@ export const campaignApi = {
         const response = await api.get(`/campaigns/${id}`);
         return response.data;
     },
-    create: async (data: any): Promise<Campaign> => {
+    listTemplates: async (): Promise<CampaignTemplate[]> => {
+        const response = await api.get('/campaigns/templates');
+        return response.data;
+    },
+    create: async (data: Partial<Campaign>): Promise<Campaign> => {
         const response = await api.post('/campaigns/', data);
         return response.data;
     },
@@ -116,7 +146,7 @@ export const campaignApi = {
         const response = await api.patch(`/campaigns/${id}`, data);
         return response.data;
     },
-    updateSettings: async (id: string, settings: any) => {
+    updateSettings: async (id: string, settings: Partial<Campaign>) => {
         const response = await api.put(`/campaigns/${id}/settings`, settings); // Using PUT for settings
         return response.data;
     },
@@ -126,21 +156,33 @@ export const campaignApi = {
     },
     delete: async (id: string): Promise<void> => {
         await api.delete(`/campaigns/${id}`);
+    },
+    join: async (id: string): Promise<{ status: string, role: string }> => {
+        const response = await api.post(`/campaigns/${id}/join`);
+        return response.data;
+    },
+    getParticipants: async (id: string): Promise<CampaignParticipant[]> => {
+        const response = await api.get(`/campaigns/${id}/participants`);
+        return response.data;
+    },
+    updateParticipant: async (campaignId: string, userId: string, data: { role?: string, status?: string }) => {
+        const response = await api.patch(`/campaigns/${campaignId}/participants/${userId}`, data);
+        return response.data;
     }
 };
 
 export const characterApi = {
-    create: async (data: any): Promise<Character> => {
+    create: async (data: Partial<Character>): Promise<Character> => {
         const response = await api.post('/characters/', data);
         return response.data;
     },
     list: async (userId: string, campaignId?: string): Promise<Character[]> => {
-        const params: any = {};
+        const params: Record<string, string> = {};
         if (campaignId) params.campaign_id = campaignId;
         const response = await api.get(`/characters/user/${userId}`, { params });
         return response.data;
     },
-    update: async (id: string, data: any): Promise<Character> => {
+    update: async (id: string, data: Partial<Character>): Promise<Character> => {
         const response = await api.patch(`/characters/${id}`, data);
         return response.data;
     },
@@ -154,6 +196,7 @@ export interface Item {
     id: string;
     name: string;
     type?: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data: any;
 }
 
@@ -198,6 +241,20 @@ export interface DatasetInfo {
     is_loaded: boolean;
 }
 
+export interface GameTemplate {
+    filename: string;
+    name: string;
+    description: string;
+    system_prompt: string;
+}
+
+export interface CampaignTemplate {
+    id: string;
+    name: string;
+    description: string;
+    genre: string;
+}
+
 export const settingsApi = {
     testKey: async (apiKey: string): Promise<{ models: string[] }> => {
         const response = await api.post(`/api/settings/test-key`, { api_key: apiKey, provider: "Gemini" });
@@ -208,7 +265,12 @@ export const settingsApi = {
         return response.data;
     },
     loadDataset: async (id: string): Promise<void> => {
-        await api.post(`/api/settings/datasets/${id}/load`);
+        const response = await api.post(`/api/settings/datasets/${id}/load`);
+        return response.data;
+    },
+    getGameTemplates: async (): Promise<GameTemplate[]> => {
+        const response = await api.get('/api/settings/game_templates');
+        return response.data;
     }
 };
 

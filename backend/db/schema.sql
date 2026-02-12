@@ -14,9 +14,14 @@ create table public.profiles (
 create table public.campaigns (
   id uuid default gen_random_uuid() primary key,
   name text not null,
+  description text,
   gm_id uuid references public.profiles(id) not null,
   status text check (status in ('active', 'paused', 'completed')) default 'active',
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  api_key text,
+  model text,
+  system_prompt text,
+  template_id text
 );
 
 -- GAME STATES
@@ -26,10 +31,10 @@ create table public.game_states (
   campaign_id uuid references public.campaigns(id) not null,
   turn_index integer default 0,
   phase text default 'exploration',
-  
+
   -- The core state blob (Using JSONB for flexibility as per architecture)
   state_data jsonb not null default '{}'::jsonb,
-  
+
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
@@ -42,7 +47,7 @@ create table public.chat_messages (
   sender_name text not null,
   content text not null,
   is_tool_output boolean default false,
-  
+
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
@@ -73,3 +78,17 @@ create policy "Campaigns are viewable by participants."
   on campaigns for select
   using ( auth.uid() = gm_id ); -- simplified for now
 
+
+-- DEBUG LOGS
+create table public.debug_logs (
+  id uuid default gen_random_uuid() primary key,
+  campaign_id uuid references public.campaigns(id) not null,
+  type text not null,
+  content text,
+  full_content jsonb,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+create policy "Debug logs are viewable by participants."
+  on debug_logs for select
+  using ( auth.uid() = (select gm_id from campaigns where id = campaign_id) ); -- Only GM? Or all? Let's say all for now or strict GM.

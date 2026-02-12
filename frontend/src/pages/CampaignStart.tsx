@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { Plus, Play, ArrowRight, Shield, LogOut, Trash2 } from 'lucide-react';
-import { campaignApi } from '@/lib/api';
+import { campaignApi, CampaignTemplate } from '@/lib/api';
 
 interface Campaign {
     id: string;
@@ -11,6 +11,7 @@ interface Campaign {
     gm_id: string;
     status: string;
     created_at: string;
+    template_id?: string;
 }
 
 export default function CampaignStart() {
@@ -22,6 +23,10 @@ export default function CampaignStart() {
     const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(true);
     const [selectedCampaignId, setSelectedCampaignId] = useState<string>("");
 
+    // Templates State
+    const [templates, setTemplates] = useState<CampaignTemplate[]>([]);
+    const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+
     // Deletion State
     const [campaignToDelete, setCampaignToDelete] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -29,12 +34,15 @@ export default function CampaignStart() {
     // Creation State
     // const [isCreating, setIsCreating] = useState(false); // Unused
     const [newCampaignName, setNewCampaignName] = useState("");
+    const [selectedTemplate, setSelectedTemplate] = useState<string>("");
+    // const [apiKey, setApiKey] = useState(""); // Removed per request
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     // Initial Fetch
     useEffect(() => {
         fetchCampaigns();
+        fetchTemplates();
     }, []);
 
     const fetchCampaigns = async () => {
@@ -53,6 +61,23 @@ export default function CampaignStart() {
         }
     };
 
+    const fetchTemplates = async () => {
+        setIsLoadingTemplates(true);
+        try {
+            const data = await campaignApi.listTemplates();
+            setTemplates(data);
+            if (data.length > 0) {
+                // Default to Goblin Combat Test if available
+                const defaultTemplate = data.find(t => t.id === "combat_test_goblin");
+                setSelectedTemplate(defaultTemplate ? defaultTemplate.id : data[0].id);
+            }
+        } catch (e) {
+            console.error("Failed to fetch templates", e);
+        } finally {
+            setIsLoadingTemplates(false);
+        }
+    };
+
     const handleCreateCampaign = async () => {
         if (!newCampaignName.trim()) return;
         if (!user?.uid) {
@@ -68,10 +93,10 @@ export default function CampaignStart() {
             await campaignApi.create({
                 name: newCampaignName,
                 gm_id: user?.uid,
-                // Default placeholders - will be configured in settings
-                api_key: "sk-placeholder",
-                model: "gpt-4-turbo-preview",
-                system_prompt: "You are a Dungeon Master."
+                // api_key: apiKey, // Removed
+                model: "gemini-1.5-pro-latest", // Default to pro for better intro
+                system_prompt: "You are a Dungeon Master.",
+                template_id: selectedTemplate || undefined
             });
 
             setNewCampaignName("");
@@ -117,6 +142,7 @@ export default function CampaignStart() {
     };
 
     const isAdmin = profile?.is_admin || false;
+    const selectedTemplateData = templates.find(t => t.id === selectedTemplate);
 
     return (
         <div className="min-h-screen bg-black text-white p-6 md:p-12">
@@ -277,6 +303,28 @@ export default function CampaignStart() {
                                         className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-purple-500 transition-colors placeholder-neutral-700"
                                     />
                                 </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-neutral-400 mb-2">Template (Optional)</label>
+                                    <select
+                                        value={selectedTemplate}
+                                        onChange={(e) => setSelectedTemplate(e.target.value)}
+                                        className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-purple-500 transition-colors text-white"
+                                        disabled={isLoadingTemplates}
+                                    >
+                                        <option value="">Blank Campaign</option>
+                                        {templates.map(t => (
+                                            <option key={t.id} value={t.id}>{t.name} ({t.genre})</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Friendly Description Display */}
+                                {selectedTemplateData && (
+                                    <div className="bg-black/50 p-4 rounded-xl border border-white/10 text-sm text-neutral-300 italic">
+                                        {selectedTemplateData.description}
+                                    </div>
+                                )}
 
                                 {error && (
                                     <div className="text-red-400 text-sm bg-red-900/20 p-2 rounded border border-red-900/50">

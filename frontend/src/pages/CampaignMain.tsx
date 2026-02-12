@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
+import { useSocketStore } from '@/lib/socket';
 import { Settings, ChevronLeft } from 'lucide-react';
 import GameInterface from '@/components/GameInterface';
 import CampaignSettings from '@/components/CampaignSettings';
@@ -26,6 +27,23 @@ export default function CampaignMain() {
                 const found = list.find((c: any) => c.id === id);
                 if (found) {
                     setCampaign(found);
+
+                    // Initialize Local Storage for Socket/Chat
+                    if (found.model) {
+                        localStorage.setItem('selected_model', found.model);
+                    }
+                    if (found.api_key) {
+                        localStorage.setItem('gemini_api_key', found.api_key);
+                    }
+
+                    // Initialize Socket Store Stats
+                    if (found.total_input_tokens !== undefined || found.total_output_tokens !== undefined) {
+                        const input = found.total_input_tokens || 0;
+                        const output = found.total_output_tokens || 0;
+                        const total = input + output;
+                        const count = found.query_count || 0;
+                        useSocketStore.getState().setInitialStats(total, input, output, count);
+                    }
                 } else {
                     console.error("Campaign not found in list");
                 }

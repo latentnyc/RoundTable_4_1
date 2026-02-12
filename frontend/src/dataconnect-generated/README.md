@@ -121,7 +121,7 @@ import { connectorConfig, getJournalEntriesByUser, GetJournalEntriesByUserVariab
 
 // The `GetJournalEntriesByUser` query requires an argument of type `GetJournalEntriesByUserVariables`:
 const getJournalEntriesByUserVars: GetJournalEntriesByUserVariables = {
-  userId: ..., 
+  userId: ...,
 };
 
 // Call the `getJournalEntriesByUser()` function to execute the query.
@@ -151,7 +151,7 @@ import { connectorConfig, getJournalEntriesByUserRef, GetJournalEntriesByUserVar
 
 // The `GetJournalEntriesByUser` query requires an argument of type `GetJournalEntriesByUserVariables`:
 const getJournalEntriesByUserVars: GetJournalEntriesByUserVariables = {
-  userId: ..., 
+  userId: ...,
 };
 
 // Call the `getJournalEntriesByUserRef()` function to get a reference to the query.
@@ -247,7 +247,7 @@ import { connectorConfig, createUser, CreateUserVariables } from '@dataconnect/g
 
 // The `CreateUser` mutation requires an argument of type `CreateUserVariables`:
 const createUserVars: CreateUserVariables = {
-  displayName: ..., 
+  displayName: ...,
   email: ..., // optional
   photoUrl: ..., // optional
 };
@@ -279,7 +279,7 @@ import { connectorConfig, createUserRef, CreateUserVariables } from '@dataconnec
 
 // The `CreateUser` mutation requires an argument of type `CreateUserVariables`:
 const createUserVars: CreateUserVariables = {
-  displayName: ..., 
+  displayName: ...,
   email: ..., // optional
   photoUrl: ..., // optional
 };
@@ -362,8 +362,8 @@ import { connectorConfig, createJournalEntry, CreateJournalEntryVariables } from
 
 // The `CreateJournalEntry` mutation requires an argument of type `CreateJournalEntryVariables`:
 const createJournalEntryVars: CreateJournalEntryVariables = {
-  userId: ..., 
-  content: ..., 
+  userId: ...,
+  content: ...,
   title: ..., // optional
 };
 
@@ -394,8 +394,8 @@ import { connectorConfig, createJournalEntryRef, CreateJournalEntryVariables } f
 
 // The `CreateJournalEntry` mutation requires an argument of type `CreateJournalEntryVariables`:
 const createJournalEntryVars: CreateJournalEntryVariables = {
-  userId: ..., 
-  content: ..., 
+  userId: ...,
+  content: ...,
   title: ..., // optional
 };
 
@@ -475,7 +475,7 @@ import { connectorConfig, deleteJournalEntry, DeleteJournalEntryVariables } from
 
 // The `DeleteJournalEntry` mutation requires an argument of type `DeleteJournalEntryVariables`:
 const deleteJournalEntryVars: DeleteJournalEntryVariables = {
-  id: ..., 
+  id: ...,
 };
 
 // Call the `deleteJournalEntry()` function to execute the mutation.
@@ -505,7 +505,7 @@ import { connectorConfig, deleteJournalEntryRef, DeleteJournalEntryVariables } f
 
 // The `DeleteJournalEntry` mutation requires an argument of type `DeleteJournalEntryVariables`:
 const deleteJournalEntryVars: DeleteJournalEntryVariables = {
-  id: ..., 
+  id: ...,
 };
 
 // Call the `deleteJournalEntryRef()` function to get a reference to the mutation.
@@ -529,4 +529,3 @@ executeMutation(ref).then((response) => {
   console.log(data.journalEntry_delete);
 });
 ```
-

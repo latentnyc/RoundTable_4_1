@@ -1,4 +1,5 @@
 import os
+import logging
 import firebase_admin
 from firebase_admin import auth, credentials
 from fastapi import Depends, HTTPException, status
@@ -11,16 +12,17 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 # This ensures we use the correct emulator settings before any auth calls are made.
 
 security = HTTPBearer()
+logger = logging.getLogger(__name__)
 
 async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    print("DEBUG: Entering verify_token dependency", flush=True)
+    logger.debug("Entering verify_token dependency")
     token = credentials.credentials
     try:
         decoded_token = auth.verify_id_token(token)
-        print("DEBUG: Token verified successfully", flush=True)
+        logger.debug("Token verified successfully")
         return decoded_token
     except Exception as e:
-        print(f"Auth Error: {e}", flush=True)
+        logger.error(f"Auth Error: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication credentials",
@@ -32,12 +34,12 @@ async def get_current_user(token_data: dict = Depends(verify_token)):
 
 async def get_current_profile(token_data: dict = Depends(verify_token)):
     # Import here to avoid circular dependency if possible, or move to dependencies.py
-    # But dependencies.py imports get_db. 
+    # But dependencies.py imports get_db.
     # Let's perform a raw DB lookup or import get_db inside.
     from .dependencies import get_db
-    
+
     # We need a new async generator context for get_db since it's a generator
-    # But Depends(get_db) works in FastAPI. 
+    # But Depends(get_db) works in FastAPI.
     # To do this manually inside a function is tricky without Depends.
     # So we should use Depends(get_db) in the signature.
     pass

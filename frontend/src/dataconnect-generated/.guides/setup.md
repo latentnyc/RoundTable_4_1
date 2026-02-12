@@ -59,4 +59,3 @@ function App() {
 
 render(<App />, document.getElementById('root'));
 ```
-

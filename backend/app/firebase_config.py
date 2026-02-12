@@ -1,6 +1,9 @@
 import os
 import firebase_admin
+import logging
 from firebase_admin import credentials, firestore
+
+logger = logging.getLogger(__name__)
 
 def init_firebase():
     """
@@ -11,14 +14,14 @@ def init_firebase():
     try:
         # Check if already initialized to avoid "consult log" errors
         if not firebase_admin._apps:
-            
+
             # If running locally with emulators, no creds needed/or use mock
             # The Admin SDK automatically detects emulators via env vars:
             # FIRESTORE_EMULATOR_HOST=localhost:8080
             # FIREBASE_AUTH_EMULATOR_HOST=localhost:9099
-            
+
             if os.getenv("FIRESTORE_EMULATOR_HOST"):
-                print(f"Connecting to Firestore Emulator at {os.getenv('FIRESTORE_EMULATOR_HOST')}")
+                logger.info(f"Connecting to Firestore Emulator at {os.getenv('FIRESTORE_EMULATOR_HOST')}")
                 # For emulators, we can use an anonymous credential or just default
                 # For emulators, we can use a dummy credential.
                 # The Admin SDK requires a credential object, but emulators don't validate the signature.
@@ -38,16 +41,16 @@ def init_firebase():
                 # Production: Use Service Account content from env or file
                 # Best practice: Use Google Application Default Credentials (ADC)
                 cred = credentials.ApplicationDefault()
-                print("Connecting to Production Firestore")
+                logger.info("Connecting to Production Firestore")
 
             firebase_admin.initialize_app(cred, {
                 'projectId': 'roundtable41-1dc2c', # From .firebaserc
             })
-            
-            print("Firebase Admin Initialized")
-            
+
+            logger.info("Firebase Admin Initialized")
+
     except Exception as e:
-        print(f"Failed to initialize Firebase: {e}")
+        logger.error(f"Failed to initialize Firebase: {e}")
         raise e
 
 def get_firestore():

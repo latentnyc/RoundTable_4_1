@@ -15,16 +15,16 @@ async def is_admin(user: dict, db: AsyncSession) -> bool:
     uid = user.get("uid")
     if not uid:
         return False
-        
+
     result = await db.execute(text("SELECT is_admin FROM profiles WHERE id = :uid"), {"uid": uid})
     row = result.mappings().fetchone()
-    
+
     if row and row["is_admin"]:
         return True
     return False
 
 async def require_admin(
-    user: dict = Depends(verify_token), 
+    user: dict = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
     """

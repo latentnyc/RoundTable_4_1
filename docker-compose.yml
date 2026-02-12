@@ -1,6 +1,6 @@
 services:
   backend:
-    build: 
+    build:
       context: ./backend
       dockerfile: Dockerfile
     ports:
@@ -15,7 +15,7 @@ services:
       - ./backend/game.db:/data/game.db
       # Optional: Mount credentials if needed
       # - ./serviceAccountKey.json:/app/serviceAccountKey.json
-  
+
   frontend:
     build: ./frontend
     ports:

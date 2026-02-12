@@ -1,4 +1,4 @@
-
+import { useCreateCharacterStore } from '@/store/createCharacterStore';
 import { useCharacterStore } from '@/store/characterStore';
 import { useCampaignStore } from '@/store/campaignStore';
 import { useAuthStore } from '@/store/authStore';
@@ -11,7 +11,8 @@ import { SKILLS_LIST, Skill, Stat, RaceData, ClassData, BackgroundData } from '@
 import { adaptRace, adaptClass, adaptBackground } from '@/lib/api-adapters';
 
 export default function CreateCharacterPage() {
-    const store = useCharacterStore();
+    const store = useCreateCharacterStore();
+    const characterStore = useCharacterStore();
     const navigate = useNavigate();
     const [isSaving, setIsSaving] = useState(false);
     const [mounted, setMounted] = useState(false);
@@ -27,15 +28,12 @@ export default function CreateCharacterPage() {
     useEffect(() => {
         if (!isEditMode) {
             store.resetForm();
+        } else {
+            // Load existing character for editing
+            if (characterStore.activeCharacter) {
+                store.loadCharacter(characterStore.activeCharacter);
+            }
         }
-
-        // Pre-fill username from auth
-        const user = useAuthStore.getState().user;
-        if (user?.displayName && !store.username) { // Only set if empty
-            const firstName = user.displayName.split(' ')[0];
-            store.setField('username', firstName);
-        }
-
         setMounted(true);
 
         const loadData = async () => {
@@ -71,6 +69,53 @@ export default function CreateCharacterPage() {
                 // Map Alignments
                 setAlignmentsList(alignments.map(a => a.name));
 
+                // Randomize for new characters
+                if (!isEditMode && races.length > 0 && classes.length > 0) {
+                    store.randomize();
+                }
+
+                // Randomize Alignment
+                if (!isEditMode && alignments.length > 0) {
+                    const randomAlignment = alignments[Math.floor(Math.random() * alignments.length)].name;
+                    store.setField('alignment', randomAlignment);
+                }
+
+                // Pre-populate Equipment and Spells
+                if (!isEditMode) {
+                    // Generate Random Name
+                    const prefixes = ["Aer", "Bar", "Ced", "Dorn", "El", "Fae", "Gor", "Ha", "Ili", "Jen", "Kal", "Lum", "Mor", "Nil", "Oli", "Per", "Quin", "Ror", "Syl", "Tor", "Ulf", "Val", "Wyn", "Xar", "Yor", "Zen"];
+                    const suffixes = ["a", "an", "ar", "or", "ius", "ia", "on", "in", "en", "el", "eth", "ath", "ith", "yx", "um", "us"];
+                    const randomName = prefixes[Math.floor(Math.random() * prefixes.length)] + suffixes[Math.floor(Math.random() * suffixes.length)];
+                    store.setField('name', randomName);
+
+                    try {
+                        const [armorResults, weaponResults, spellResults] = await Promise.all([
+                            itemsApi.search("Leather Armor"),
+                            itemsApi.search("Quarterstaff"),
+                            compendiumApi.searchSpells("Light")
+                        ]);
+
+                        const armor = armorResults.find(i => i.name === "Leather Armor");
+                        const weapon = weaponResults.find(i => i.name === "Quarterstaff");
+                        const spell = spellResults.find(i => i.name === "Light");
+
+                        const current = useCreateCharacterStore.getState();
+
+                        if (armor && !current.equipment.some(e => e.name === armor.name)) {
+                            store.addEquipment(armor);
+                        }
+                        if (weapon && !current.equipment.some(e => e.name === weapon.name)) {
+                            store.addEquipment(weapon);
+                        }
+                        if (spell && !current.spells.some(s => s.name === spell.name)) {
+                            store.addSpell(spell);
+                        }
+                    } catch (err) {
+                        console.error("Failed to pre-populate items", err);
+                    }
+                }
+
+
             } catch (e) {
                 console.error("Failed to load compendium data", e);
             } finally {
@@ -78,8 +123,20 @@ export default function CreateCharacterPage() {
             }
         };
         loadData();
-    }, []); // Only run once on mount
+    }, []);
 
+    // Login ID Logic
+    useEffect(() => {
+        const user = useAuthStore.getState().user;
+        if (user) {
+            const loginId = user.email || user.displayName || 'Unknown';
+            if (store.username !== loginId) {
+                store.setField('username', loginId);
+            }
+        }
+    }, [store]);
+
+    // Item Search Logic
     const [showItemSearch, setShowItemSearch] = useState(false);
     const [itemQuery, setItemQuery] = useState('');
     const [itemResults, setItemResults] = useState<Item[]>([]);
@@ -155,25 +212,21 @@ export default function CreateCharacterPage() {
 
     const handleSave = async () => {
         setIsSaving(true);
-        await store.loginAndCreate();
-        setIsSaving(false);
-        if (!useCharacterStore.getState().error) {
-            // We need to know which campaign to go back to. 
-            // Ideally validation schema or previous location state should hold this.
-            // For now, if we have a selectedCampaignId in store, use it.
-            const campaignId = useCampaignStore.getState().selectedCampaignId || store.currentCampaignId;
-            if (campaignId) {
-                navigate(`/campaign_dash/${campaignId}`);
-            } else {
-                navigate('/campaign_start');
+        try {
+            await store.submitCharacter();
+            if (!store.error) {
+                const campaignId = useCampaignStore.getState().selectedCampaignId;
+                if (campaignId) {
+                    navigate(`/campaign_dash/${campaignId}`);
+                } else {
+                    navigate('/campaign_start');
+                }
             }
+        } catch (e) {
+            // Error handled in store
+        } finally {
+            setIsSaving(false);
         }
-    };
-
-
-
-    const updateSheet = (path: string, value: any) => {
-        store.setSheetData(path, value);
     };
 
     // --- Derived Data Helpers ---
@@ -183,25 +236,23 @@ export default function CreateCharacterPage() {
 
     // Calculate Bonuses
     const getRacialBonus = (stat: string): number => {
-        let bonus = raceData?.bonuses?.[stat as Stat] || 0;
+        const bonus = raceData?.bonuses?.[stat as Stat] || 0;
         return bonus;
     };
 
-    // ... (unchanged lines)
-
-    const getScore = (stat: string) => (store.sheetData.stats[stat as Stat] || 8);
+    const getScore = (stat: string) => (store.stats[stat as Stat] || 8);
     const getTotalScore = (stat: string) => getScore(stat) + getRacialBonus(stat);
     const getMod = (score: number) => Math.floor((score - 10) / 2);
     const formatMod = (mod: number) => (mod >= 0 ? `+${mod}` : `${mod}`);
 
     // Skill Logic
-    const isSkillFromBg = (skill: Skill) => bgData?.skills.includes(skill);
-    const isSkillAllowed = (skill: Skill) => classData?.skills.from.includes(skill) || isSkillFromBg(skill);
+    const isSkillFromBg = (skill: Skill) => bgData?.skills?.includes(skill);
+    const isSkillAllowed = (skill: Skill) => classData?.skills?.from?.includes(skill) || isSkillFromBg(skill);
 
     const getClassSkillsCount = () => {
-        return Object.entries(store.sheetData.skills).filter(([s, v]) => v && !isSkillFromBg(s as Skill)).length;
+        return Object.entries(store.skills).filter(([s, v]) => v && !isSkillFromBg(s as Skill)).length;
     };
-    const maxClassSkills = classData?.skills.choose || 2;
+    const maxClassSkills = classData?.skills?.choose || 2;
 
     return (
         <div className="min-h-screen bg-neutral-950 text-neutral-100 p-4 lg:p-8 font-sans">
@@ -215,7 +266,7 @@ export default function CreateCharacterPage() {
 
                 {/* Header / Identity Bar */}
                 <header className="bg-neutral-900/60 backdrop-blur border border-neutral-800 rounded-xl p-6 shadow-2xl space-y-4 relative">
-                    <div className="absolute top-2 right-2 text-[10px] text-neutral-600 font-mono">v2.1 (Fixes)</div>
+                    <div className="absolute top-2 right-2 text-[10px] text-neutral-600 font-mono">v2.1 (Refactored)</div>
                     <div className="flex flex-col md:flex-row gap-6 justify-between">
                         {/* Name & ID */}
                         <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -263,8 +314,6 @@ export default function CreateCharacterPage() {
                                 {loadingData ? <option>Loading...</option> : Object.keys(racesData).map(r => <option key={r} value={r}>{r}</option>)}
                             </select>
                         </div>
-
-
 
                         {/* Class */}
                         <div className="space-y-1">
@@ -349,7 +398,9 @@ export default function CreateCharacterPage() {
                                     <span className="col-span-1">Total</span>
                                     <span className="col-span-1">Mod</span>
                                 </div>
-                                {Object.entries(store.sheetData.stats).map(([stat, val]) => {
+                                {["Strength", "Dexterity", "Constitution", "Intelligence", "Wisdom", "Charisma"].map((stat) => {
+                                    const val = store.stats[stat as Stat] || 10;
+
                                     const racial = getRacialBonus(stat);
                                     const total = getTotalScore(stat);
                                     const mod = getMod(total);
@@ -399,7 +450,7 @@ export default function CreateCharacterPage() {
 
                             <div className="grid grid-cols-2 gap-x-4 gap-y-1 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                                 {SKILLS_LIST.map(skill => {
-                                    const isProficient = store.sheetData.skills[skill] || false;
+                                    const isProficient = store.skills[skill] || false;
                                     const fromBg = isSkillFromBg(skill);
                                     const allowed = isSkillAllowed(skill);
 
@@ -412,8 +463,8 @@ export default function CreateCharacterPage() {
                                                 disabled={fromBg || (!isProficient && !allowed)} // Can't uncheck bg, can't check restricted
                                                 className={cn("w-4 h-4 rounded border-neutral-600 bg-neutral-900 accent-purple-600", fromBg ? "cursor-not-allowed opacity-70" : "cursor-pointer")}
                                             />
-                                            <span className={cn("truncate flex-1", isProficient ? "text-white font-medium" : "text-neutral-500")}>
-                                                {skill}
+                                            <span className="truncate flex-1">
+                                                <span className={cn(isProficient ? "text-white font-medium" : "text-neutral-500")}>{skill}</span>
                                             </span>
                                             {fromBg && <span className="text-[10px] text-indigo-400 bg-indigo-900/30 px-1 rounded">BG</span>}
                                         </div>
@@ -432,8 +483,8 @@ export default function CreateCharacterPage() {
                                     <label className="text-xs font-bold text-neutral-500 uppercase block mb-1">AC</label>
                                     <input
                                         type="number"
-                                        value={store.sheetData.ac}
-                                        onChange={(e) => updateSheet('ac', parseInt(e.target.value) || 10)}
+                                        value={store.ac}
+                                        onChange={(e) => store.setField('ac', parseInt(e.target.value) || 10)}
                                         className="w-full bg-transparent text-center text-2xl font-bold text-white focus:outline-none"
                                     />
                                 </div>
@@ -441,14 +492,14 @@ export default function CreateCharacterPage() {
                                     <label className="text-xs font-bold text-neutral-500 uppercase block mb-1">Init</label>
                                     <input
                                         type="number"
-                                        value={store.sheetData.initiative}
-                                        onChange={(e) => updateSheet('initiative', parseInt(e.target.value) || 0)}
+                                        value={store.initiative}
+                                        onChange={(e) => store.setField('initiative', parseInt(e.target.value) || 0)}
                                         className="w-full bg-transparent text-center text-2xl font-bold text-white focus:outline-none"
                                     />
                                 </div>
                                 <div className="bg-neutral-950/50 border border-neutral-800 rounded-lg p-3 text-center">
                                     <label className="text-xs font-bold text-neutral-500 uppercase block mb-1">Speed</label>
-                                    <div className="text-2xl font-bold text-white">{raceData?.speed || 30}</div>
+                                    <div className="text-2xl font-bold text-white">{store.speed}</div>
                                 </div>
                             </div>
                             <div className="bg-neutral-950/50 border border-neutral-800 rounded-lg p-4 flex items-center justify-between">
@@ -457,15 +508,15 @@ export default function CreateCharacterPage() {
                                     <div className="flex items-center gap-2">
                                         <input
                                             type="number"
-                                            value={store.sheetData.hpCurrent}
-                                            onChange={(e) => updateSheet('hpCurrent', parseInt(e.target.value) || 0)}
+                                            value={store.hpCurrent}
+                                            onChange={(e) => store.setField('hpCurrent', parseInt(e.target.value) || 0)}
                                             className="w-20 bg-transparent text-right text-3xl font-bold text-white focus:outline-none"
                                         />
                                         <span className="text-2xl text-neutral-600">/</span>
                                         <input
                                             type="number"
-                                            value={store.sheetData.hpMax}
-                                            onChange={(e) => updateSheet('hpMax', parseInt(e.target.value) || 10)}
+                                            value={store.hpMax}
+                                            onChange={(e) => store.setField('hpMax', parseInt(e.target.value) || 10)}
                                             className="w-20 bg-transparent text-left text-3xl font-bold text-neutral-400 focus:outline-none"
                                         />
                                     </div>
@@ -541,7 +592,7 @@ export default function CreateCharacterPage() {
                                 )}
 
                                 {/* Added Feats */}
-                                {(Array.isArray(store.sheetData.feats) ? store.sheetData.feats : []).map((feat, idx) => (
+                                {(Array.isArray(store.feats) ? store.feats : []).map((feat, idx) => (
                                     <div key={feat.id + idx} className="bg-neutral-900 border border-neutral-800 rounded p-2 flex flex-col gap-1 group relative">
                                         <div className="flex justify-between items-start">
                                             <span className="font-bold text-sm text-neutral-200">{feat.name}</span>
@@ -572,8 +623,8 @@ export default function CreateCharacterPage() {
                                 <textarea
                                     className="w-full h-24 bg-neutral-950/50 border border-neutral-800 rounded-lg p-3 text-neutral-300 resize-none focus:border-purple-500 focus:outline-none text-sm font-mono leading-relaxed"
                                     placeholder="Add custom features, attacks, or notes here..."
-                                    value={store.sheetData.features}
-                                    onChange={(e) => updateSheet('features', e.target.value)}
+                                    value={store.features}
+                                    onChange={(e) => store.setField('features', e.target.value)}
                                 />
                             </div>
                         </section>
@@ -630,12 +681,12 @@ export default function CreateCharacterPage() {
 
                             {/* Equipment List */}
                             <div className="bg-neutral-950/50 border border-neutral-800 rounded-lg p-2 h-64 overflow-y-auto custom-scrollbar space-y-2">
-                                {(Array.isArray(store.sheetData.equipment) ? store.sheetData.equipment : []).length === 0 && (
+                                {(Array.isArray(store.equipment) ? store.equipment : []).length === 0 && (
                                     <div className="text-neutral-600 text-center py-8 text-sm italic">
                                         No equipment added. Click + to add items.
                                     </div>
                                 )}
-                                {(Array.isArray(store.sheetData.equipment) ? store.sheetData.equipment : []).map((item, idx) => {
+                                {(Array.isArray(store.equipment) ? store.equipment : []).map((item, idx) => {
                                     // Parse details
                                     const cost = item.data.cost ? `${item.data.cost.quantity} ${item.data.cost.unit}` : null;
                                     const weight = item.data.weight ? `${item.data.weight} lb` : null;
@@ -717,21 +768,23 @@ export default function CreateCharacterPage() {
                                                 className="w-full text-left px-2 py-1.5 hover:bg-neutral-800 rounded text-xs text-neutral-300 flex justify-between items-center group"
                                             >
                                                 <span className="font-bold group-hover:text-white">{spell.name}</span>
-                                                <span className="text-neutral-600 italic">Lvl {spell.data.level}</span>
+                                                <span className="text-neutral-500 italic ml-2">{spell.data?.level > 0 ? `Lvl ${spell.data.level}` : 'Cantrip'}</span>
                                             </button>
                                         ))}
                                     </div>
                                 </div>
                             )}
 
-                            <div className="bg-neutral-950/50 border border-neutral-800 rounded-lg p-2 h-48 overflow-y-auto custom-scrollbar space-y-2">
-                                {(Array.isArray(store.sheetData.spells) ? store.sheetData.spells : []).map((spell, idx) => (
+                            <div className="space-y-2 h-64 overflow-y-auto custom-scrollbar p-1">
+                                {(Array.isArray(store.spells) ? store.spells : []).length === 0 && (
+                                    <div className="text-neutral-600 text-center py-8 text-sm italic">
+                                        No spells added.
+                                    </div>
+                                )}
+                                {(Array.isArray(store.spells) ? store.spells : []).map((spell, idx) => (
                                     <div key={spell.id + idx} className="bg-neutral-900 border border-neutral-800 rounded p-2 flex flex-col gap-1 group relative">
                                         <div className="flex justify-between items-start">
-                                            <span className="font-bold text-sm text-neutral-200">{spell.name}</span>
-                                            <span className="text-[10px] text-neutral-500 uppercase font-mono bg-neutral-800 px-1 rounded">
-                                                {spell.data.level === 0 ? 'Cantrip' : `Lvl ${spell.data.level}`}
-                                            </span>
+                                            <span className="font-bold text-sm text-indigo-300">{spell.name}</span>
                                             <button
                                                 onClick={() => store.removeSpell(spell.id)}
                                                 className="text-neutral-600 hover:text-red-400 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2"
@@ -739,22 +792,36 @@ export default function CreateCharacterPage() {
                                                 <Trash2 className="w-3.5 h-3.5" />
                                             </button>
                                         </div>
+                                        <div className="text-[10px] text-neutral-500 flex gap-2">
+                                            <span className="bg-neutral-800 px-1 rounded">{spell.data?.level > 0 ? `Level ${spell.data.level}` : 'Cantrip'}</span>
+                                            <span>{spell.data?.school?.name || spell.data?.school}</span>
+                                        </div>
                                         {spell.data.desc && (
                                             <div className="text-[10px] text-neutral-400 line-clamp-2 hover:line-clamp-none cursor-help">
-                                                {/* Handle desc array or string */}
                                                 {Array.isArray(spell.data.desc) ? spell.data.desc.join(' ') : spell.data.desc}
                                             </div>
                                         )}
                                     </div>
                                 ))}
-                                {(Array.isArray(store.sheetData.spells) ? store.sheetData.spells : []).length === 0 && (
-                                    <div className="text-neutral-600 text-center py-8 text-sm italic">No spells added.</div>
-                                )}
                             </div>
                         </section>
-                    </div >
-                </div >
-            </div >
-        </div >
+
+                        {/* Backstory */}
+                        <section className="bg-neutral-900/60 backdrop-blur border border-neutral-800 rounded-xl p-4 shadow-xl">
+                            <h3 className="flex items-center gap-2 text-lg font-bold text-indigo-400 mb-2">
+                                <Activity className="w-5 h-5" /> Backstory
+                            </h3>
+                            <textarea
+                                className="w-full h-32 bg-neutral-950/50 border border-neutral-800 rounded-lg p-3 text-neutral-300 resize-none focus:border-purple-500 focus:outline-none text-sm font-sans leading-relaxed"
+                                placeholder="Write a short backstory..."
+                                value={store.backstory}
+                                onChange={(e) => store.setField('backstory', e.target.value)}
+                            />
+                        </section>
+
+                    </div>
+                </div>
+            </div>
+        </div>
     );
 }
