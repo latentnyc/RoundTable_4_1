@@ -1,61 +1,79 @@
-# RoundTable 4.1
-
+# RoundTable 4.1 - Friday the 13th Edition 👻
 
 A TTRPG application with AI-powered Game Master and 5e rules integration.
 
-## Changelog vs Previous Version
-*   **Backend Refactor**: Migrated `campaigns` router and other key services to use **SQLAlchemy Core** for better performance and explicit query control, moving away from ORM dependency for complex queries.
-*   **NPC Identification System**: Implemented `@identify` command mechanics, allowing players to roll Intelligence checks to reveal NPC names/roles. Added `identify_narration` mode to DM Agent for immersive reveals.
-*   **Combat Improvements**:
-    *   **Counterattacks**: Implemented recursive counterattack logic for hostile NPCs/Enemies with depth limits to prevent infinite loops.
-    *   **Attack Verification**: Added regression tests (`verify_attack_fix.py`) to ensure DM does not suggest mechanical commands in narration.
-*   **Bug Fixes**:
-    *   **Message Visibility**: Fixed frontend/backend sync ensuring all messages (including rapid-fire mechanics) have unique IDs and timestamps to prevent frontend deduplication from hiding them.
-    *   **SocketIO Reliability**: Enhanced `SocketIOCallbackHandler` to handle `ToolMessage` errors and prevent crashes during tool execution.
-    *   **DM Repetition**: Refined System Prompt in `ai_service.py` to prevent the DM from repetitively stating "I am the DM" or mechanically restating the user's action.
-*   **Frontend**:
-    *   **Log Viewer**: Enhanced `LogViewer.tsx` with color-coding for different agents (System vs DM vs Character) and tool outputs.
-    *   **Linting**: Addressed various React/TypeScript linting warnings.
+## 👻 The "Spooky Commit" Changelog
 
-## Future Improvements
-*   [ ] **Entity Privacy**: Implement system for public vs. hidden entity names (e.g., "Unknown Figure" vs "Silas") to improve immersion before successful identification.
+This release brings a massive architectural overhaul and spirited improvements:
 
+### 🕸️ Web of Interface
+*   **Entity List Panel**: A new side panel (`EntityListPanel.tsx`) to track combatants, HP, and status effects in real-time.
+*   **Chat Improvements**: Enhanced `ChatInterface` and `LogViewer` with better color-coding for System, DM, and Character messages.
 
+### 👻 Spooky Architecture
+*   **Service Refactor**: The backend has been exorcised of monolithic logic!
+    *   `ChatService`: Handles all chat logic.
+    *   `CommandService`: Processes slash commands (`@attack`, `@check`).
+    *   `NarratorService`: Manages AI narration generation.
+    *   `TurnManager`: Controls the flow of combat turns.
+*   **SocketIO Reliability**: Enhanced `SocketIOCallbackHandler` to prevent crashes during tool execution.
 
-## Setup
+### 💀 Skeleton Crew (Testing)
+*   **New Verification Suite**: added `backend/tests/` containing:
+    *   `verify_db_schema_actual.py`: Ensures database tables haunt the right columns.
+    *   `verify_logs_api.py`: Checks that logs are properly recorded from the beyond.
+    *   `verify_postgres_schema.py`: Validates Cloud SQL compatibility.
 
+### ⚰️ Buried Bugs
+*   **Root Clutter Cleared**: Moved/Deleted debug scripts from the root directory.
+*   **Combat Race Conditions**: Fixed issues where AI would attack with outdated game state.
+*   **Message Sync**: Fixed frontend deduplication hiding rapid-fire messages.
 
-1.  **One-Click Run (Recommended)**
-    The `run_local.ps1` script handles all setup (Java path, Python venv, Node modules) and runs the full stack.
-    ```powershell
-    .\run_local.ps1
-    ```
+---
 
-2.  **Manual Setup (Advanced)**
-    If you prefer running components individually:
+## 🔮 Setup & Running
 
-    **Backend**
-    ```bash
-    cd backend
-    python -m venv venv
-    .\venv\Scripts\activate
-    pip install -r requirements.txt
-    uvicorn main:app --reload --port 8000
-    ```
+### 🍎 Mac / 🐧 Linux (Recommended)
+We have a new unified script that handles Java, Python venv, and Node dependencies automatically.
 
-    **Frontend**
-    ```bash
-    cd frontend
-    npm install
-    npm run dev
-    ```
+```bash
+./run_local.sh
+```
 
-    **Firebase Emulators**
-    ```bash
-    firebase emulators:start --only auth,firestore,hosting,ui
-    ```
+### 🪟 Windows
+Legacy support is available via PowerShell:
+```powershell
+.\run_local.ps1
+```
 
-## Features
+### Manual Setup (Advanced)
 
+**Backend**
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+```
+
+**Frontend**
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+**Firebase Emulators**
+```bash
+firebase emulators:start --only auth,firestore,hosting,ui
+```
+
+---
+
+## 📜 Features
 *   **5e Compendium**: Integrated 2014 SRD data for spells, monsters, classes, races, and items.
 *   **AI Game Master**: Powered by LangGraph and Gemini.
+*   **Real-time Combat**: WebSocket-driven combat updates.
+
+HAPPY FRIDAY THE 13TH! 🔪
