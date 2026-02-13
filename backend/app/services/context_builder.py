@@ -102,17 +102,26 @@ async def format_npc_state(npcs: List[NPC]) -> str:
         if is_identified:
             display_name = f"{n.name.upper()} ({race} {n.role})"
         else:
-            # Fallback to role/race if not identified?
-            # Or just UPPERCASE the name if the name IS the generic description (e.g. "Man")
-            # But the 'name' field in DB might be "Silas". We don't want to leak it.
-            # We need a generic name.
-            # Usually we don't have a separate generic name field yet.
-            # For now, let's assume if not identified, we construct a generic name from Race/Role
-            display_name = f"{race.upper()} {n.role.upper()}"
+            display_name = n.unidentified_name.upper() if n.unidentified_name else f"{race.upper()} {n.role.upper()}"
 
         line = f"- **{display_name}**: {status} | Attitude: {attitude} [{tone}]"
         if desc:
             line += f" - _{desc}_"
+        
+        # Knowledge Hints (for DM context only)
+        knowledge = data.get('knowledge', [])
+        if knowledge:
+            k_list = [f"[{k.get('id')}]: {k.get('description')}" for k in knowledge]
+            line += f"\n  - *Secret Knowledge*: {'; '.join(k_list)}"
+
+        # Voice/Bark Hints
+        barks = data.get('voice', {}).get('barks', {})
+        if barks:
+            # Just show a few sample keys or aggression barks to set tone
+            aggro = barks.get('aggro', [])
+            if aggro:
+                line += f"\n  - *Voice Style*: \"{aggro[0]}\""
+
         lines.append(line)
 
     return "\n".join(lines)
@@ -133,7 +142,7 @@ async def build_narrative_context(db: AsyncSession, campaign_id: str, state: Gam
 
     # 4. Combat/Enemy Context
     enemy_block = ""
-    if state.phase == "combat":
+    if state.enemies:
         enemy_lines = []
         for e in state.enemies:
             status = "Healthy"

@@ -2,10 +2,21 @@ import { useRef, useEffect, useState } from 'react';
 import { useSocketStore, DebugLogItem } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
 
-export default function DebugPanel() {
-    const { debugLogs, clearLogs, isConnected, socket, lastPing, measurePing } = useSocketStore();
+interface DebugPanelProps {
+    campaignId?: string;
+}
+
+export default function DebugPanel({ campaignId }: DebugPanelProps) {
+    const { debugLogs, clearLogs, isConnected, socket, lastPing, measurePing, fetchLogs } = useSocketStore();
     const { user } = useAuthStore();
     const scrollRef = useRef<HTMLDivElement>(null);
+
+    // Initial Fetch
+    useEffect(() => {
+        if (campaignId && isConnected) {
+            fetchLogs(campaignId);
+        }
+    }, [campaignId, isConnected, fetchLogs]);
 
     // Health Check State
     // const [healthStatus, setHealthStatus] = useState<'idle' | 'checking' | 'online' | 'offline' | 'error'>('idle'); // Removed in favor of direct prop usage
@@ -13,7 +24,8 @@ export default function DebugPanel() {
     const [showClearConfirm, setShowClearConfirm] = useState(false);
 
     const openLogPopup = () => {
-        window.open('/logs', 'AI_Logs', 'width=800,height=600,scrollbars=yes,resizable=yes');
+        const url = campaignId ? `/logs?campaignId=${campaignId}` : '/logs';
+        window.open(url, 'AI_Logs', 'width=800,height=600,scrollbars=yes,resizable=yes');
     };
 
     // Auto-ping every 5 seconds

@@ -78,7 +78,10 @@
     "npcs": [
         {
             "id": "",
+            "target_id": "",
             "name": "",
+            "unidentified_name": "",
+            "unidentified_description": "",
             "role": "",
             "race": "",
             "stats": {
@@ -91,7 +94,30 @@
             },
             "voice": {
                 "tone": "",
-                "samples": []
+                "samples": [],
+                "barks": {
+                    "aggro": [],
+                    "victory": [],
+                    "death": [],
+                    "interact": []
+                }
+            },
+            "knowledge": [
+                {
+                    "id": "fact_id",
+                    "description": "...",
+                    "revealed": false,
+                    "dc": 10
+                }
+            ],
+            "loot": {
+                "guaranteed": [],
+                "random": [
+                    {
+                        "item_id": "item_id",
+                        "chance": 0.5
+                    }
+                ]
             },
             "equipment": [],
             "schedule": [
@@ -114,12 +140,24 @@
     "monsters": [
         {
             "id": "",
+            "target_id": "",
             "name": "",
+            "unidentified_name": "",
+            "unidentified_description": "",
             "type": "",
             "description": "",
             "usage": "",
             "stats": {},
             "abilities": [],
+            "loot": {
+                "guaranteed": [],
+                "random": [
+                    {
+                        "item_id": "item_id",
+                        "chance": 0.5
+                    }
+                ]
+            },
             "behavior": ""
         }
     ],

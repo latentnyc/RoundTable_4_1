@@ -29,7 +29,6 @@ class GameEngine:
         # 1. Roll to Hit
         # Simplified: Assume using Strength for now
         hit_mod = actor.get_mod("strength")
-        # TODO: Proficiency bonus
 
         roll = Dice.roll("1d20")
         to_hit = roll["total"] + hit_mod

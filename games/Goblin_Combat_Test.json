@@ -62,6 +62,9 @@
         {
             "id": "npc_goblin",
             "name": "Grimtooth",
+            "target_id": "grimtooth",
+            "unidentified_name": "Goblin Skirmisher",
+            "unidentified_description": "A small, green-skinned humanoid crouching in the shadows.",
             "description": "A small, scowling goblin with a jagged tooth.",
             "role": "Enemy",
             "race": "Goblin",
@@ -78,6 +81,43 @@
                 "samples": [
                     "Shiny things! Mine!",
                     "You die now!"
+                ],
+                "barks": {
+                    "aggro": [
+                        "You pay for that!",
+                        "Gah! Sharp!"
+                    ],
+                    "death": [
+                        "My shinies...",
+                        "Darkness..."
+                    ],
+                    "victory": [
+                        "Hehe! Loot time!",
+                        "Stupid longshanks."
+                    ]
+                }
+            },
+            "knowledge": [
+                {
+                    "id": "fact_goblin_ambush",
+                    "description": "Grimtooth was waiting for a caravan, not an adventurer.",
+                    "revealed": false,
+                    "dc": 10
+                }
+            ],
+            "loot": {
+                "guaranteed": [
+                    "item_scimitar"
+                ],
+                "random": [
+                    {
+                        "item_id": "item_leather_armor",
+                        "chance": 0.5
+                    },
+                    {
+                        "item_id": "item_gold_coin",
+                        "chance": 0.8
+                    }
                 ]
             },
             "equipment": [
@@ -105,6 +145,9 @@
         {
             "id": "mon_goblin",
             "name": "Goblin",
+            "target_id": "goblin",
+            "unidentified_name": "Goblin",
+            "unidentified_description": "A small, violent humanoid.",
             "type": "humanoid",
             "description": "A small, green-skinned humanoid with sharp teeth.",
             "stats": {
@@ -115,7 +158,16 @@
             "abilities": [
                 "Nimble Escape"
             ],
-            "behavior": "Hit and run tactics."
+            "behavior": "Hit and run tactics.",
+            "loot": {
+                "guaranteed": [],
+                "random": [
+                    {
+                        "item_id": "item_gold_coin",
+                        "chance": 0.3
+                    }
+                ]
+            }
         }
     ],
     "items": [

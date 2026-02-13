@@ -1,13 +1,22 @@
 import asyncio
+import os
+import sys
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Add parent directory to path to allow imports from backend root
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from db.session import engine
 from db.schema import metadata
 from app.firebase_config import init_firebase
 from sqlalchemy import text
 
 async def init_db_async():
-    print("Initializing Database...", flush=True)
+    logger.info("Initializing Database...")
     try:
-        print("DEBUG: Beginning DB transaction for schema creation...", flush=True)
+        logger.debug("Beginning DB transaction for schema creation...")
         async with engine.begin() as conn:
             # Create tables
             await conn.run_sync(metadata.create_all)
@@ -34,7 +43,7 @@ async def init_db_async():
                         pass # Column likely exists
 
             except Exception as e:
-                print(f"Migration Warning (status column): {e}", flush=True)
+                logger.warning(f"Migration Warning (status column): {e}")
 
             # Migration for template_id in campaigns
             # In Schema now. (Skipped)
@@ -54,7 +63,7 @@ async def init_db_async():
                         await conn.execute(text("ALTER TABLE campaign_templates ADD COLUMN json_path VARCHAR"))
                      except Exception: pass
             except Exception as e:
-                print(f"Migration Warning (campaign_templates.json_path): {e}", flush=True)
+                logger.warning(f"Migration Warning (campaign_templates.json_path): {e}")
 
             # --- MIGRATIONS FOR AI STATS ---
             try:
@@ -70,7 +79,7 @@ async def init_db_async():
                      try: await conn.execute(text("ALTER TABLE campaigns ADD COLUMN query_count INTEGER DEFAULT 0"))
                      except Exception: pass
             except Exception as e:
-                print(f"Migration Warning (campaign stats columns): {e}", flush=True)
+                logger.warning(f"Migration Warning (campaign stats columns): {e}")
 
             # --- MIGRATIONS FOR SCOPED TABLES (npcs, locations, quests) ---
             # These tables might exist with 'template_id' from earlier runs.
@@ -87,7 +96,7 @@ async def init_db_async():
                      try: await conn.execute(text("ALTER TABLE npcs ADD COLUMN source_id VARCHAR"))
                      except Exception: pass
             except Exception as e:
-                print(f"Migration Warning (npcs columns): {e}", flush=True)
+                logger.warning(f"Migration Warning (npcs columns): {e}")
 
             # locations
             try:
@@ -100,7 +109,7 @@ async def init_db_async():
                      try: await conn.execute(text("ALTER TABLE locations ADD COLUMN source_id VARCHAR"))
                      except Exception: pass
             except Exception as e:
-                print(f"Migration Warning (locations columns): {e}", flush=True)
+                logger.warning(f"Migration Warning (locations columns): {e}")
 
             # quests
             try:
@@ -113,13 +122,13 @@ async def init_db_async():
                      try: await conn.execute(text("ALTER TABLE quests ADD COLUMN source_id VARCHAR"))
                      except Exception: pass
             except Exception as e:
-                print(f"Migration Warning (quests columns): {e}", flush=True)
+                logger.warning(f"Migration Warning (quests columns): {e}")
 
-        print("DEBUG: Schema creation transaction committed.", flush=True)
+        logger.debug("Schema creation transaction committed.")
     except Exception as e:
-        print(f"CRITICAL: Database initialization failed: {e}", flush=True)
+        logger.critical(f"Database initialization failed: {e}")
         raise e
-    print("Database Initialized.", flush=True)
+    logger.info("Database Initialized.")
 
 def init_sqlite():
     # Wrapper for sync calls if needed (like in main.py startup which is async though)

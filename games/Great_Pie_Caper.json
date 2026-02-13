@@ -270,6 +270,9 @@
     {
       "id": "npc_bernie",
       "name": "Bernie the Bear",
+      "target_id": "bernie",
+      "unidentified_name": "Large Bear",
+      "unidentified_description": "A massive brown bear wearing a flour-dusted apron.",
       "role": "Quest Giver",
       "race": "Bear",
       "stats": {
@@ -285,6 +288,39 @@
         "samples": [
           "Now, let's not rush a good dough.",
           "Oh bother."
+        ],
+        "barks": {
+          "aggro": [
+            "Oh dear, please don't!",
+            "I'm a baker, not a fighter!"
+          ],
+          "death": [
+            "The... pie...",
+            "Florence..."
+          ],
+          "victory": [
+            "That was unpleasant.",
+            "Back to baking."
+          ]
+        }
+      },
+      "knowledge": [
+        {
+          "id": "fact_bernie_secret",
+          "description": "Bernie uses honey from the dangerous jagged cliffs to make his pies.",
+          "revealed": false,
+          "dc": 12
+        }
+      ],
+      "loot": {
+        "guaranteed": [
+          "item_rolling_pin"
+        ],
+        "random": [
+          {
+            "item_id": "item_honey_cake",
+            "chance": 0.5
+          }
         ]
       },
       "secrets": [
@@ -313,6 +349,9 @@
     {
       "id": "npc_florence",
       "name": "Florence the Poodle",
+      "target_id": "florence",
+      "unidentified_name": "Elegant Poodle",
+      "unidentified_description": "A perfectly groomed standard poodle with a sun hat.",
       "role": "Townsfolk",
       "race": "Poodle",
       "stats": {
@@ -328,6 +367,39 @@
         "samples": [
           "Oh darling, simply dreadful!",
           "My fur is a mess!"
+        ],
+        "barks": {
+          "aggro": [
+            "Eek! My hair!",
+            "Help! Ruffians!"
+          ],
+          "death": [
+            "My beautiful... fur...",
+            "Bernie..."
+          ],
+          "victory": [
+            "Hmph! Good riddance!",
+            "Don't touch me."
+          ]
+        }
+      },
+      "knowledge": [
+        {
+          "id": "fact_florence_gossip",
+          "description": "Florence saw Rocket running towards the meadow with something shiny.",
+          "revealed": false,
+          "dc": 10
+        }
+      ],
+      "loot": {
+        "guaranteed": [
+          "item_sun_hat"
+        ],
+        "random": [
+          {
+            "item_id": "item_ribbon",
+            "chance": 0.5
+          }
         ]
       },
       "secrets": [
@@ -354,6 +426,9 @@
     {
       "id": "npc_bandit",
       "name": "Rocket the Raccoon",
+      "target_id": "rocket",
+      "unidentified_name": "Masked Bandit",
+      "unidentified_description": "A small creature in a mask, chittering mischievously.",
       "role": "Antagonist / Friend",
       "race": "Raccoon",
       "stats": {
@@ -369,6 +444,39 @@
         "samples": [
           "Mine! Shiny! Mine!",
           "Didn't do it! Nowhere near it!"
+        ],
+        "barks": {
+          "aggro": [
+            "Back off!",
+            "Bite you!"
+          ],
+          "death": [
+            "Nooo! Shinies...",
+            "It wasn't me..."
+          ],
+          "victory": [
+            "Hehe! Mine now!",
+            "Too slow!"
+          ]
+        }
+      },
+      "knowledge": [
+        {
+          "id": "fact_rocket_stash",
+          "description": "Rocket hides his loot in the hollow of the old oak tree.",
+          "revealed": false,
+          "dc": 14
+        }
+      ],
+      "loot": {
+        "guaranteed": [
+          "item_slingshot"
+        ],
+        "random": [
+          {
+            "item_id": "item_shiny_rock",
+            "chance": 0.8
+          }
         ]
       },
       "secrets": [
@@ -391,6 +499,9 @@
     {
       "id": "npc_mayor_lionheart",
       "name": "Mayor Lionheart",
+      "target_id": "mayor",
+      "unidentified_name": "Pompous Lion",
+      "unidentified_description": "A lion with a magnificent mane and a sash.",
       "role": "Mayor",
       "race": "Lion",
       "stats": {
@@ -406,7 +517,36 @@
         "samples": [
           "As Mayor of this fine town... *yawn*",
           "Proceed with the festivities!"
-        ]
+        ],
+        "barks": {
+          "aggro": [
+            "Guards! Guards!",
+            "How dare you strike the Mayor!"
+          ],
+          "death": [
+            "The town... needs me...",
+            "Nap time..."
+          ],
+          "victory": [
+            "A victory for Critter Creek!",
+            "I declare this conflict over."
+          ]
+        }
+      },
+      "knowledge": [
+        {
+          "id": "fact_mayor_history",
+          "description": "The town was founded by a badger, not a lion, but the Mayor suppresses this history.",
+          "revealed": false,
+          "dc": 15
+        }
+      ],
+      "loot": {
+        "guaranteed": [
+          "item_sash",
+          "item_monocle"
+        ],
+        "random": []
       },
       "secrets": [
         "Is terribly afraid of thunder."
@@ -438,6 +578,9 @@
     {
       "id": "npc_constable_barnaby",
       "name": "Constable Barnaby",
+      "target_id": "barnaby",
+      "unidentified_name": "Bulldog Officer",
+      "unidentified_description": "A stern bulldog with a shiny badge (wrapper).",
       "role": "Law Enforcement",
       "race": "Bulldog",
       "stats": {
@@ -453,6 +596,39 @@
         "samples": [
           "'Ello 'ello, what's all this then?",
           "Move along, move along."
+        ],
+        "barks": {
+          "aggro": [
+            "Stop in the name of the law!",
+            "You're under arrest!"
+          ],
+          "death": [
+            "Officer down...",
+            "My badge..."
+          ],
+          "victory": [
+            "Another criminal apprehended.",
+            "Book him, Danno."
+          ]
+        }
+      },
+      "knowledge": [
+        {
+          "id": "fact_crime_stats",
+          "description": "The only crime in the last ten years was a stolen turnip.",
+          "revealed": false,
+          "dc": 10
+        }
+      ],
+      "loot": {
+        "guaranteed": [
+          "item_whistle"
+        ],
+        "random": [
+          {
+            "item_id": "item_badge",
+            "chance": 0.5
+          }
         ]
       },
       "secrets": [
@@ -482,6 +658,9 @@
     {
       "id": "npc_postman_percy",
       "name": "Postman Percy",
+      "target_id": "percy",
+      "unidentified_name": "Blur of Fur",
+      "unidentified_description": "A hare moving so fast he's barely visible.",
       "role": "Postal Worker",
       "race": "Hare",
       "stats": {
@@ -497,6 +676,39 @@
         "samples": [
           "Special delivery! Sign here! Gotta run!",
           "No time to chat! Mail waits for no hare!"
+        ],
+        "barks": {
+          "aggro": [
+            "Too fast for you!",
+            "Can't catch me!"
+          ],
+          "death": [
+            "Ran... out of... time...",
+            "Mail... undelivered..."
+          ],
+          "victory": [
+            "The mail must go through!",
+            "Leaving you in the dust!"
+          ]
+        }
+      },
+      "knowledge": [
+        {
+          "id": "fact_post_office",
+          "description": "Percy knows the address of every resident, even the ones who don't want to be found.",
+          "revealed": false,
+          "dc": 10
+        }
+      ],
+      "loot": {
+        "guaranteed": [
+          "item_mailbag"
+        ],
+        "random": [
+          {
+            "item_id": "item_carrot_muffin",
+            "chance": 0.5
+          }
         ]
       },
       "secrets": [
@@ -523,6 +735,9 @@
     {
       "id": "npc_librarian_hoot",
       "name": "Librarian Hoot",
+      "target_id": "hoot",
+      "unidentified_name": "Spectacled Owl",
+      "unidentified_description": "A large owl peering over reading glasses.",
       "role": "Librarian",
       "race": "Owl",
       "stats": {
@@ -538,7 +753,35 @@
         "samples": [
           "Whooo goes there?",
           "Knowledge is a tree with many roots."
-        ]
+        ],
+        "barks": {
+          "aggro": [
+            "A little hush, please!",
+            "Respect the library!"
+          ],
+          "death": [
+            "The last... page...",
+            "Closing... time..."
+          ],
+          "victory": [
+            "Silence falls.",
+            "Read a book sometime."
+          ]
+        }
+      },
+      "knowledge": [
+        {
+          "id": "fact_library_secret",
+          "description": "There is a rare book section that requires a special key.",
+          "revealed": false,
+          "dc": 12
+        }
+      ],
+      "loot": {
+        "guaranteed": [
+          "item_spectacles"
+        ],
+        "random": []
       },
       "secrets": [
         "Is legally blind without those spectacles."
@@ -569,6 +812,9 @@
     {
       "id": "npc_gertie_goose",
       "name": "Gertie Goose",
+      "target_id": "gertie",
+      "unidentified_name": "Angry Goose",
+      "unidentified_description": "A white goose that looks ready to bite.",
       "role": "Gossip",
       "race": "Goose",
       "stats": {
@@ -584,6 +830,29 @@
         "samples": [
           "HONK!",
           "Get off my lawn! HONK!"
+        ],
+        "barks": {
+          "aggro": [
+            "HONK! HONK!",
+            "HISSS!"
+          ],
+          "death": [
+            "Honk...",
+            "hgk..."
+          ],
+          "victory": [
+            "HONK!",
+            "Flap flap flap!"
+          ]
+        }
+      },
+      "loot": {
+        "guaranteed": [],
+        "random": [
+          {
+            "item_id": "item_shiny_rock",
+            "chance": 0.1
+          }
         ]
       },
       "secrets": [
@@ -610,6 +879,9 @@
     {
       "id": "npc_squiggles",
       "name": "Squiggles",
+      "target_id": "squiggles",
+      "unidentified_name": "Beret Squirrel",
+      "unidentified_description": "A red squirrel wearing a tiny artist's beret.",
       "role": "Artist",
       "race": "Red Squirrel",
       "stats": {
@@ -625,7 +897,28 @@
         "samples": [
           "The color! The passion! It is lacking!",
           "Do not move! Let me capture your essence!"
-        ]
+        ],
+        "barks": {
+          "aggro": [
+            "You ruin my composition!",
+            "Philistine!"
+          ],
+          "death": [
+            "Fading... to grey...",
+            "My masterpiece... unpleasant..."
+          ],
+          "victory": [
+            "A study in defeat!",
+            "Tres magnifique!"
+          ]
+        }
+      },
+      "loot": {
+        "guaranteed": [
+          "item_paintbrush",
+          "item_beret"
+        ],
+        "random": []
       },
       "secrets": [
         "Paints abstract art because he can't draw hands (paws)."
@@ -652,6 +945,9 @@
     {
       "id": "npc_farmer_mcgoat",
       "name": "Farmer McGoat",
+      "target_id": "mcgoat",
+      "unidentified_name": "Old Goat",
+      "unidentified_description": "An elderly goat chewing on a tin can.",
       "role": "Farmer",
       "race": "Goat",
       "stats": {
@@ -667,6 +963,31 @@
         "samples": [
           "Bah! Too expensive.",
           "Eat your greens or I will."
+        ],
+        "barks": {
+          "aggro": [
+            "Get off the produce!",
+            "I'll chew you up!"
+          ],
+          "death": [
+            "Bah...",
+            "Old... bones..."
+          ],
+          "victory": [
+            "Told you to eat your greens.",
+            "Bah! Amateurs."
+          ]
+        }
+      },
+      "loot": {
+        "guaranteed": [
+          "item_pitchfork"
+        ],
+        "random": [
+          {
+            "item_id": "item_tin_can",
+            "chance": 0.5
+          }
         ]
       },
       "secrets": [
@@ -696,6 +1017,9 @@
     {
       "id": "mon_rocket",
       "name": "Rocket the Raccoon",
+      "target_id": "rocket_boss",
+      "unidentified_name": "The Thief",
+      "unidentified_description": "The masked bandit you've been chasing.",
       "type": "beast",
       "description": "Fast and tricky.",
       "stats": {
@@ -707,7 +1031,18 @@
         "Steal",
         "Hide"
       ],
-      "behavior": "Tries to steal shiny things and run away."
+      "behavior": "Tries to steal shiny things and run away.",
+      "loot": {
+        "guaranteed": [
+          "item_shiny_rock"
+        ],
+        "random": [
+          {
+            "item_id": "item_carrot_muffin",
+            "chance": 0.5
+          }
+        ]
+      }
     }
   ],
   "items": [

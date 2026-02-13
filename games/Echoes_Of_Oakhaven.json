@@ -361,8 +361,33 @@
         "samples": [
           "My heart has been missing for centuries.",
           "You do not understand true loss."
-        ]
+        ],
+        "barks": {
+          "aggro": [
+            "You dare challenge the lord of this land?",
+            "Your blood will feed the soil!"
+          ],
+          "death": [
+            "Elara... I come...",
+            " darkness... finally..."
+          ],
+          "victory": [
+            "Another soul for the mists.",
+            "Pathetic."
+          ]
+        }
       },
+      "knowledge": [
+        {
+          "id": "fact_valerius_weakness",
+          "description": "Valerius fears the holy relic hidden in the church altar.",
+          "revealed": false,
+          "dc": 18
+        }
+      ],
+      "target_id": "valerius",
+      "unidentified_name": "Tall Pale Figure",
+      "unidentified_description": "A tall figure in a dark cloak, face obscured by shadows but radiating a cold, ancient power.",
       "secrets": [
         "Incredibly lonely."
       ],
@@ -400,6 +425,9 @@
     {
       "id": "npc_elara",
       "name": "Elara",
+      "target_id": "elara",
+      "unidentified_name": "Tavern Maid",
+      "unidentified_description": "A kind-faced woman scrubbing tables.",
       "role": "Victim / Love Interest",
       "race": "Human",
       "stats": {
@@ -420,6 +448,14 @@
       "secrets": [
         "Has dreams of a past life she doesn't understand."
       ],
+      "knowledge": [
+        {
+          "id": "fact_elara_dreams",
+          "description": "Elara has recurring dreams of a man calling her 'Tatyana'.",
+          "revealed": false,
+          "dc": 12
+        }
+      ],
       "equipment": [],
       "schedule": [
         {
@@ -439,6 +475,9 @@
     {
       "id": "npc_father_thomas",
       "name": "Father Thomas",
+      "target_id": "thomas",
+      "unidentified_name": "Priest",
+      "unidentified_description": "A man in vestments looking up at the sky.",
       "role": "Priest",
       "race": "Human",
       "stats": {
@@ -459,10 +498,29 @@
       "secrets": [
         "Lost his faith years ago."
       ],
+      "knowledge": [
+        {
+          "id": "fact_thomas_faith",
+          "description": "Father Thomas has lost his faith and his holy water is just tap water.",
+          "revealed": false,
+          "dc": 14
+        }
+      ],
       "equipment": [
         "item_holy_symbol",
         "item_holy_water"
       ],
+      "loot": {
+        "guaranteed": [
+          "item_holy_symbol"
+        ],
+        "random": [
+          {
+            "item_id": "item_holy_water",
+            "chance": 0.5
+          }
+        ]
+      },
       "schedule": [
         {
           "time": "00:00-24:00",
@@ -481,6 +539,9 @@
     {
       "id": "npc_madame_eva",
       "name": "Madame Eva",
+      "target_id": "eva",
+      "unidentified_name": "Old Fortune Teller",
+      "unidentified_description": "An old woman shuffling tarot cards.",
       "role": "Fortune Teller",
       "race": "Vistani",
       "stats": {
@@ -501,9 +562,28 @@
       "secrets": [
         "Is actually Valerius's half-sister."
       ],
+      "knowledge": [
+        {
+          "id": "fact_eva_lineage",
+          "description": "Madame Eva is related to Count Valerius by blood.",
+          "revealed": false,
+          "dc": 16
+        }
+      ],
       "equipment": [
         "item_tarot_deck"
       ],
+      "loot": {
+        "guaranteed": [
+          "item_tarot_deck"
+        ],
+        "random": [
+          {
+            "item_id": "item_potion_healing",
+            "chance": 0.3
+          }
+        ]
+      },
       "schedule": [
         {
           "time": "10:00-22:00",
@@ -522,6 +602,9 @@
     {
       "id": "npc_bork",
       "name": "Bork",
+      "target_id": "bork",
+      "unidentified_name": "Surly Barkeep",
+      "unidentified_description": "A burly man cleaning a mug with a dirty rag.",
       "role": "Tavern Keeper",
       "race": "Human",
       "stats": {
@@ -545,6 +628,17 @@
       "equipment": [
         "item_crossbow"
       ],
+      "loot": {
+        "guaranteed": [
+          "item_crossbow"
+        ],
+        "random": [
+          {
+            "item_id": "item_garlic",
+            "chance": 0.5
+          }
+        ]
+      },
       "schedule": [
         {
           "time": "08:00-02:00",
@@ -563,6 +657,9 @@
     {
       "id": "npc_igor",
       "name": "Igor",
+      "target_id": "igor",
+      "unidentified_name": "Hunched Servant",
+      "unidentified_description": "A hunched figure dragging a shovel.",
       "role": "Servant",
       "race": "Human",
       "stats": {
@@ -583,9 +680,28 @@
       "secrets": [
         "Secretly eats the spiders in the crypt."
       ],
+      "knowledge": [
+        {
+          "id": "fact_igor_habit",
+          "description": "Igor knows a secret entrance to the crypts where he snacks on spiders.",
+          "revealed": false,
+          "dc": 12
+        }
+      ],
       "equipment": [
         "item_shovel"
       ],
+      "loot": {
+        "guaranteed": [
+          "item_shovel"
+        ],
+        "random": [
+          {
+            "item_id": "item_bone",
+            "chance": 0.5
+          }
+        ]
+      },
       "schedule": [
         {
           "time": "06:00-18:00",
@@ -604,6 +720,9 @@
     {
       "id": "npc_mina",
       "name": "Mina",
+      "target_id": "mina",
+      "unidentified_name": "Weeping Girl",
+      "unidentified_description": "A small girl sobbing near a grave.",
       "role": "Vampire Spawn",
       "race": "Vampire Spawn",
       "stats": {
@@ -624,7 +743,28 @@
       "secrets": [
         "Hides her victims' toys in her grave."
       ],
+      "knowledge": [
+        {
+          "id": "fact_mina_toys",
+          "description": "Mina's grave contains toys stolen from village children.",
+          "revealed": false,
+          "dc": 13
+        }
+      ],
       "equipment": [],
+      "loot": {
+        "guaranteed": [],
+        "random": [
+          {
+            "item_id": "item_doll",
+            "chance": 0.8
+          },
+          {
+            "item_id": "item_ribbon",
+            "chance": 0.4
+          }
+        ]
+      },
       "schedule": [
         {
           "time": "20:00-04:00",
@@ -643,6 +783,9 @@
     {
       "id": "npc_midnight",
       "name": "Midnight",
+      "target_id": "midnight",
+      "unidentified_name": "Black Cat",
+      "unidentified_description": "A black cat with intelligent eyes.",
       "role": "Graveyard Cat",
       "race": "Beast",
       "stats": {
@@ -666,6 +809,12 @@
       "equipment": [
         "item_collar"
       ],
+      "loot": {
+        "guaranteed": [
+          "item_collar"
+        ],
+        "random": []
+      },
       "schedule": [
         {
           "time": "00:00-24:00",
@@ -688,6 +837,9 @@
     {
       "id": "mon_valerius",
       "name": "Count Valerius",
+      "target_id": "valerius_boss",
+      "unidentified_name": "The Vampire Lord",
+      "unidentified_description": "The master of the castle revealed in his true form.",
       "type": "undead",
       "description": "The vampire lord of Oakhaven.",
       "stats": {
@@ -700,7 +852,14 @@
         "Charm",
         "Summon Bats"
       ],
-      "behavior": "Arrogant. Targets the character with the highest Charisma first."
+      "behavior": "Arrogant. Targets the character with the highest Charisma first.",
+      "loot": {
+        "guaranteed": [
+          "item_ancestral_sword",
+          "item_ring_of_resistance"
+        ],
+        "random": []
+      }
     }
   ],
   "items": [

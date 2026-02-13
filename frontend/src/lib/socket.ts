@@ -34,14 +34,18 @@ export interface Entity {
     status_effects: string[];
 }
 
+// Reconciling with API Character
 export interface Player extends Entity {
     role: string;
-    control_mode: string;
+    control_mode: string; // 'human' | 'ai' | 'disabled'
     race: string;
     level: number;
     xp: number;
     user_id?: string;
-    sheet_data: Record<string, unknown>;
+    campaign_id?: string;
+    backstory?: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    sheet_data: Record<string, any>;
 }
 
 export interface Enemy extends Entity {
@@ -68,9 +72,10 @@ export interface GameState {
     phase: 'combat' | 'exploration' | 'social';
     active_entity_id: string | null;
     location: Location;
-    party: Character[]; // Mapping Player to Character for frontend ease
+    party: Player[]; // Mapping Player to Character for frontend ease
     enemies: Enemy[];
     npcs: NPC[];
+    turn_order: string[];
     combat_log: LogEntry[];
 }
 
@@ -94,6 +99,7 @@ interface SocketState {
     // AI Stats
     aiStats: AIStats;
     setInitialStats: (totalTokens: number, inputTokens: number, outputTokens: number, queryCount: number) => void;
+    fetchLogs: (campaignId: string) => Promise<void>;
 }
 
 export interface ChatMessage {
@@ -399,5 +405,42 @@ export const useSocketStore = create<SocketState>((set, get) => ({
                 queryCount
             }
         }));
+    },
+
+    fetchLogs: async (campaignId) => {
+        const { token } = useAuthStore.getState();
+        if (!token) return;
+
+        try {
+            // Use SOCKET_URL which is the API_URL base
+            const res = await fetch(`${SOCKET_URL}/campaigns/${campaignId}/logs?limit=50`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (res.ok) {
+                const logs = await res.json();
+                // Normalize timestamp format if needed or just use raw
+                // API returns { type, content, full_content, created_at }
+                // Frontend expects { type, content, full_content, timestamp (string), agent_name? }
+
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const formattedLogs: DebugLogItem[] = logs.map((l: any) => ({
+                    type: l.type,
+                    content: l.content,
+                    full_content: l.full_content,
+                    timestamp: new Date(l.created_at).toLocaleTimeString(),
+                    agent_name: l.content.startsWith('[') ? l.content.match(/\[(.*?)\]/)?.[1] : undefined
+                })).reverse(); // Oldest first for chat-like view? 
+                // Actually DebugPanel appends new logs to bottom. 
+                // API returns newest first (DESC).
+                // So we should reverse them to have [Oldest ... Newest] 
+
+                set({ debugLogs: formattedLogs });
+            }
+        } catch (e) {
+            console.error("Failed to fetch logs:", e);
+        }
     }
 }));

@@ -2,7 +2,6 @@ from typing import List
 
 class VectorStore:
     def __init__(self):
-        # TODO: Initialize Firestore Native Vector Search client here
         pass
 
     def add_document(self, doc_id: str, content: str, metadata: dict = {}):

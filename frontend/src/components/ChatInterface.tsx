@@ -11,24 +11,13 @@ interface ChatInterfaceProps {
     characterId?: string;
 }
 
-export default function ChatInterface({ campaignId, characterId }: ChatInterfaceProps) {
+export default function ChatInterface({ characterId }: ChatInterfaceProps) {
     const { profile } = useAuthStore();
-    const { messages, connect, disconnect, sendMessage, clearChat } = useSocketStore();
+    const { messages, sendMessage, clearChat } = useSocketStore();
     const [inputValue, setInputValue] = useState('');
     const [showClearConfirm, setShowClearConfirm] = useState(false);
     const bottomRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        if (profile?.id) {
-            connect(campaignId, profile.id, characterId);
-        }
-        return () => {
-            disconnect();
-            // Optional: clear messages on unmount so they don't persist locally
-            // messages are fetched from backend history anyway
-            useSocketStore.setState({ messages: [] });
-        };
-    }, [campaignId, profile, connect, disconnect, characterId]);
 
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -179,7 +168,7 @@ export default function ChatInterface({ campaignId, characterId }: ChatInterface
                                             ? "bg-amber-900/30 border border-amber-800/50 text-amber-100 rounded-tl-sm italic"
                                             : "bg-neutral-800 text-neutral-200 rounded-tl-sm"
                                 )}>
-                                    {msg.content}
+                                    {renderMessageContent(msg.content)}
                                 </div>
                             </div>
                         </div>
@@ -211,3 +200,45 @@ export default function ChatInterface({ campaignId, characterId }: ChatInterface
         </div>
     );
 }
+
+// Helper to render complex message content
+const renderMessageContent = (content: any) => {
+    try {
+        // 1. If it's a string, try to parse it as JSON
+        let parsed = content;
+        if (typeof content === 'string') {
+            try {
+                // If it looks like a JSON array/object, parse it
+                if (content.trim().startsWith('{') || content.trim().startsWith('[')) {
+                    parsed = JSON.parse(content);
+                }
+            } catch (e) {
+                // Not JSON, just plain text
+                return content;
+            }
+        }
+
+        // 2. Handle Arrays (Rich Text)
+        if (Array.isArray(parsed)) {
+            return parsed.map((block: any, i: number) => {
+                if (typeof block === 'string') return <span key={i}>{block}</span>;
+                if (block.type === 'text') return <span key={i}>{block.text}</span>;
+                return null;
+            });
+        }
+
+        // 3. Handle Single Object
+        if (typeof parsed === 'object' && parsed !== null) {
+            if (parsed.text) return parsed.text;
+            // Fallback for unknown objects
+            return JSON.stringify(parsed);
+        }
+
+        // 4. Fallback (Plain Value)
+        return String(parsed);
+
+    } catch (e) {
+        console.error("Error rendering message:", e);
+        return String(content);
+    }
+};

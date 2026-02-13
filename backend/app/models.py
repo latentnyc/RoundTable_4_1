@@ -10,7 +10,10 @@ class Coordinates(BaseModel):
 
 class Entity(BaseModel):
     id: str
+    target_id: Optional[str] = None
     name: str
+    unidentified_name: Optional[str] = None
+    unidentified_description: Optional[str] = None
     is_ai: bool
     hp_current: int
     hp_max: int
@@ -20,6 +23,9 @@ class Entity(BaseModel):
     position: Coordinates
     inventory: List[str] = []
     status_effects: List[str] = []
+    barks: Optional[Dict[str, List[str]]] = None
+    knowledge: List[Dict] = []
+    loot: Optional[Dict] = None
 
 class Player(Entity):
     role: str # Class e.g. "Paladin"
@@ -69,5 +75,6 @@ class GameState(BaseModel):
     party: List[Player]
     enemies: List[Enemy] = []
     npcs: List[NPC] = []
+    turn_order: List[str] = []
     combat_log: List[LogEntry] = []
     dm_settings: DMSettings = Field(default_factory=DMSettings)

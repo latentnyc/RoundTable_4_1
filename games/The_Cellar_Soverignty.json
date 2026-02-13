@@ -317,6 +317,9 @@
     {
       "id": "npc_gilda",
       "name": "Gilda the Innkeeper",
+      "target_id": "gilda",
+      "unidentified_name": "Stressed Innkeeper",
+      "unidentified_description": "A woman wiping a glass furiously.",
       "role": "Quest Giver",
       "race": "Human",
       "stats": {
@@ -332,6 +335,39 @@
         "samples": [
           "I don't have time for this!",
           "Please, just get those rats out of here."
+        ],
+        "barks": {
+          "aggro": [
+            "Not the glasses!",
+            "Get out of my tavern!"
+          ],
+          "death": [
+            "The rats... won...",
+            "My tavern..."
+          ],
+          "victory": [
+            "And stay out!",
+            "Finally, some peace."
+          ]
+        }
+      },
+      "knowledge": [
+        {
+          "id": "fact_gilda_crush",
+          "description": "Gilda has a crush on the baker next door but is too stressed to act on it.",
+          "revealed": false,
+          "dc": 12
+        }
+      ],
+      "loot": {
+        "guaranteed": [
+          "item_apron"
+        ],
+        "random": [
+          {
+            "item_id": "item_gold_coin",
+            "chance": 0.5
+          }
         ]
       },
       "secrets": [
@@ -365,6 +401,9 @@
     {
       "id": "npc_old_tom",
       "name": "Old Tom",
+      "target_id": "tom",
+      "unidentified_name": "Drunk Patron",
+      "unidentified_description": "A man swaying in his seat.",
       "role": "Patron",
       "race": "Human",
       "stats": {
@@ -380,7 +419,35 @@
         "samples": [
           "You look like... *hic* my brother.",
           "Another round, barkeep!"
-        ]
+        ],
+        "barks": {
+          "aggro": [
+            "*Hic* Wanna fight?",
+            "Hold my ale..."
+          ],
+          "death": [
+            "Last... call...",
+            "Spilled... it..."
+          ],
+          "victory": [
+            "I win! Drinks on me!",
+            "*Burp*"
+          ]
+        }
+      },
+      "knowledge": [
+        {
+          "id": "fact_tom_key",
+          "description": "Old Tom saw Gilda hide the spare cellar key in the flower pot.",
+          "revealed": false,
+          "dc": 10
+        }
+      ],
+      "loot": {
+        "guaranteed": [
+          "item_mug"
+        ],
+        "random": []
       },
       "secrets": [
         "Knows where the cellar key is hidden."
@@ -406,6 +473,9 @@
     {
       "id": "npc_elara",
       "name": "Elara",
+      "target_id": "elara",
+      "unidentified_name": "Enthusiastic Bard",
+      "unidentified_description": "An elf tuning a lute loudly.",
       "role": "Bard",
       "race": "Elf",
       "stats": {
@@ -421,6 +491,31 @@
         "samples": [
           "And then the dragon roared! Roaaar!",
           "Listen to this new ballad I wrote."
+        ],
+        "barks": {
+          "aggro": [
+            "A critic!",
+            "My instrument!"
+          ],
+          "death": [
+            "The song... ends...",
+            "Silent..."
+          ],
+          "victory": [
+            "That was purely inspired!",
+            "I'll write a song about this."
+          ]
+        }
+      },
+      "loot": {
+        "guaranteed": [
+          "item_lute"
+        ],
+        "random": [
+          {
+            "item_id": "item_gold_coin",
+            "chance": 0.2
+          }
         ]
       },
       "secrets": [
@@ -447,6 +542,9 @@
     {
       "id": "npc_silas",
       "name": "Slick Silas",
+      "target_id": "silas",
+      "unidentified_name": "Shifty Gambler",
+      "unidentified_description": "A half-elf shuffling cards with practiced ease.",
       "role": "Gambler",
       "race": "Half-Elf",
       "stats": {
@@ -462,6 +560,40 @@
         "samples": [
           "Care to make a little wager?",
           "The cards never lie, my friend."
+        ],
+        "barks": {
+          "aggro": [
+            "You're bluffing!",
+            "I'll cut you!"
+          ],
+          "death": [
+            "Fold...",
+            "Bad hand..."
+          ],
+          "victory": [
+            "House always wins.",
+            "Pay up."
+          ]
+        }
+      },
+      "knowledge": [
+        {
+          "id": "fact_silas_cheat",
+          "description": "Silas has an ace up his sleeve. Literally.",
+          "revealed": false,
+          "dc": 14
+        }
+      ],
+      "loot": {
+        "guaranteed": [
+          "item_deck_of_cards",
+          "item_dagger"
+        ],
+        "random": [
+          {
+            "item_id": "item_gold_coin",
+            "chance": 0.9
+          }
         ]
       },
       "secrets": [
@@ -489,6 +621,9 @@
     {
       "id": "npc_marge",
       "name": "Big Marge",
+      "target_id": "marge",
+      "unidentified_name": "Large Orc",
+      "unidentified_description": "A muscular orc leaning against the wall.",
       "role": "Gambler/Muscle",
       "race": "Orc",
       "stats": {
@@ -504,6 +639,31 @@
         "samples": [
           "You talk too much.",
           "Hmph."
+        ],
+        "barks": {
+          "aggro": [
+            "Crush time.",
+            "Shut up."
+          ],
+          "death": [
+            "Oof...",
+            "Too... strong..."
+          ],
+          "victory": [
+            "Done.",
+            "Weak."
+          ]
+        }
+      },
+      "loot": {
+        "guaranteed": [
+          "item_heavy_club"
+        ],
+        "random": [
+          {
+            "item_id": "item_gold_coin",
+            "chance": 0.4
+          }
         ]
       },
       "secrets": [
@@ -530,6 +690,9 @@
     {
       "id": "npc_thaddeus",
       "name": "Thaddeus",
+      "target_id": "thaddeus",
+      "unidentified_name": "Gnome Shopkeeper",
+      "unidentified_description": "A gnome adjusting his spectacles.",
       "role": "Shopkeeper",
       "race": "Gnome",
       "stats": {
@@ -545,6 +708,31 @@
         "samples": [
           "Don't touch that! It's fragile.",
           "Are you buying or looking?"
+        ],
+        "barks": {
+          "aggro": [
+            "Hey! You break it, you buy it!",
+            "Thieves!"
+          ],
+          "death": [
+            "My inventory...",
+            "Ruined..."
+          ],
+          "victory": [
+            "That'll be 50 gold.",
+            "No refunds."
+          ]
+        }
+      },
+      "loot": {
+        "guaranteed": [
+          "item_spectacles"
+        ],
+        "random": [
+          {
+            "item_id": "item_gold_coin",
+            "chance": 0.6
+          }
         ]
       },
       "secrets": [
@@ -571,6 +759,9 @@
     {
       "id": "npc_barnaby",
       "name": "Barnaby",
+      "target_id": "barnaby",
+      "unidentified_name": "Small Assistant",
+      "unidentified_description": "A helpful halfling looking eager.",
       "role": "Shop Assistant",
       "race": "Halfling",
       "stats": {
@@ -586,6 +777,31 @@
         "samples": [
           "Can I help? Can I carry that?",
           "Mr. Thaddeus says I'm doing a good job!"
+        ],
+        "barks": {
+          "aggro": [
+            "Eep! Stay back!",
+            "I'll clean you up!"
+          ],
+          "death": [
+            "I was... helping...",
+            "Mr. Thaddeus..."
+          ],
+          "victory": [
+            "Did I help?",
+            "All clean!"
+          ]
+        }
+      },
+      "loot": {
+        "guaranteed": [
+          "item_broom"
+        ],
+        "random": [
+          {
+            "item_id": "item_gold_coin",
+            "chance": 0.1
+          }
         ]
       },
       "secrets": [
@@ -612,6 +828,9 @@
     {
       "id": "npc_guard_bernie",
       "name": "Guard Bernie",
+      "target_id": "bernie_guard",
+      "unidentified_name": "Sleepy Guard",
+      "unidentified_description": "A guard leaning heavily on a spear.",
       "role": "Bank Guard",
       "race": "Human",
       "stats": {
@@ -627,6 +846,31 @@
         "samples": [
           "Nothing creates interest like... *yawn* compound interest.",
           "Just move along."
+        ],
+        "barks": {
+          "aggro": [
+            "I'm awake! I'm awake!",
+            "Halt!"
+          ],
+          "death": [
+            "Permanent... nap...",
+            "Zzz..."
+          ],
+          "victory": [
+            "Can I go back to sleep now?",
+            "Secure."
+          ]
+        }
+      },
+      "loot": {
+        "guaranteed": [
+          "item_spear"
+        ],
+        "random": [
+          {
+            "item_id": "item_rusty_chainmail",
+            "chance": 0.3
+          }
         ]
       },
       "secrets": [
@@ -654,6 +898,9 @@
     {
       "id": "npc_manager_sterling",
       "name": "Manager Sterling",
+      "target_id": "sterling",
+      "unidentified_name": "Elf Official",
+      "unidentified_description": "A high elf looking down his nose at you.",
       "role": "Bank Manager",
       "race": "High Elf",
       "stats": {
@@ -669,6 +916,40 @@
         "samples": [
           "Do you have an appointment?",
           "This bank is a pillar of the community."
+        ],
+        "barks": {
+          "aggro": [
+            "Security!",
+            "This is highly irregular!"
+          ],
+          "death": [
+            "My ledger...",
+            "Unbalanced..."
+          ],
+          "victory": [
+            "Your assets are seized.",
+            "Denied."
+          ]
+        }
+      },
+      "knowledge": [
+        {
+          "id": "fact_sterling_embezzlement",
+          "description": "Sterling has been falsifying the bank records to hide his theft.",
+          "revealed": false,
+          "dc": 16
+        }
+      ],
+      "loot": {
+        "guaranteed": [
+          "item_quill",
+          "item_ledger"
+        ],
+        "random": [
+          {
+            "item_id": "item_gold_coin",
+            "chance": 1.0
+          }
         ]
       },
       "secrets": [
@@ -696,6 +977,9 @@
     {
       "id": "npc_teller_penny",
       "name": "Penny",
+      "target_id": "penny",
+      "unidentified_name": "Nervous Teller",
+      "unidentified_description": "A human woman looking around frantically.",
       "role": "Bank Teller",
       "race": "Human",
       "stats": {
@@ -711,6 +995,31 @@
         "samples": [
           "Did you hear that? I heard scratching.",
           "I need a holiday."
+        ],
+        "barks": {
+          "aggro": [
+            "Aaaah! A robbery!",
+            "Don't hurt me!"
+          ],
+          "death": [
+            "I knew it...",
+            "Darkness..."
+          ],
+          "victory": [
+            "Is it over?",
+            "I'm quitting."
+          ]
+        }
+      },
+      "loot": {
+        "guaranteed": [
+          "item_stamp"
+        ],
+        "random": [
+          {
+            "item_id": "item_gold_coin",
+            "chance": 0.2
+          }
         ]
       },
       "secrets": [
@@ -737,6 +1046,9 @@
     {
       "id": "npc_king_rattigan",
       "name": "King Rattigan IV",
+      "target_id": "rattigan",
+      "unidentified_name": "Rat King",
+      "unidentified_description": "A giant rat wearing a tiny crown.",
       "role": "Boss / Negotiator",
       "race": "Awakened Giant Rat",
       "stats": {
@@ -752,6 +1064,40 @@
         "samples": [
           "We demand... cheese!",
           "You face the King of the Cellar!"
+        ],
+        "barks": {
+          "aggro": [
+            "Squeak! Attack!",
+            "For the colony!"
+          ],
+          "death": [
+            "The crown... falls...",
+            "Squeee..."
+          ],
+          "victory": [
+            "We rule this cellar!",
+            "Cheese for everyone!"
+          ]
+        }
+      },
+      "knowledge": [
+        {
+          "id": "fact_rat_tunnel",
+          "description": "The rats have successfully tunneled into the bank vault.",
+          "revealed": false,
+          "dc": 12
+        }
+      ],
+      "loot": {
+        "guaranteed": [
+          "item_tiny_crown",
+          "item_needle_sword"
+        ],
+        "random": [
+          {
+            "item_id": "item_gold_coin",
+            "chance": 1.0
+          }
         ]
       },
       "secrets": [
@@ -773,6 +1119,9 @@
     {
       "id": "npc_lt_whiskers",
       "name": "Lt. Whiskers",
+      "target_id": "whiskers",
+      "unidentified_name": "Rat Commander",
+      "unidentified_description": "A rat barking orders.",
       "role": "Rat Commander",
       "race": "Awakened Rat",
       "stats": {

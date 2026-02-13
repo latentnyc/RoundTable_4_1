@@ -1,7 +1,11 @@
 import os
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
+import logging
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -19,9 +23,9 @@ if DATABASE_URL:
     if DATABASE_URL.startswith("postgresql://"):
         DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
-    print(f"Using Database: PostgreSQL ({DATABASE_URL.split('@')[-1]}) with timeout=10s", flush=True) # Hide credentials
+    logger.info(f"Using Database: PostgreSQL ({DATABASE_URL.split('@')[-1]}) with timeout=10s") # Hide credentials
 
-    print("TRACE: Calling create_async_engine (postgres)...", flush=True)
+    logger.debug("TRACE: Calling create_async_engine (postgres)...")
     try:
         engine = create_async_engine(
             DATABASE_URL,
@@ -34,13 +38,13 @@ if DATABASE_URL:
                 "timeout": 10 # 10 seconds connection timeout
             }
         )
-        print("TRACE: create_async_engine returned", flush=True)
+        logger.debug("TRACE: create_async_engine returned")
     except Exception as e:
-        print(f"CRITICAL: create_async_engine failed: {e}", flush=True)
+        logger.critical(f"create_async_engine failed: {e}")
         raise e
 else:
     # SQLite
-    print(f"Using Database: SQLite ({SQLITE_DB_PATH})", flush=True)
+    logger.info(f"Using Database: SQLite ({SQLITE_DB_PATH})")
     DATABASE_URL = f"sqlite+aiosqlite:///{SQLITE_DB_PATH}"
     engine = create_async_engine(
         DATABASE_URL,
@@ -48,6 +52,13 @@ else:
         future=True,
         connect_args={"check_same_thread": False} # Needed for SQLite
     )
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def set_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.close()
 
 # Create Session Factory
 AsyncSessionLocal = sessionmaker(

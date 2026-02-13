@@ -14,7 +14,7 @@ from ..models import GameState, Location, NPC, Coordinates
 from uuid import uuid4
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, insert, update, delete, desc, text
-from db.schema import campaigns, campaign_templates, campaign_participants, game_states, characters, chat_messages, npcs, locations
+from db.schema import campaigns, campaign_templates, campaign_participants, game_states, characters, chat_messages, npcs, locations, debug_logs
 from ..services.campaign_loader import instantiate_campaign
 
 router = APIRouter()
@@ -230,7 +230,13 @@ async def create_campaign(
                                  hp_max=hp,
                                  ac=ac,
                                  role=n_row.role,
+                                 target_id=n_data.get('target_id'),
+                                 unidentified_name=n_data.get('unidentified_name'),
+                                 unidentified_description=n_data.get('unidentified_description'),
                                  position=Coordinates(q=0, r=0, s=0),
+                                 barks=n_data.get('voice', {}).get('barks'),
+                                 knowledge=n_data.get('knowledge', []),
+                                 loot=n_data.get('loot'),
                                  data=n_data
                              ))
 
@@ -629,4 +635,44 @@ async def delete_campaign(
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to delete campaign: {e}")
 
-    return {"status": "success", "message": "Campaign deleted"}
+
+@router.get("/{campaign_id}/logs")
+async def get_campaign_logs(
+    campaign_id: str,
+    limit: int = 50,
+    user: dict = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    # Verify Admin or Participant
+    if not await is_admin(user, db):
+        # Check if participant
+        query = select(campaign_participants.c.status).where(
+            campaign_participants.c.campaign_id == campaign_id,
+            campaign_participants.c.user_id == user['uid']
+        )
+        check = await db.execute(query)
+        if not check.scalar():
+             raise HTTPException(status_code=403, detail="Access denied")
+
+    try:
+        query = (
+            select(debug_logs.c.type, debug_logs.c.content, debug_logs.c.full_content, debug_logs.c.created_at)
+            .where(debug_logs.c.campaign_id == campaign_id)
+            .order_by(desc(debug_logs.c.created_at))
+            .limit(limit)
+        )
+        result = await db.execute(query)
+        rows = result.all()
+        
+        return [
+            {
+                "type": row.type,
+                "content": row.content,
+                "full_content": row.full_content,
+                "created_at": row.created_at
+            }
+            for row in rows
+        ]
+    except Exception as e:
+        logger.error(f"Error fetching logs: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch logs")

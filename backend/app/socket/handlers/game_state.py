@@ -8,7 +8,7 @@ from sqlalchemy import text
 from db.session import AsyncSessionLocal
 from app.models import Player, Coordinates, GameState, Location
 from app.socket.decorators import socket_event_handler
-from app.socket.handlers.chat import save_message
+from app.services.chat_service import ChatService
 from app.agents import get_dm_graph
 from app.callbacks import SocketIOCallbackHandler
 from langchain_core.messages import HumanMessage
@@ -144,6 +144,20 @@ async def handle_join_campaign(sid, data, sio, connected_users):
             )
             await db.commit()
 
+            # 5.5 Fetch & Emit AI Stats
+            stats_res = await db.execute(
+                text("SELECT total_input_tokens, total_output_tokens, query_count FROM campaigns WHERE id = :id"),
+                {"id": campaign_id}
+            )
+            stats_row = stats_res.mappings().fetchone()
+            if stats_row:
+                 await sio.emit('ai_stats', {
+                    'type': 'update',
+                    'input_tokens': stats_row['total_input_tokens'] or 0,
+                    'output_tokens': stats_row['total_output_tokens'] or 0,
+                    'total_queries': stats_row['query_count'] or 0
+                }, room=sid)
+
             # 6. Broadcast Update
 
             await sio.emit('game_state_update', game_state.model_dump(), room=campaign_id)
@@ -199,14 +213,11 @@ async def handle_join_campaign(sid, data, sio, connected_users):
         msg_check = await db.execute(text("SELECT 1 FROM chat_messages WHERE campaign_id = :cid LIMIT 1"), {"cid": campaign_id})
         msg_exists = msg_check.scalar()
 
-        # Log check
-        await db.execute(
-            text("INSERT INTO debug_logs (id, campaign_id, type, content, created_at) VALUES (:id, :cid, 'intro_check', :msg, :now)"),
-            {"id": str(uuid4()), "cid": campaign_id, "msg": f"Checking intro. Chat exists: {msg_exists}", "now": datetime.utcnow()}
-        )
-        await db.commit()
+        # Check if intro generation already started (prevent race condition)
+        log_check = await db.execute(text("SELECT 1 FROM debug_logs WHERE campaign_id = :cid AND type = 'intro_start' LIMIT 1"), {"cid": campaign_id})
+        intro_started = log_check.scalar()
 
-        if not msg_exists:
+        if not msg_exists and not intro_started:
             # Get API Key, Context, and Model
             key_res = await db.execute(text("SELECT api_key, model, system_prompt, description, template_id FROM campaigns WHERE id = :id"), {"id": campaign_id})
             camp_row = key_res.mappings().fetchone()
@@ -260,6 +271,19 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                         location_txt = f"{gs.location.name}: {gs.location.description}"
                         party_txt = ", ".join([p.name for p in gs.party])
 
+                        # Present NPCs
+                        npc_list_txt = "None visible."
+                        if gs.npcs:
+                            npc_entries = []
+                            for n in gs.npcs:
+                                # Use unidentified name if not identified, though typically for DM context we might want both or real name
+                                # For the opening scene context, giving the DM the real name + role is helpful
+                                entry = f"{n.name} ({n.role})"
+                                if n.unidentified_name:
+                                    entry += f" - appears as {n.unidentified_name}"
+                                npc_entries.append(entry)
+                            npc_list_txt = ", ".join(npc_entries)
+
                         opening_prompt = f"""
                         You are the Dungeon Master for a campaign described as: "{camp_description}"
                         The party has just gathered for the first time.
@@ -267,13 +291,18 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                         CAMPAIGN START
                         Location: {location_txt}
                         Party: {party_txt}
-                        {starting_npc_info}
+                        
+                        NPCS PRESENT:
+                        {npc_list_txt}
+                        
+                        {starting_npc_info if not gs.npcs else ""}
 
                         TASK:
                         1. Welcome the players to the campaign.
                         2. Describe the scene vividly, utilizing the location description and the mood.
-                        3. Introduce the starting NPC ({starting_npc_info.strip() if starting_npc_info else "a local"}) if applicable, or have them approach the party.
+                        3. Introduce/Acknowledge the NPCs present ({npc_list_txt}).
                         4. Do NOT ask "What do you do?" or provide an immediate hook for action.
+                        5. Simply set the scene and letting the players soak in the atmosphere.
                         5. Simply set the scene and letting the players soak in the atmosphere.
 
                         Keep it under 2 paragraphs. Be atmospheric and immersive.
@@ -305,7 +334,7 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                             opening_text = final_state["messages"][-1].content
 
                             # Save & Emit
-                            await save_message(campaign_id, 'dm', 'Dungeon Master', opening_text)
+                            await ChatService.save_message(campaign_id, 'dm', 'Dungeon Master', opening_text)
                             await sio.emit('chat_message', {
                                 'sender_id': 'dm',
                                 'sender_name': 'Dungeon Master',

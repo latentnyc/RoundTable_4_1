@@ -19,6 +19,9 @@ class AgentState(TypedDict):
     messages: Annotated[List[BaseMessage], operator.add]
     campaign_id: str
     sender_name: str
+    mode: str
+    api_key: str
+    model_name: str
 
 def should_continue(state: AgentState):
     messages = state["messages"]
@@ -52,43 +55,20 @@ def get_dm_graph(api_key: str = None, model_name: str = "gemini-2.0-flash"):
     async def call_model_local(state: AgentState, config: RunnableConfig):
         messages = state["messages"]
         sender = state.get("sender_name", "Player")
+        # Ensure mode is retrieved safely; defaults to 'chat'
         mode = state.get("mode", "chat")
 
-        # --- MODE SELECTION ---
+        # --- SPECIAL MODES (Narration) ---
+        # If mode is explicitly set to something other than 'chat', we assume
+        # the caller (AIService) has already constructed the prompts.
+        # We just pass it through 1:1.
+        if mode != "chat":
+             logger.debug(f"invoking llm in special mode: {mode} with {len(messages)} messages")
+             response = await llm_with_tools.ainvoke(messages, config=config)
+             return {"messages": [response]}
 
-        if mode == "combat_narration":
-            # Specialized Prompt for Combat Narration
-            # The context will contain:
-            # 1. Game State / Location info (Context)
-            # 2. Chat history (including the causing @attack command)
-            # 3. System message with the result
-            # 4. Instruction to narate
-
-            system_prompt_content = f"""
-            You are the Dungeon Master (DM).
-
-            **CURRENT TASK: COMBAT NARRATION**
-            An action has just occurred in the game engine.
-            The user attempted an action (e.g. `@attack`), and the System has processed it.
-
-            **YOUR GOAL**:
-            Narrate the *result* of this action dramatically based on the System's report.
-
-            **INPUT CONTEXT**:
-            - You will see the user's command (e.g. `@attack`). IGNORE the syntax. Treat it as the *intent*.
-            - You will see a "System" message with the result (Hit/Miss, Damage).
-
-            **GUIDELINES**:
-            1. **Narrate constraints**: Keep it short (1-2 sentences). Vivid and active voice.
-            2. **Honour the Dice**: If it's a MISS, describe a failure/dodge. If it's a HIT, describe the impact.
-            3. **NO ADVICE**: Do **NOT** tell the user how to use commands. They just successfully used one.
-            4. **NO MECHANICS**: Do not mention "HP", "AC", or "Rolls" in your narration.
-            5. **CAPITALIZATION**: Refer to ALL NPCs/Enemies by their **CAPITALIZED NAME or TITLE** (e.g. SILAS, THE GOBLIN).
-            """
-
-        else:
-            # Standard Chat Mode Prompt
-            system_prompt_content = f"""
+        # --- STANDARD CHAT MODE ---
+        system_prompt_content = f"""
             You are the Dungeon Master (DM) for a 5e D&D campaign.
             The current player speaking is {sender}.
 

@@ -46,108 +46,117 @@ async def import_table(db: AsyncSession, table_name, json_filename, json_dir, na
         logger.warning(f"No items found in {json_filename}")
         return 0
 
-    count = 0
-
-    for item in items:
-        try:
+    batch_params = []
+    
+    # Prepare SQL statement based on table
+    if table_name == "spells":
+        sql = text("""
+            INSERT INTO spells (id, name, level, school, data)
+            VALUES (:id, :name, :level, :school, :data)
+            ON CONFLICT(id) DO UPDATE SET
+                name=excluded.name,
+                level=excluded.level,
+                school=excluded.school,
+                data=excluded.data
+        """)
+        for item in items:
             record_id = item.get('index')
             name = item.get(name_key)
+            if not record_id or not name: continue
+            
+            level = item.get('level', 0)
+            try: level = int(level)
+            except: level = 0
+            
+            batch_params.append({
+                "id": record_id,
+                "name": name,
+                "level": level,
+                "school": item.get('school', {}).get('name', 'Unknown'),
+                "data": json.dumps(item)
+            })
 
-            if not record_id or not name:
-                continue
+    elif table_name == "monsters":
+        sql = text("""
+            INSERT INTO monsters (id, name, type, cr, data)
+            VALUES (:id, :name, :type, :cr, :data)
+            ON CONFLICT(id) DO UPDATE SET
+                name=excluded.name,
+                type=excluded.type,
+                cr=excluded.cr,
+                data=excluded.data
+        """)
+        for item in items:
+            record_id = item.get('index')
+            name = item.get(name_key)
+            if not record_id or not name: continue
 
-            data_json = json.dumps(item)
+            cr = str(item.get('challenge_rating', 0))
+            batch_params.append({
+                "id": record_id,
+                "name": name,
+                "type": item.get('type', 'unknown'),
+                "cr": cr,
+                "data": json.dumps(item)
+            })
 
-            if table_name == "spells":
-                level = item.get('level', 0)
-                # Ensure level is int
-                try: level = int(level)
-                except: level = 0
+    elif table_name == "items":
+        sql = text("""
+            INSERT INTO items (id, name, type, data)
+            VALUES (:id, :name, :type, :data)
+            ON CONFLICT(id) DO UPDATE SET
+                name=excluded.name,
+                type=excluded.type,
+                data=excluded.data
+        """)
+        for item in items:
+            record_id = item.get('index')
+            name = item.get(name_key)
+            if not record_id or not name: continue
 
-                school = item.get('school', {}).get('name', 'Unknown')
-                await db.execute(text("""
-                    INSERT INTO spells (id, name, level, school, data)
-                    VALUES (:id, :name, :level, :school, :data)
-                    ON CONFLICT(id) DO UPDATE SET
-                        name=excluded.name,
-                        level=excluded.level,
-                        school=excluded.school,
-                        data=excluded.data
-                """), {"id": record_id, "name": name, "level": level, "school": school, "data": data_json})
+            batch_params.append({
+                "id": record_id,
+                "name": name,
+                "type": item.get('equipment_category', {}).get('name', 'Item'),
+                "data": json.dumps(item)
+            })
 
-            elif table_name == "monsters":
-                m_type = item.get('type', 'unknown')
-                cr = item.get('challenge_rating', 0)
-                # Ensure CR is valid string or number (Projecting as string in schema? No, Schema might accept string or float. Let's force string as schema has 'cr' as String)
-                # Wait, schema check: monsters table has `cr` as String?
-                # Let's assume String since CR can be "1/4".
-                cr = str(cr)
+    elif table_name in ["classes", "races", "alignments", "backgrounds"]:
+        sql = text(f"""
+            INSERT INTO {table_name} (id, name, data)
+            VALUES (:id, :name, :data)
+            ON CONFLICT(id) DO UPDATE SET
+                name=excluded.name,
+                data=excluded.data
+        """)
+        for item in items:
+            record_id = item.get('index')
+            name = item.get(name_key)
+            if not record_id or not name: continue
+            
+            batch_params.append({
+                "id": record_id,
+                "name": name,
+                "data": json.dumps(item)
+            })
+    
+    else:
+        logger.warning(f"Unknown table {table_name}")
+        return 0
 
-                await db.execute(text("""
-                    INSERT INTO monsters (id, name, type, cr, data)
-                    VALUES (:id, :name, :type, :cr, :data)
-                    ON CONFLICT(id) DO UPDATE SET
-                        name=excluded.name,
-                        type=excluded.type,
-                        cr=excluded.cr,
-                        data=excluded.data
-                """), {"id": record_id, "name": name, "type": m_type, "cr": cr, "data": data_json})
-
-            elif table_name == "items":
-                cat = item.get('equipment_category', {}).get('name', 'Item')
-                await db.execute(text("""
-                    INSERT INTO items (id, name, type, data)
-                    VALUES (:id, :name, :type, :data)
-                    ON CONFLICT(id) DO UPDATE SET
-                        name=excluded.name,
-                        type=excluded.type,
-                        data=excluded.data
-                """), {"id": record_id, "name": name, "type": cat, "data": data_json})
-
-            elif table_name == "classes":
-                await db.execute(text("""
-                    INSERT INTO classes (id, name, data)
-                    VALUES (:id, :name, :data)
-                    ON CONFLICT(id) DO UPDATE SET
-                        name=excluded.name,
-                        data=excluded.data
-                """), {"id": record_id, "name": name, "data": data_json})
-
-            elif table_name == "races":
-                await db.execute(text("""
-                    INSERT INTO races (id, name, data)
-                    VALUES (:id, :name, :data)
-                    ON CONFLICT(id) DO UPDATE SET
-                        name=excluded.name,
-                        data=excluded.data
-                """), {"id": record_id, "name": name, "data": data_json})
-
-            elif table_name == "alignments":
-                 await db.execute(text("""
-                    INSERT INTO alignments (id, name, data)
-                    VALUES (:id, :name, :data)
-                    ON CONFLICT(id) DO UPDATE SET
-                        name=excluded.name,
-                        data=excluded.data
-                """), {"id": record_id, "name": name, "data": data_json})
-
-            elif table_name == "backgrounds":
-                 await db.execute(text("""
-                    INSERT INTO backgrounds (id, name, data)
-                    VALUES (:id, :name, :data)
-                    ON CONFLICT(id) DO UPDATE SET
-                        name=excluded.name,
-                        data=excluded.data
-                """), {"id": record_id, "name": name, "data": data_json})
-
-            count += 1
-
+    if batch_params:
+        try:
+            # Execute batch insert
+            await db.execute(sql, batch_params)
+            await db.commit()
+            logger.info(f"Processed {len(batch_params)} records for {table_name} (Batched)")
+            return len(batch_params)
         except Exception as e:
-            logger.error(f"Error importing {name}: {e}")
-
-    await db.commit()
-    logger.info(f"Processed {count} records for {table_name}")
-    return count
+            logger.error(f"Error executing batch for {table_name}: {e}")
+            await db.rollback()
+            return 0
+    
+    return 0
 
 async def load_basic_dataset():
     logger.info(f"Loading basic dataset...")

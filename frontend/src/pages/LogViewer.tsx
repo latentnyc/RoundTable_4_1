@@ -1,9 +1,28 @@
 import { useEffect, useRef } from 'react';
 import { useSocketStore, DebugLogItem } from '@/lib/socket';
+import { useSearchParams } from 'react-router-dom';
+import { useAuthStore } from '@/store/authStore';
 
 export default function LogViewer() {
-    const { debugLogs, clearLogs } = useSocketStore();
+    const { debugLogs, clearLogs, connect, disconnect, isConnected } = useSocketStore();
+    const { user } = useAuthStore();
+    const [searchParams] = useSearchParams();
+    const campaignId = searchParams.get('campaignId');
     const scrollRef = useRef<HTMLDivElement>(null);
+
+    // Connect to socket on mount
+    useEffect(() => {
+        if (campaignId && user?.uid) {
+            connect(campaignId, user.uid);
+            useSocketStore.getState().fetchLogs(campaignId);
+        }
+
+        return () => {
+            disconnect();
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [campaignId, user?.uid]);
+    // We only want to trigger this once or when IDs change, not when `connect` changes reference (though it shouldn't)
 
     // Auto-scroll
     useEffect(() => {
@@ -33,6 +52,19 @@ export default function LogViewer() {
         }
     };
 
+    if (!campaignId) {
+        return <div className="flex items-center justify-center h-screen bg-neutral-950 text-neutral-500 font-mono text-xs">No Campaign ID provided.</div>;
+    }
+
+    if (!isConnected) {
+        return (
+            <div className="flex items-center justify-center h-screen bg-neutral-950 text-neutral-500 font-mono text-xs gap-2">
+                <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+                Connecting to Game Server...
+            </div>
+        );
+    }
+
     return (
         <div className="flex flex-col h-screen w-screen bg-neutral-950 text-neutral-200 font-mono text-xs overflow-hidden">
             <div className="flex items-center justify-between p-3 border-b border-neutral-800 bg-neutral-900">
@@ -40,12 +72,15 @@ export default function LogViewer() {
                     <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                     AI Debug Logs
                 </h3>
-                <button
-                    onClick={clearLogs}
-                    className="px-2 py-1 bg-red-900/30 text-red-400 rounded hover:bg-red-900/50 transition-colors"
-                >
-                    Clear Logs
-                </button>
+                <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-neutral-600 uppercase tracking-wider">{campaignId.slice(0, 8)}...</span>
+                    <button
+                        onClick={clearLogs}
+                        className="px-2 py-1 bg-red-900/30 text-red-400 rounded hover:bg-red-900/50 transition-colors"
+                    >
+                        Clear Logs
+                    </button>
+                </div>
             </div>
 
             <div

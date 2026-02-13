@@ -3,6 +3,7 @@ import ChatInterface from './ChatInterface';
 import DebugPanel from './DebugPanel';
 import AIStatsPanel from './AIStatsPanel';
 import PartyMember from './PartyMember';
+import EntityListPanel from './EntityListPanel';
 import { useSocketStore } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
 import { useCharacterStore } from '@/store/characterStore';
@@ -108,15 +109,15 @@ export default function GameInterface({ campaignId }: GameInterfaceProps) {
                     </div>
 
                     <div className={`${activeTab === 'debug' ? 'block' : 'hidden'} lg:hidden h-full`}>
-                        <DebugPanel />
+                        <DebugPanel campaignId={campaignId} />
                     </div>
                 </div>
             </div>
 
-            {/* Right Sidebar: Debug / Info (Hidden on mobile, visible on xl) */}
-            <div className="hidden xl:flex w-80 flex-col gap-4 shrink-0">
+            {/* Right Sidebar: Debug / Info (Hidden on mobile, visible on lg) */}
+            <div className="hidden lg:flex w-80 flex-col gap-4 shrink-0">
                 <div className="flex-[2] overflow-hidden min-h-0">
-                    <DebugPanel />
+                    <EntityListPanel />
                 </div>
                 <div className="flex-1 overflow-hidden min-h-0">
                     <AIStatsPanel />

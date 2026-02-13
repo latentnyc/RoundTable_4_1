@@ -4,7 +4,13 @@ class CharacterSheet:
     def __init__(self, data: dict):
         self.data = data
         self.stats = data.get("stats", {})
-        self.hp = data.get("hp", {"current": 10, "max": 10})
+        
+        # Support flat structure (Pydantic model dump) vs nested structure
+        if "hp_current" in data:
+             self.hp = {"current": int(data["hp_current"]), "max": int(data.get("hp_max", 10))}
+        else:
+             self.hp = data.get("hp", {"current": 10, "max": 10})
+             
         self.name = data.get("name", "Unknown")
 
     def get_mod(self, stat: str) -> int:
@@ -12,7 +18,6 @@ class CharacterSheet:
         return math.floor((score - 10) / 2)
 
     def get_save(self, stat: str) -> int:
-        # TODO: Add proficiency bonus logic
         return self.get_mod(stat)
 
     def take_damage(self, amount: int) -> str:

@@ -29,7 +29,7 @@ class SocketIOCallbackHandler(AsyncCallbackHandler):
         data['agent_name'] = self.agent_name
 
         # Emit to frontend first for speed
-        await sio.emit(event, data, room=self.sid)
+        await sio.emit(event, data, room=self.campaign_id)
 
         # Save to DB
         try:
@@ -161,13 +161,6 @@ class SocketIOCallbackHandler(AsyncCallbackHandler):
                 'timestamp': 'Just now'
             })
 
-            await self._emit('debug_log', {
-                'type': 'llm_end',
-                'content': f"Response: {text[:100]}...",
-                'full_content': full_content,
-                'timestamp': 'Just now'
-            })
-
             # Emit AI Stats
             await self._handle_token_usage(response)
 
@@ -217,57 +210,63 @@ class SocketIOCallbackHandler(AsyncCallbackHandler):
     async def _handle_token_usage(self, response: LLMResult):
         usage = {}
 
-        # DEBUG LOGGING FOR USAGE
-        try:
-            self.logger.debug(f"_handle_token_usage raw output: {response.llm_output}")
-            if response.generations:
-                first_gen = response.generations[0][0]
-                has_msg = hasattr(first_gen, 'message')
-                msg_meta = first_gen.message.usage_metadata if has_msg else "N/A"
-                self.logger.debug(f"_handle_token_usage raw generation[0][0]: type={type(first_gen)}, has_msg={has_msg}, msg_meta={msg_meta}")
-        except Exception as e:
-            self.logger.debug(f"Error printing usage debug info: {e}")
-
-        # Check llm_output first (standard LangChain)
-        if response.llm_output and ('token_usage' in response.llm_output or 'usage_metadata' in response.llm_output):
+        # Standard LangChain usage_metadata (Newer versions)
+        # response.llm_output might be empty for some providers, but usage_metadata should be on the message.
+        
+        # 1. Try Global llm_output
+        if response.llm_output:
             usage = response.llm_output.get('token_usage') or response.llm_output.get('usage_metadata') or {}
+            self.logger.debug(f"DEBUG: Found usage in llm_output: {usage}")
 
-        # Fallback: Check generations (LangChain Google GenAI specific sometimes)
+        # 2. Try Generations (Specific to Chat Models)
         if not usage and response.generations:
-            # Usually flat list of generations, take the first one
-            # generations is List[List[Generation]]
             try:
                 first_gen = response.generations[0][0]
-                if hasattr(first_gen, 'message') and hasattr(first_gen.message, 'usage_metadata'):
-                    usage = first_gen.message.usage_metadata
-            except (IndexError, AttributeError):
-                pass
+                # Check message.usage_metadata (Standard)
+                if hasattr(first_gen, 'message'):
+                    usage = getattr(first_gen.message, 'usage_metadata', {}) or {}
+                    self.logger.debug(f"DEBUG: Found usage in message.usage_metadata: {usage}")
+                
+                # Check generation_info (Google GenAI specific sometimes)
+                if not usage and hasattr(first_gen, 'generation_info'):
+                     usage = first_gen.generation_info.get('usage_metadata') or {}
+                     self.logger.debug(f"DEBUG: Found usage in generation_info: {usage}")
+
+            except (IndexError, AttributeError) as e:
+                self.logger.debug(f"DEBUG: Error checking generations for usage: {e}")
 
         if not usage:
-            self.logger.debug("_handle_token_usage found NO usage data.")
+            self.logger.debug("DEBUG: _handle_token_usage found NO usage data in response.")
+            # Verify what we DO have
+            try:
+                self.logger.debug(f"DEBUG: llm_output keys: {response.llm_output.keys() if response.llm_output else 'None'}")
+                if response.generations:
+                    gen0 = response.generations[0][0]
+                    self.logger.debug(f"DEBUG: Gen0 type: {type(gen0)}")
+                    if hasattr(gen0, 'message'):
+                        self.logger.debug(f"DEBUG: Message metadata: {getattr(gen0.message, 'response_metadata', 'N/A')}")
+            except Exception:
+                pass
             return
 
-        self.logger.debug(f"_handle_token_usage found usage: {usage}")
+        self.logger.debug(f"_handle_token_usage processing usage: {usage}")
 
-        # Normalization attempt for Gemini / OpenAI / Anthropic
-        # Gemini: {'prompt_token_count': 12, 'candidates_token_count': 34, 'total_token_count': 46}
-        # OpenAI: {'prompt_tokens': 12, 'completion_tokens': 34, 'total_tokens': 46}
-
+        # Normalize keys
         input_tokens = (
-            usage.get('prompt_token_count') or
             usage.get('input_tokens') or
+            usage.get('prompt_token_count') or
             usage.get('prompt_tokens') or
             0
         )
         output_tokens = (
-            usage.get('candidates_token_count') or
             usage.get('output_tokens') or
+            usage.get('candidates_token_count') or
             usage.get('completion_tokens') or
             0
         )
         total_tokens = (
-            usage.get('total_token_count') or
             usage.get('total_tokens') or
+            usage.get('total_token_count') or
             (input_tokens + output_tokens)
         )
 

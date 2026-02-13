@@ -1,0 +1,280 @@
+import { useEffect, useState, useMemo } from 'react';
+import { useSocketStore, Enemy, NPC, Player } from '@/lib/socket';
+import { campaignApi, CampaignParticipant } from '@/lib/api';
+import { Users, Skull, User, ExternalLink, ScrollText, RefreshCw, Swords } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/store/authStore';
+
+export default function EntityListPanel() {
+    const { gameState } = useSocketStore();
+    const { user } = useAuthStore();
+    const [participants, setParticipants] = useState<CampaignParticipant[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [showCombatToast, setShowCombatToast] = useState(false);
+
+    // Fetch Participants (DB Source)
+    useEffect(() => {
+        const fetchParticipants = async () => {
+            if (gameState?.session_id) {
+                try {
+                    const parts = await campaignApi.getParticipants(gameState.session_id);
+                    setParticipants(parts);
+                } catch (e) {
+                    console.error("Failed to fetch roster", e);
+                }
+            }
+        };
+        fetchParticipants();
+    }, [gameState?.session_id]);
+
+    // Combat Start Toast Logic - REMOVED per user request
+
+    const handleRefresh = () => {
+        if (gameState?.session_id && user?.uid) {
+            setIsLoading(true);
+            campaignApi.getParticipants(gameState.session_id).then(setParticipants).finally(() => setIsLoading(false));
+        }
+    };
+
+    const openLogPopup = () => {
+        if (!gameState?.session_id) return;
+        const width = 800;
+        const height = 600;
+        const left = (window.screen.width - width) / 2;
+        const top = (window.screen.height - height) / 2;
+        window.open(`/logs?campaignId=${gameState.session_id}`, 'AI_Logs', `width=${width},height=${height},top=${top},left=${left},scrollbars=yes,resizable=yes`);
+    };
+
+
+
+
+    const party = gameState?.party || [];
+    const enemies = gameState?.enemies || [];
+    const npcs = gameState?.npcs || [];
+
+    // Filter Roster: Participants NOT in the active party scene
+    const activeIds = new Set(party.map(p => p.id));
+    const rosterCharacters = participants.flatMap(p => p.characters).filter(c => !activeIds.has(c.id));
+
+    // Combat Mode Logic
+    const isCombat = gameState?.phase === 'combat';
+    const turnOrder = gameState?.turn_order || [];
+    const activeEntityId = gameState?.active_entity_id;
+
+    // Ordered Combatants
+    const combatants = useMemo(() => {
+        if (!isCombat) return [];
+
+        const allEntities = [...party, ...enemies, ...npcs];
+        const entityMap = new Map(allEntities.map(e => [e.id, e]));
+
+        // Filter out any IDs not found (in case turn_order has stale IDs)
+        return turnOrder.map(id => {
+            const ent = entityMap.get(id);
+            if (!ent) return null;
+
+            // Determine type for styling
+            let type: 'party' | 'enemy' | 'npc' = 'npc';
+            if (party.some(p => p.id === id)) type = 'party';
+            else if (enemies.some(e => e.id === id)) type = 'enemy';
+
+            return { entity: ent, type };
+        }).filter((x): x is { entity: Player | Enemy | NPC, type: 'party' | 'enemy' | 'npc' } => x !== null);
+    }, [isCombat, turnOrder, party, enemies, npcs]);
+
+    if (!gameState) return (
+        <div className="flex flex-col h-full bg-neutral-900/40 backdrop-blur-md rounded-xl border border-white/5 overflow-hidden items-center justify-center text-neutral-500 text-xs">
+            Waiting for game state...
+        </div>
+    );
+
+    const SectionHeader = ({ icon: Icon, title, count }: { icon: any, title: string, count: number }) => (
+        <div className="flex items-center gap-2 px-3 py-2 bg-white/5 text-[10px] font-bold uppercase tracking-wider text-neutral-400 mt-2 first:mt-0 rounded-md mx-2">
+            <Icon className="w-3 h-3" />
+            <span>{title}</span>
+            <span className="ml-auto bg-black/40 px-1.5 py-0.5 rounded text-neutral-500">{count}</span>
+        </div>
+    );
+
+    const EntityRow = ({ entity, type, isActive }: { entity: Player | Enemy | NPC, type: 'party' | 'enemy' | 'npc', isActive?: boolean }) => {
+        const hpCurrent = entity.hp_current ?? 0;
+        const hpMax = entity.hp_max ?? 1;
+        const hpPercent = Math.max(0, Math.min(100, (hpCurrent / hpMax) * 100));
+
+        let hpColor = "bg-emerald-500";
+        if (hpPercent < 30) hpColor = "bg-red-500";
+        else if (hpPercent < 60) hpColor = "bg-yellow-500";
+
+        const isDead = hpCurrent <= 0;
+
+        return (
+            <div className={cn(
+                "group px-3 py-2 mx-2 rounded-lg border border-transparent transition-all relative overflow-hidden",
+                isActive ? "bg-white/[0.08] border-white/20 shadow-lg shadow-black/20" : "hover:border-white/5 hover:bg-white/[0.02]",
+                isDead && "opacity-50 grayscale"
+            )}>
+                {/* Active Indicator Strip */}
+                {isActive && <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500" />}
+
+                <div className="flex items-center justify-between mb-1 pl-1">
+                    <div className="flex items-center gap-2 min-w-0">
+                        <div className={cn(
+                            "w-1.5 h-1.5 rounded-full shrink-0",
+                            type === 'party' ? "bg-purple-500" : type === 'enemy' ? "bg-red-500" : "bg-amber-500"
+                        )} />
+                        <span className={cn(
+                            "text-xs font-medium truncate transition-colors",
+                            isActive ? "text-amber-200" : "text-neutral-200 group-hover:text-white"
+                        )}>
+                            {entity.name}
+                        </span>
+                    </div>
+                    <div className="flex gap-2">
+                        {isCombat && (
+                            <span className={cn("text-[9px] font-bold font-mono", isActive ? "text-amber-400" : "text-neutral-600")}>
+                                Init: {entity.initiative ?? '?'}
+                            </span>
+                        )}
+                        <span className="text-[9px] font-mono text-neutral-500">AC {entity.ac}</span>
+                    </div>
+                </div>
+
+                {/* HP Bar */}
+                <div className="w-full h-1 bg-neutral-800 rounded-full overflow-hidden flex items-center ml-1">
+                    <div
+                        className={cn("h-full transition-all duration-500", hpColor)}
+                        style={{ width: `${hpPercent}%` }}
+                    />
+                </div>
+                <div className="flex justify-between mt-1 pl-1">
+                    <span className="text-[8px] text-neutral-600 uppercase tracking-wider">
+                        {type === 'enemy' ? (entity as Enemy).type : type === 'npc' ? (entity as NPC).role : (entity as Player).race}
+                    </span>
+                    <span className="text-[8px] font-mono text-neutral-500">
+                        {hpCurrent}/{hpMax} HP
+                    </span>
+                </div>
+            </div>
+        );
+    };
+
+    const RosterRow = ({ char }: { char: { name: string, race: string, class_name: string, level: number } }) => (
+        <div className="px-3 py-2 mx-2 rounded-lg border border-transparent hover:bg-white/[0.02] transition-colors opacity-70 hover:opacity-100">
+            <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-1.5 h-1.5 rounded-full shrink-0 bg-neutral-600" />
+                    <span className="text-xs font-medium text-neutral-400 truncate">
+                        {char.name}
+                    </span>
+                </div>
+                <span className="text-[9px] text-neutral-600 italic">Offline</span>
+            </div>
+            <div className="flex justify-between mt-1">
+                <span className="text-[8px] text-neutral-600">{char.race} {char.class_name}</span>
+                <span className="text-[8px] text-neutral-600">Lvl {char.level}</span>
+            </div>
+        </div>
+    );
+
+    return (
+        <div className="flex flex-col h-full bg-neutral-900/40 backdrop-blur-md rounded-xl border border-white/5 overflow-hidden relative">
+
+            {/* Combat Notification Overlay - REMOVED */}
+
+            {/* Header */}
+            <div className="w-full px-3 py-2 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+                <h3 className="text-[10px] font-semibold text-neutral-500 uppercase tracking-widest flex items-center gap-2">
+                    {isCombat ? <Swords className="w-3 h-3 text-red-500" /> : <Users className="w-3 h-3" />}
+                    {isCombat ? "Combat Order" : "Scene Entities"}
+                </h3>
+
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={handleRefresh}
+                        disabled={isLoading}
+                        className={cn("p-1.5 rounded hover:bg-neutral-800 text-neutral-500 hover:text-white transition-colors", isLoading && "animate-spin")}
+                        title="Refresh Roster"
+                    >
+                        <RefreshCw className="w-3 h-3" />
+                    </button>
+                    <button
+                        onClick={openLogPopup}
+                        className="flex items-center gap-1.5 px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 border border-white/5 text-[9px] text-neutral-400 hover:text-white transition-all uppercase tracking-wide"
+                        title="Open Logs in New Window"
+                    >
+                        <ScrollText className="w-3 h-3" />
+                        <span>Logs</span>
+                        <ExternalLink className="w-2.5 h-2.5 opacity-50" />
+                    </button>
+                </div>
+            </div>
+
+            {/* Scrollable List */}
+            <div className="flex-1 overflow-y-auto py-2 space-y-4">
+
+                {isCombat ? (
+                    /* Combat View: Single Ordered List */
+                    <div className="mt-1 space-y-1">
+                        {combatants.map(({ entity, type }) => (
+                            <EntityRow
+                                key={entity.id}
+                                entity={entity}
+                                type={type}
+                                isActive={entity.id === activeEntityId}
+                            />
+                        ))}
+                    </div>
+                ) : (
+                    /* Exploration View: Grouped Sections */
+                    <>
+                        {/* Party Section */}
+                        <div>
+                            <SectionHeader icon={User} title="Active Party" count={party.length} />
+                            <div className="mt-1 space-y-1">
+                                {party.map(p => <EntityRow key={p.id} entity={p} type="party" />)}
+                                {party.length === 0 && <div className="mx-4 text-[10px] text-neutral-600 italic">No party members in scene.</div>}
+                            </div>
+                        </div>
+
+                        {/* Roster Section (DB Pull) */}
+                        {(rosterCharacters.length > 0) && (
+                            <div>
+                                <SectionHeader icon={Users} title="Reserves / Offline" count={rosterCharacters.length} />
+                                <div className="mt-1 space-y-1">
+                                    {rosterCharacters.map(c => <RosterRow key={c.id} char={c} />)}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Enemies Section */}
+                        {(enemies.length > 0) && (
+                            <div>
+                                <SectionHeader icon={Skull} title="Enemies" count={enemies.length} />
+                                <div className="mt-1 space-y-1">
+                                    {enemies.map(e => <EntityRow key={e.id} entity={e} type="enemy" />)}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* NPCs Section */}
+                        {(npcs.length > 0) && (
+                            <div>
+                                <SectionHeader icon={Users} title="NPCs" count={npcs.length} />
+                                <div className="mt-1 space-y-1">
+                                    {npcs.map(n => <EntityRow key={n.id} entity={n} type="npc" />)}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Empty State */}
+                        {party.length === 0 && enemies.length === 0 && npcs.length === 0 && rosterCharacters.length === 0 && (
+                            <div className="flex flex-col items-center justify-center p-8 text-neutral-700">
+                                <span className="text-[10px] italic">The scene is empty.</span>
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
+        </div>
+    );
+}

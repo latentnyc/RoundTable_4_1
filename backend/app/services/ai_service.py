@@ -25,21 +25,33 @@ class AIService:
         """
         Generates DM narration based on context and history.
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.debug(f"DEBUG: generate_dm_narration called with mode={mode}")
+
         api_key, model = await AIService.get_campaign_config(campaign_id, db)
         if not api_key:
+            logger.debug("DEBUG: No API Key found.")
             return None
 
         # Determine System Prompt based on mode
         system_prompt = ""
         if mode == "combat_narration":
-             system_prompt = f"""
-             You are the Dungeon Master.
-             A combat action has occurred:
+             # Split Prompt: Persona in System, Task in Human
+             narrator_persona = "You are the Dungeon Master. Keep narrations brief (1-2 sentences), vivid, and strictly based on the mechanics provided."
+             
+             task_prompt = f"""
+             ACTION REPORT:
              {context}
 
-             Narrate it briefly (1-2 sentences).
+             INSTRUCTION:
+             Narrate the above action.
+             - If "MISS": Describe a near miss or block.
+             - If "HIT": Describe the impact.
+             - Use CAPS for NPC names.
+             - Do not add new mechanics.
              """
-             final_history = history + [SystemMessage(content=system_prompt)]
+             final_history = [SystemMessage(content=narrator_persona)] + history + [HumanMessage(content=task_prompt)]
              sender_name = "System"
 
         elif mode == "move_narration":
@@ -89,6 +101,7 @@ class AIService:
 
         dm_graph, _ = get_dm_graph(api_key=api_key, model_name=model or 'gemini-2.0-flash')
         if not dm_graph:
+            logger.debug("DEBUG: Failed to get dm_graph.")
             return None
 
         config = {}
@@ -96,8 +109,12 @@ class AIService:
              callback_handler = SocketIOCallbackHandler(sid, campaign_id, agent_name="Dungeon Master")
              config = {"callbacks": [callback_handler]}
 
-        final_state = await dm_graph.ainvoke(inputs, config=config)
-        return final_state["messages"][-1].content
+        try:
+             final_state = await dm_graph.ainvoke(inputs, config=config)
+             return final_state["messages"][-1].content
+        except Exception as e:
+             logger.error(f"DEBUG: dm_graph.ainvoke failed: {e}")
+             return None
 
     @staticmethod
     async def get_latest_memory(campaign_id: str, db: AsyncSession):
