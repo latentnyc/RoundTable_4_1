@@ -1,4 +1,4 @@
-# RoundTable 4.1 - Friday the 13th Edition 👻
+# RoundTable_4_1 - Friday the 13th Edition 👻
 
 A TTRPG application with AI-powered Game Master and 5e rules integration.
 
@@ -28,6 +28,12 @@ This release brings a massive architectural overhaul and spirited improvements:
 *   **Root Clutter Cleared**: Moved/Deleted debug scripts from the root directory.
 *   **Combat Race Conditions**: Fixed issues where AI would attack with outdated game state.
 *   **Message Sync**: Fixed frontend deduplication hiding rapid-fire messages.
+
+### 🔮 The Crystal Ball Update
+*   **Visualizing the Unknown**: A new `SceneVisPanel` has been conjured to manifest the DM's descriptions into the visible realm.
+*   **Silence of the Logs**: Replaced backend whispers (`print` statements) with proper `logging` invocations, silencing the noise of the void.
+*   **Deployment Grimoire**: The `deploy_cloud` script has been transmuted into a readable tome (`deploy_cloud.md`) for those brave enough to host their own realm.
+*   **Spectral Economy**: Fixed the AI Token usage tracking, ensuring every drop of spectral energy is accounted for.
 
 ---
 
