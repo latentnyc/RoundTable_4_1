@@ -108,7 +108,7 @@ export default function CampaignSettings({ campaignId, isOpen, onClose }: Campai
                                         type="password"
                                         value={apiKey}
                                         onChange={(e) => setApiKey(e.target.value)}
-                                        placeholder="sk-..."
+                                        placeholder="sk-... (Leave blank to use System Key)"
                                         className="w-full bg-black border border-white/10 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:border-purple-500 transition-colors placeholder-neutral-700"
                                     />
                                 </div>
@@ -129,13 +129,13 @@ export default function CampaignSettings({ campaignId, isOpen, onClose }: Campai
 
                         <button
                             onClick={handleTestAndSave}
-                            disabled={!apiKey || isTesting}
+                            disabled={isTesting}
                             className="w-full py-2.5 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl font-medium transition-all border border-white/5 flex items-center justify-center gap-2"
                         >
                             {isTesting ? (
                                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                             ) : (
-                                <>Save & Test Key <Save className="w-4 h-4" /></>
+                                <>{apiKey ? "Save & Test Key" : "Use System Key"} <Save className="w-4 h-4" /></>
                             )}
                         </button>
                     </div>

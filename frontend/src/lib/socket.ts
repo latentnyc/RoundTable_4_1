@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import { useAuthStore } from '@/store/authStore';
 
 
-import { Character } from '@/lib/api';
+
 
 const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -100,6 +100,7 @@ interface SocketState {
     aiStats: AIStats;
     setInitialStats: (totalTokens: number, inputTokens: number, outputTokens: number, queryCount: number) => void;
     fetchLogs: (campaignId: string) => Promise<void>;
+    isTyping: boolean;
 }
 
 export interface ChatMessage {
@@ -144,6 +145,7 @@ export const useSocketStore = create<SocketState>((set, get) => ({
         outputTokens: 0,
         queryCount: 0
     },
+    isTyping: false,
 
     connect: async (campaignId, userId, characterId) => {
         const { socket, connectingPromise } = get();
@@ -223,7 +225,10 @@ export const useSocketStore = create<SocketState>((set, get) => ({
                         m.sender_id === msg.sender_id
                     );
                     if (exists) return state;
-                    return { messages: [...state.messages, msg] };
+                    return {
+                        messages: [...state.messages, msg],
+                        isTyping: false // Failsafe
+                    };
                 });
             });
 
@@ -292,7 +297,17 @@ export const useSocketStore = create<SocketState>((set, get) => ({
 
             newSocket.on('debug_log', (log: DebugLogItem) => {
 
-                set((state) => ({ debugLogs: [...state.debugLogs, log] }));
+                set((state) => {
+                    let typing = state.isTyping;
+                    if (log.type === 'llm_start') typing = true;
+                    if (log.type === 'llm_end') typing = false;
+                    // Also stop typing if we get a chat message (failsafe)
+
+                    return {
+                        debugLogs: [...state.debugLogs, log],
+                        isTyping: typing
+                    };
+                });
             });
 
             newSocket.on('chat_history', (history: ChatMessage[]) => {
@@ -432,10 +447,10 @@ export const useSocketStore = create<SocketState>((set, get) => ({
                     full_content: l.full_content,
                     timestamp: new Date(l.created_at).toLocaleTimeString(),
                     agent_name: l.content.startsWith('[') ? l.content.match(/\[(.*?)\]/)?.[1] : undefined
-                })).reverse(); // Oldest first for chat-like view? 
-                // Actually DebugPanel appends new logs to bottom. 
+                })).reverse(); // Oldest first for chat-like view?
+                // Actually DebugPanel appends new logs to bottom.
                 // API returns newest first (DESC).
-                // So we should reverse them to have [Oldest ... Newest] 
+                // So we should reverse them to have [Oldest ... Newest]
 
                 set({ debugLogs: formattedLogs });
             }

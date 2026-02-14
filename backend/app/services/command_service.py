@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class CommandService:
     @staticmethod
-    async def handle_move(campaign_id: str, sender_id: str, sender_name: str, target_name: str, sio):
+    async def handle_move(campaign_id: str, sender_id: str, sender_name: str, target_name: str, sio, sid=None):
         async with AsyncSessionLocal() as db:
             move_result = await GameService.resolution_move(campaign_id, target_name, db)
 
@@ -29,7 +29,7 @@ class CommandService:
                     db=db,
                     mode="move_narration"
                 )
-                
+
                 await db.commit()
                 await sio.emit('typing_indicator', {'sender_id': 'dm', 'is_typing': False}, room=campaign_id)
 
@@ -37,7 +37,7 @@ class CommandService:
                 await sio.emit('system_message', {'content': move_result.get('message', "Move failed.")}, room=campaign_id)
 
     @staticmethod
-    async def handle_identify(campaign_id: str, sender_id: str, sender_name: str, target_name: str, sio):
+    async def handle_identify(campaign_id: str, sender_id: str, sender_name: str, target_name: str, sio, sid=None):
         async with AsyncSessionLocal() as db:
              result = await GameService.resolution_identify(campaign_id, sender_name, target_name, db)
 
@@ -61,7 +61,7 @@ class CommandService:
                  t_obj = result.get('target_object')
                  if hasattr(t_obj, 'name'):
                     outcome_context += f"\n[SYSTEM SECRET]: The target is truly {t_obj.name.upper()} ({getattr(t_obj, 'role', '')} {getattr(t_obj, 'race', '')})."
-             
+
              await NarratorService.narrate(
                  campaign_id=campaign_id,
                  context=outcome_context,
@@ -72,7 +72,7 @@ class CommandService:
              await db.commit()
 
     @staticmethod
-    async def handle_attack(campaign_id: str, sender_id: str, sender_name: str, target_name: str, sio):
+    async def handle_attack(campaign_id: str, sender_id: str, sender_name: str, target_name: str, sio, sid=None):
         async with AsyncSessionLocal() as db:
              # Check Phase / Start Combat
              game_state = await GameService.get_game_state(campaign_id, db)
@@ -84,7 +84,7 @@ class CommandService:
                  if start_res['success']:
                      await sio.emit('system_message', {'content': "⚔️ **COMBAT STARTED!** Rolling Initiative..."}, room=campaign_id)
                      await sio.emit('game_state_update', start_res['game_state'].model_dump(), room=campaign_id)
-                     
+
                      # Check if it is THIS user's turn
                      if start_res['active_entity_id'] != sender_id:
                          active_name = "Unknown"
@@ -93,10 +93,10 @@ class CommandService:
                                  active_name = c.name
                                  break
                          await sio.emit('system_message', {'content': f"Initiative Rolled! It is **{active_name}**'s turn first."}, room=campaign_id)
-                         
+
                          # NEW: Trigger AI Turn if it's not the player
                          await TurnManager.process_turn(campaign_id, start_res['active_entity_id'], start_res['game_state'], sio, db=db)
-                         
+
                          await db.commit()
                          return
                  game_state = start_res.get('game_state', game_state)
@@ -113,7 +113,7 @@ class CommandService:
 
              # Resolve Attack
              result = await GameService.resolution_attack(campaign_id, sender_id, sender_name, target_name, db)
-             
+
              if not result['success']:
                  await sio.emit('system_message', {'content': result['message']}, room=campaign_id)
                  return
@@ -131,7 +131,7 @@ class CommandService:
              await sio.emit('chat_message', {
                 'sender_id': 'system', 'sender_name': 'System', 'content': mech_msg, 'id': save_result['id'], 'timestamp': save_result['timestamp'], 'is_system': True
              }, room=campaign_id)
-             
+
              await sio.emit('game_state_update', result['game_state'].model_dump(), room=campaign_id)
              await db.commit() # Commit mechanics
 

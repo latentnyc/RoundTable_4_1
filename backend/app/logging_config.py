@@ -37,7 +37,7 @@ def configure_logging():
 
     # Configure Root Logger
     root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO)
+    root_logger.setLevel(logging.WARNING)
 
     # Remove existing handlers to avoid duplicates (e.g. from Uvicorn)
     if root_logger.hasHandlers():
@@ -46,9 +46,9 @@ def configure_logging():
     root_logger.addHandler(console_handler)
 
     # Configure key libraries
-    logging.getLogger("uvicorn.access").handlers = [console_handler]
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("uvicorn.error").handlers = [console_handler]
-    logging.getLogger("fastapi").handlers = [console_handler]
+    logging.getLogger("fastapi").setLevel(logging.WARNING)
 
     # Silence noisy libraries
     logging.getLogger("socketio").setLevel(logging.WARNING)

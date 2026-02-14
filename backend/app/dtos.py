@@ -124,3 +124,17 @@ class UpdateCampaignRequest(BaseModel):
     api_key_verified: Optional[bool] = None
     model: Optional[str] = None
     system_prompt: Optional[str] = None
+
+class ImageGenerationRequest(BaseModel):
+    prompt: str
+
+class ImageGenerationResponse(BaseModel):
+    image_base64: str
+    prompt_used: str
+
+class ImageGenerationRequest(BaseModel):
+    prompt: str
+
+class ImageGenerationResponse(BaseModel):
+    image_base64: str
+    prompt_used: str

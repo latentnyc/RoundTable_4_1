@@ -36,9 +36,70 @@ $ALLOWED_USERS = $env:ALLOWED_USERS
 if (-not $ALLOWED_USERS) {
     Write-Host "WARNING: ALLOWED_USERS is not set. Anyone will be able to sign up!" -ForegroundColor Yellow
     $ALLOWED_USERS = ""
-} else {
     Write-Host "Restricting access to: $ALLOWED_USERS" -ForegroundColor Green
 }
+
+# --- DATABASE RESET LOGIC ---
+Write-Host "Do you want to RESET the Cloud SQL database? (This will DESTROY ALL DATA in $DB_INSTANCE) (y/N)" -ForegroundColor Yellow
+$timeout = 10
+$startTime = Get-Date
+$resetDb = $null
+
+while ((Get-Date) -lt $startTime.AddSeconds($timeout)) {
+    $remaining = [math]::Ceiling(($startTime.AddSeconds($timeout) - (Get-Date)).TotalSeconds)
+    Write-Host "Waiting... $remaining s (Press 'y' to reset, any other key to skip)   `r" -NoNewline
+
+    if ([Console]::KeyAvailable) {
+        $key = [Console]::ReadKey($true)
+        if ($key.KeyChar -eq 'y' -or $key.KeyChar -eq 'Y') {
+            $resetDb = "y"
+            Write-Host "`nReset Confirmed!" -ForegroundColor Red
+        } else {
+            $resetDb = "n"
+            Write-Host "`nSkipping Reset." -ForegroundColor Green
+        }
+        break
+    }
+    Start-Sleep -Milliseconds 100
+}
+
+if ($null -eq $resetDb) {
+    Write-Host "`nTimeout reached. Skipping Reset." -ForegroundColor Green
+    $resetDb = "n"
+}
+
+if ($resetDb -eq "y") {
+    Write-Host "Creating/Updating Cloud Run Job for DB Reset..." -ForegroundColor Cyan
+
+    # 1. Delete existing job (ignore error if not exists)
+    gcloud run jobs delete roundtable-reset-db --region $REGION --project $PROJECT_ID --quiet 2>$null
+
+    # 2. Create the job
+    gcloud run jobs create roundtable-reset-db `
+        --image gcr.io/$PROJECT_ID/$SERVICE_NAME `
+        --region $REGION `
+        --command python `
+        --args scripts/manage_db.py,reset,--force `
+        --add-cloudsql-instances $DB_INSTANCE `
+        --set-env-vars "DATABASE_URL=$DB_URL" `
+        --project $PROJECT_ID
+
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "Executing DB Reset Job..." -ForegroundColor Yellow
+        gcloud run jobs execute roundtable-reset-db --region $REGION --wait --project $PROJECT_ID
+
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "Database reset successfully." -ForegroundColor Green
+        } else {
+            Write-Error "Database reset job failed!"
+            exit 1
+        }
+    } else {
+        Write-Error "Failed to deploy reset job."
+        exit 1
+    }
+}
+# -----------------------------
 
 gcloud beta run deploy $SERVICE_NAME `
   --image gcr.io/$PROJECT_ID/$SERVICE_NAME `

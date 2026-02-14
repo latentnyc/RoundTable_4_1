@@ -2,12 +2,37 @@
 
 Write-Host "Starting RoundTable 4.1 Local Environment..." -ForegroundColor Cyan
 
-# 0. Clean Setup (Optional but requested for testing)
-Write-Host "Resetting Local Database..." -ForegroundColor Yellow
-if (Test-Path "backend\game.db") {
-    Remove-Item "backend\game.db" -Force
-    Write-Host "Database reset complete." -ForegroundColor Green
+# Ask for DB Reset early with 10s timeout
+Write-Host "Do you want to RESET the database? (y/N)" -ForegroundColor Yellow
+$timeout = 10
+$startTime = Get-Date
+$resetDb = $null
+
+while ((Get-Date) -lt $startTime.AddSeconds($timeout)) {
+    $remaining = [math]::Ceiling(($startTime.AddSeconds($timeout) - (Get-Date)).TotalSeconds)
+    Write-Host "Waiting... $remaining s (Press 'y' to reset, any other key to skip)   `r" -NoNewline
+
+    if ([Console]::KeyAvailable) {
+        $key = [Console]::ReadKey($true)
+        if ($key.KeyChar -eq 'y' -or $key.KeyChar -eq 'Y') {
+            $resetDb = "y"
+            Write-Host "`nReset Confirmed!" -ForegroundColor Red
+        } else {
+            $resetDb = "n"
+            Write-Host "`nSkipping Reset." -ForegroundColor Green
+        }
+        break
+    }
+    Start-Sleep -Milliseconds 100
 }
+
+if ($null -eq $resetDb) {
+    Write-Host "`nTimeout reached. Skipping Reset." -ForegroundColor Green
+    $resetDb = "n"
+}
+
+# 0. Clean Setup (Optional but requested for testing)
+# SQLite cleanup is done.
 
 # 1. Java Setup (Crucial for Firebase Emulators)
 $javaPath = "C:\Program Files\Java\jdk-21.0.10"
@@ -19,7 +44,21 @@ if (Test-Path $javaPath) {
     Write-Host "Warning: Java 21 not found at default path ($javaPath). Firebase Emulators might fail if Java is not in PATH." -ForegroundColor Yellow
 }
 
-# 2. Backend Dependencies
+# 2. Database Setup (Docker Postgres)
+Write-Host "Ensuring Database (Docker Postgres) is running..." -ForegroundColor Cyan
+try {
+    docker compose up -d db
+    Write-Host "Database service started." -ForegroundColor Green
+} catch {
+    Write-Host "Error starting Docker: $_" -ForegroundColor Red
+    Write-Host "Please ensure Docker Desktop is running." -ForegroundColor Yellow
+    exit 1
+}
+
+# Wait for DB to be ready (simple pause for now, better to use healthcheck)
+Start-Sleep -Seconds 5
+
+# 3. Backend Dependencies
 Write-Host "Checking Backend configuration..." -ForegroundColor Cyan
 if (-not (Test-Path "backend\venv")) {
     Write-Host "Creating Python virtual environment..." -ForegroundColor Yellow
@@ -31,7 +70,20 @@ Write-Host "Ensuring backend dependencies are installed..." -ForegroundColor Cya
 & "backend\venv\Scripts\python" -m pip install -r backend\requirements.txt | Out-Null
 Write-Host "Backend ready." -ForegroundColor Green
 
-# 3. Frontend Dependencies
+# 4. Initialize Database
+$env:DATABASE_URL = "postgresql+asyncpg://postgres:roundtable_dev_2024@127.0.0.1:5432/postgres"
+
+if ($resetDb -eq "y") {
+    Write-Host "RESETTING DATABASE..." -ForegroundColor Red
+    & "backend\venv\Scripts\python" backend/scripts/manage_db.py reset --force
+}
+
+Write-Host "Initializing Database Schema..." -ForegroundColor Cyan
+# Better: Let python script read .env
+# We need to make sure backend config knows about .env
+& "backend\venv\Scripts\python" backend/db/init_db.py
+
+# 5. Frontend Dependencies
 Write-Host "Checking Frontend configuration..." -ForegroundColor Cyan
 if (-not (Test-Path "frontend\node_modules")) {
     Write-Host "Installing Frontend dependencies (this may take a moment)..." -ForegroundColor Yellow
@@ -41,12 +93,12 @@ if (-not (Test-Path "frontend\node_modules")) {
 }
 Write-Host "Frontend ready." -ForegroundColor Green
 
-# 4. Set Environment Variables for Emulators
+# 6. Set Environment Variables for Emulators
 $env:FIRESTORE_EMULATOR_HOST="127.0.0.1:8080"
 $env:FIREBASE_AUTH_EMULATOR_HOST="127.0.0.1:9099"
 $env:GCLOUD_PROJECT="roundtable41-1dc2c"
 
-# 5. Run Everything
+# 7. Run Everything
 Write-Host "Launching services..." -ForegroundColor Cyan
 Write-Host "Press Ctrl+C to stop all services." -ForegroundColor Yellow
 

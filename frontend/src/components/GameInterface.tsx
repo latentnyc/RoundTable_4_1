@@ -4,6 +4,7 @@ import DebugPanel from './DebugPanel';
 import AIStatsPanel from './AIStatsPanel';
 import PartyMember from './PartyMember';
 import EntityListPanel from './EntityListPanel';
+import SceneVisPanel from './SceneVisPanel';
 import { useSocketStore } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
 import { useCharacterStore } from '@/store/characterStore';
@@ -40,9 +41,9 @@ export default function GameInterface({ campaignId }: GameInterfaceProps) {
 
     return (
         <div className="flex h-full w-full gap-4 p-4">
-            {/* Left Sidebar: Party List (Hidden on mobile, visible on lg) */}
+            {/* Left Sidebar: Party List & Scene Vis (Hidden on mobile, visible on lg) */}
             <div className="hidden lg:flex w-64 flex-col gap-4 shrink-0">
-                <div className="bg-neutral-900/50 rounded-xl border border-neutral-800 p-4 flex-1 overflow-y-auto">
+                <div className="flex-[2] bg-neutral-900/50 rounded-xl border border-neutral-800 p-4 overflow-y-auto">
                     <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-4 flex items-center gap-2">
                         <Users className="w-4 h-4" />
                         Party Members
@@ -65,6 +66,15 @@ export default function GameInterface({ campaignId }: GameInterfaceProps) {
                             </div>
                         )}
                     </div>
+                </div>
+
+                {/* Scene Visualization Panel */}
+                <div className="flex-1 min-h-0">
+                    <SceneVisPanel
+                        campaignId={campaignId}
+                        locationName={gameState?.location?.name}
+                        description={typeof gameState?.location?.description === 'string' ? gameState.location.description : JSON.stringify(gameState?.location?.description)}
+                    />
                 </div>
             </div>
 

@@ -168,6 +168,10 @@ export const campaignApi = {
     updateParticipant: async (campaignId: string, userId: string, data: { role?: string, status?: string }) => {
         const response = await api.patch(`/campaigns/${campaignId}/participants/${userId}`, data);
         return response.data;
+    },
+    generateImage: async (campaignId: string, prompt: string): Promise<{ image_base64: string, prompt_used: string }> => {
+        const response = await api.post(`/campaigns/${campaignId}/images/generate`, { prompt });
+        return response.data;
     }
 };
 

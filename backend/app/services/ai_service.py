@@ -39,7 +39,7 @@ class AIService:
         if mode == "combat_narration":
              # Split Prompt: Persona in System, Task in Human
              narrator_persona = "You are the Dungeon Master. Keep narrations brief (1-2 sentences), vivid, and strictly based on the mechanics provided."
-             
+
              task_prompt = f"""
              ACTION REPORT:
              {context}
@@ -260,3 +260,36 @@ class AIService:
 
         final_state = await char_agent.ainvoke(inputs, config=config)
         return final_state["messages"][-1].content
+
+    @staticmethod
+    async def generate_scene_image(campaign_id: str, prompt: str, db: AsyncSession):
+        from google import genai
+        from google.genai import types
+
+        api_key, _ = await AIService.get_campaign_config(campaign_id, db)
+        if not api_key:
+            return None
+
+        client = genai.Client(api_key=api_key)
+
+        # User requested: "graphite pencil sketch, white background, loose linework"
+        enhanced_prompt = f"graphite pencil sketch of {prompt}, white background, loose linework, rough sketch aesthetic, high contrast"
+
+        # Model: using imagen-4.0-fast-generate-001 as requested
+        try:
+            response = client.models.generate_images(
+                model='imagen-4.0-fast-generate-001',
+                prompt=enhanced_prompt,
+                config=types.GenerateImagesConfig(
+                    number_of_images=1,
+                    aspect_ratio="16:9", # Good for scenes
+                )
+            )
+            if response.generated_images:
+                return response.generated_images[0].image.image_bytes # bytes
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Image Gen Error: {e}")
+
+        return None

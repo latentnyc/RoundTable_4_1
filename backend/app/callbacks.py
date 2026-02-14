@@ -212,7 +212,12 @@ class SocketIOCallbackHandler(AsyncCallbackHandler):
 
         # Standard LangChain usage_metadata (Newer versions)
         # response.llm_output might be empty for some providers, but usage_metadata should be on the message.
-        
+
+        # 0. Try direct usage_metadata (New LangChain Standard on AIMessage/LLMResult)
+        if hasattr(response, 'usage_metadata') and response.usage_metadata:
+             usage = response.usage_metadata
+             self.logger.debug(f"DEBUG: Found usage in response.usage_metadata: {usage}")
+
         # 1. Try Global llm_output
         if response.llm_output:
             usage = response.llm_output.get('token_usage') or response.llm_output.get('usage_metadata') or {}
@@ -226,7 +231,7 @@ class SocketIOCallbackHandler(AsyncCallbackHandler):
                 if hasattr(first_gen, 'message'):
                     usage = getattr(first_gen.message, 'usage_metadata', {}) or {}
                     self.logger.debug(f"DEBUG: Found usage in message.usage_metadata: {usage}")
-                
+
                 # Check generation_info (Google GenAI specific sometimes)
                 if not usage and hasattr(first_gen, 'generation_info'):
                      usage = first_gen.generation_info.get('usage_metadata') or {}

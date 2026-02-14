@@ -112,7 +112,7 @@ async def handle_chat_message(sid, data, sio, connected_users):
              await sio.emit('system_message', {'content': "Usage: @move <location_name>"}, room=campaign_id)
              return
 
-        await CommandService.handle_move(campaign_id, sender_id, sender_name, target_name, sio)
+        await CommandService.handle_move(campaign_id, sender_id, sender_name, target_name, sio, sid=sid)
         return
 
     # 4. Handle @attack command
@@ -122,7 +122,7 @@ async def handle_chat_message(sid, data, sio, connected_users):
              await sio.emit('system_message', {'content': "Usage: @attack <target_name>"}, room=campaign_id)
              return
 
-        await CommandService.handle_attack(campaign_id, sender_id, sender_name, target_name, sio)
+        await CommandService.handle_attack(campaign_id, sender_id, sender_name, target_name, sio, sid=sid)
         return
 
 
@@ -133,7 +133,7 @@ async def handle_chat_message(sid, data, sio, connected_users):
              await sio.emit('system_message', {'content': "Usage: @identify <target_name>"}, room=campaign_id)
              return
 
-        await CommandService.handle_identify(campaign_id, sender_id, sender_name, target_name, sio)
+        await CommandService.handle_identify(campaign_id, sender_id, sender_name, target_name, sio, sid=sid)
         return
 
     # 4. Trigger DM
@@ -230,7 +230,7 @@ async def handle_chat_message(sid, data, sio, connected_users):
                                 'timestamp': save_result['timestamp']
                             }, room=campaign_id)
                             log_debug(f"DEBUG: Banter response content: '{banter_response}'")
-                        
+
                         await db.commit()
 
                 except Exception as e:
@@ -303,7 +303,7 @@ async def handle_chat_message(sid, data, sio, connected_users):
                                 'id': save_result['id'],
                                 'timestamp': save_result['timestamp']
                             }, room=campaign_id)
-                        
+
                         await db.commit()
                 except Exception as e:
                     log_debug(f"Error in Mention generation: {e}")

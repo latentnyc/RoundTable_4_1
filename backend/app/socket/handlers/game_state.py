@@ -51,34 +51,30 @@ async def handle_join_campaign(sid, data, sio, connected_users):
             char_rows = result.mappings().all()
 
             players_to_sync = []
+            logger.info(f"[DEBUG] Found {len(char_rows)} characters for user {user_id}")
 
             for char_row in char_rows:
                 try:
                     sheet_data = json.loads(char_row['sheet_data']) if char_row['sheet_data'] else {}
-                except json.JSONDecodeError:
+                except Exception as e:
+                    logger.warning(f"[DEBUG] Error parsing sheet_data for char {char_row['id']}: {e}")
                     sheet_data = {}
 
-                # Determine AI status
+                # Safe Int Helpers
+                def _safe_int(v, d):
+                    try: return int(v)
+                    except: return d
+
+                hp_current = _safe_int(sheet_data.get('hpCurrent'), 10)
+                hp_max = _safe_int(sheet_data.get('hpMax'), 10)
+                ac = _safe_int(sheet_data.get('ac'), 10)
+                speed = _safe_int(sheet_data.get('speed'), 30)
+                level = _safe_int(char_row['level'], 1)
+                xp = _safe_int(char_row['xp'], 0)
+
+                # Check control mode
                 control_mode = char_row['control_mode'] if 'control_mode' in char_row and char_row['control_mode'] else 'human'
                 is_ai = (control_mode == 'ai')
-
-                # Ensure defaults for sheet data with type safety
-                def safe_int(val, default):
-                    try:
-                        return int(val)
-                    except (ValueError, TypeError):
-                        return default
-
-                hp_current = safe_int(sheet_data.get('hpCurrent'), 10)
-                hp_max = safe_int(sheet_data.get('hpMax'), 10)
-                ac = safe_int(sheet_data.get('ac'), 10)
-                speed = safe_int(sheet_data.get('speed'), 30)
-
-                # Safe access to DB columns
-                role = char_row['role'] or "Unknown"
-                race = char_row['race'] or "Unknown"
-                level = safe_int(char_row['level'], 1)
-                xp = safe_int(char_row['xp'], 0)
 
                 player_char = Player(
                     id=char_row['id'],
@@ -92,14 +88,15 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                     initiative=0,
                     speed=speed,
                     position=Coordinates(q=0, r=0, s=0),
-                    role=role,
-                    race=race,
+                    role=char_row['role'] or "Unknown",
+                    race=char_row['race'] or "Unknown",
                     level=level,
                     xp=xp,
                     sheet_data=sheet_data
                 )
                 players_to_sync.append(player_char)
                 character_names.append(player_char.name)
+                logger.info(f"[DEBUG] Synced character {player_char.name} ({player_char.id})")
 
             # 3. Load Game State (or init)
             result = await db.execute(
@@ -110,11 +107,15 @@ async def handle_join_campaign(sid, data, sio, connected_users):
 
             if state_row:
                 game_state = GameState(**json.loads(state_row['state_data']))
+                # Fix for existing campaigns with generic default description
+                if game_state.location.description == "A new adventure begins.":
+                    logger.info("[DEBUG] Clearing generic default description for existing campaign.")
+                    game_state.location.description = ""
             else:
                 # Init new state
                 game_state = GameState(
                     session_id=campaign_id,
-                    location=Location(name="The Beginning", description="A new adventure begins."),
+                    location=Location(name="The Beginning", description=""), # Empty to prevent premature image gen
                     party=[]
                 )
 
@@ -136,6 +137,18 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                     new_p.initiative = old_p.initiative
 
                 game_state.party.append(new_p)
+
+            # 4.5 Check for Fresh Campaign (Prevent Premature Image Gen)
+            # If no chat messages exist and intro hasn't started, clear description so client waits for intro
+            msg_check = await db.execute(text("SELECT 1 FROM chat_messages WHERE campaign_id = :cid LIMIT 1"), {"cid": campaign_id})
+            msg_exists = msg_check.scalar()
+
+            log_check = await db.execute(text("SELECT 1 FROM debug_logs WHERE campaign_id = :cid AND type = 'intro_start' LIMIT 1"), {"cid": campaign_id})
+            intro_started = log_check.scalar()
+
+            if not msg_exists and not intro_started:
+                logger.info("[DEBUG] Fresh campaign detected. Clearing location description to prevent premature image generation.")
+                game_state.location.description = ""
 
             # 5. Save Updated State
             await db.execute(
@@ -261,7 +274,7 @@ async def handle_join_campaign(sid, data, sio, connected_users):
 
                     # Be specific about the location if we have it from GameState (which we should)
                     state_res = await db.execute(
-                        text("SELECT state_data FROM game_states WHERE campaign_id = :campaign_id ORDER BY turn_index DESC LIMIT 1"),
+                        text("SELECT id, state_data FROM game_states WHERE campaign_id = :campaign_id ORDER BY turn_index DESC, updated_at DESC LIMIT 1"),
                         {"campaign_id": campaign_id}
                     )
                     s_row = state_res.mappings().fetchone()
@@ -269,7 +282,7 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                         gs = GameState(**json.loads(s_row['state_data']))
 
                         location_txt = f"{gs.location.name}: {gs.location.description}"
-                        party_txt = ", ".join([p.name for p in gs.party])
+                        party_txt = ", ".join([f"{p.name} ({p.race} {p.role})" for p in gs.party])
 
                         # Present NPCs
                         npc_list_txt = "None visible."
@@ -291,19 +304,19 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                         CAMPAIGN START
                         Location: {location_txt}
                         Party: {party_txt}
-                        
+
                         NPCS PRESENT:
                         {npc_list_txt}
-                        
+
                         {starting_npc_info if not gs.npcs else ""}
 
                         TASK:
                         1. Welcome the players to the campaign.
                         2. Describe the scene vividly, utilizing the location description and the mood.
-                        3. Introduce/Acknowledge the NPCs present ({npc_list_txt}).
-                        4. Do NOT ask "What do you do?" or provide an immediate hook for action.
-                        5. Simply set the scene and letting the players soak in the atmosphere.
-                        5. Simply set the scene and letting the players soak in the atmosphere.
+                        3. Introduce/Acknowledge the party members present ({party_txt}).
+                        4. Introduce/Acknowledge the NPCs present ({npc_list_txt}).
+                        5. Do NOT ask "What do you do?" or provide an immediate hook for action.
+                        6. Simply set the scene and report who is present, letting the players soak in the atmosphere.
 
                         Keep it under 2 paragraphs. Be atmospheric and immersive.
                         """
@@ -331,9 +344,19 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                             }
 
                             final_state = await dm_graph.ainvoke(inputs, config=config)
-                            opening_text = final_state["messages"][-1].content
+                            raw_content = final_state["messages"][-1].content
 
-                            # Save & Emit
+                            if isinstance(raw_content, list):
+                                # Extract text from blocks (Google GenAI Multimodal format)
+                                opening_text = "".join([block.get("text", "") for block in raw_content if isinstance(block, dict) and block.get("type") == "text"])
+                                if not opening_text: # Fallback if structure is different
+                                     opening_text = str(raw_content)
+                            else:
+                                opening_text = str(raw_content)
+
+                            logger.info(f"[DEBUG] DM Intro Generated: {opening_text[:100]}...")
+
+                            # Save & Emit Message
                             await ChatService.save_message(campaign_id, 'dm', 'Dungeon Master', opening_text)
                             await sio.emit('chat_message', {
                                 'sender_id': 'dm',
@@ -341,6 +364,21 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                                 'content': opening_text,
                                 'timestamp': 'Just now'
                             }, room=campaign_id)
+
+                            # Update Game State Location Description to match Intro
+                            # This triggers the SceneVisPanel to generate the image based on the intro
+                            gs.location.description = opening_text
+                            logger.info(f"[DEBUG] Updated GameState location description to match intro.")
+
+                            # Update DB
+                            await db.execute(
+                                text("UPDATE game_states SET state_data = :data WHERE id = :id"),
+                                {"data": gs.model_dump_json(), "id": s_row['id']}
+                            )
+                            await db.commit()
+
+                            # Emit Game State Update
+                            await sio.emit('game_state_update', gs.model_dump(), room=campaign_id)
 
                             await db.execute(
                                 text("INSERT INTO debug_logs (id, campaign_id, type, content, created_at) VALUES (:id, :cid, 'intro_success', 'Message sent', :now)"),
@@ -392,6 +430,6 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                 'type': row['type'],
                 'content': row['content'],
                 'full_content': full_content,
-                'timestamp': row['created_at']
+                'timestamp': str(row['created_at'])
             }
             await sio.emit('debug_log', log_item, room=sid)

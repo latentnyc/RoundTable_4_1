@@ -8,13 +8,13 @@ from ..dtos import (
     CampaignCreateRequest, CampaignResponse, CampaignDetailsResponse,
     UpdateCampaignRequest, TestAPIKeyRequest, ModelListResponse,
     CampaignParticipantResponse, ParticipantCharacter, UpdateParticipantRequest,
-    CampaignTemplateResponse
+    CampaignTemplateResponse, ImageGenerationRequest, ImageGenerationResponse
 )
 from ..models import GameState, Location, NPC, Coordinates
 from uuid import uuid4
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, insert, update, delete, desc, text
-from db.schema import campaigns, campaign_templates, campaign_participants, game_states, characters, chat_messages, npcs, locations, debug_logs
+from db.schema import campaigns, campaign_templates, campaign_participants, game_states, characters, chat_messages, npcs, locations, debug_logs, profiles
 from ..services.campaign_loader import instantiate_campaign
 
 router = APIRouter()
@@ -32,7 +32,12 @@ async def test_api_key(
         raise HTTPException(status_code=403, detail="Only admins can test API keys")
 
     try:
-        models = SystemService.validate_api_key(req.api_key, req.provider)
+        api_key_to_use = req.api_key
+        if not api_key_to_use:
+             import os
+             api_key_to_use = os.getenv("GEMINI_API_KEY")
+
+        models = SystemService.validate_api_key(api_key_to_use, req.provider)
         return ModelListResponse(models=models)
 
     except ValueError as e:
@@ -103,20 +108,31 @@ async def create_campaign(
 
     new_id = str(uuid4())
 
+    # Resolve API Key
+    api_key_to_use = req.api_key
+    if not api_key_to_use:
+        import os
+        api_key_to_use = os.getenv("GEMINI_API_KEY")
+
     # Verify API Key if provided
     is_verified = False
-    if req.api_key:
+    if api_key_to_use:
         try:
             # We need to import genai here or uses SystemService
             from app.services.system_service import SystemService
             try:
-                SystemService.validate_api_key(req.api_key)
+                SystemService.validate_api_key(api_key_to_use)
                 is_verified = True
             except ValueError:
                 pass # valid to leave unverified if check fails but we still save it?
                      # The original code just printed error and left it unverified.
         except Exception as e:
             logger.warning(f"Pre-verification field for new campaign key: {e}")
+
+    # Default Model
+    model_to_use = req.model
+    if not model_to_use:
+        model_to_use = "gemini-2.5-flash"
 
     try:
         # Create Campaign
@@ -125,9 +141,9 @@ async def create_campaign(
             name=req.name,
             gm_id=req.gm_id,
             status="active",
-            api_key=req.api_key,
+            api_key=api_key_to_use,
             api_key_verified=is_verified,
-            model=req.model,
+            model=model_to_use,
             system_prompt=req.system_prompt,
             template_id=req.template_id
         )
@@ -153,7 +169,7 @@ async def create_campaign(
 
     # Init Game State
     initial_location_name = "The Beginning"
-    initial_location_desc = "A new adventure begins."
+    initial_location_desc = "" # Empty to prevent premature image gen
     initial_location_source_id = None
     initial_location_id = str(uuid4()) # Default if not found
 
@@ -470,21 +486,6 @@ async def join_campaign(
     await db.commit()
     return {"status": status, "role": role}
 
-@router.get("/{campaign_id}/participants", response_model=List[CampaignParticipantResponse])
-async def list_participants(
-    campaign_id: str,
-    user: dict = Depends(verify_token),
-    db: AsyncSession = Depends(get_db)
-):
-    # Auth Check: Must be participant (or Admin) to see list?
-    # Or maybe just anyone? Let's restrict to people who have at least 'interested' status or Admin.
-    if not await is_admin(user, db):
-        check = await db.execute(text("SELECT status FROM campaign_participants WHERE campaign_id=:cid AND user_id=:uid"), {"cid": campaign_id, "uid": user['uid']})
-        if not check.scalar():
-             raise HTTPException(status_code=403, detail="Must join campaign to view participants")
-
-    # Fetch Participants + Profile Info
-from db.schema import campaigns, campaign_templates, campaign_participants, game_states, characters, chat_messages, npcs, locations, profiles
 
 @router.get("/{campaign_id}/participants", response_model=List[CampaignParticipantResponse])
 async def list_participants(
@@ -492,6 +493,8 @@ async def list_participants(
     user: dict = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
+    logger.info(f"[DEBUG] Listing participants for campaign {campaign_id} user {user['uid']}")
+
     # Auth Check: Must be participant (or Admin) to see list?
     if not await is_admin(user, db):
         query = select(campaign_participants.c.status).where(
@@ -500,6 +503,7 @@ async def list_participants(
         )
         check = await db.execute(query)
         if not check.scalar():
+             logger.warning(f"[DEBUG] User {user['uid']} not in campaign {campaign_id}")
              raise HTTPException(status_code=403, detail="Must join campaign to view participants")
 
     # Fetch Participants + Profile Info
@@ -521,6 +525,7 @@ async def list_participants(
 
     result = await db.execute(j_query)
     users = result.all()
+    logger.info(f"[DEBUG] Found {len(users)} participants")
 
     # Fetch Characters for all these users in this campaign
     chars_by_user = {}
@@ -533,26 +538,32 @@ async def list_participants(
         c_result = await db.execute(c_query)
         chars = c_result.all()
 
-        for c in chars:
-            if c.user_id not in chars_by_user:
-                chars_by_user[c.user_id] = []
-            chars_by_user[c.user_id].append(ParticipantCharacter(
-                id=c.id,
-                name=c.name,
-                race=c.race or "Unknown",
-                class_name=c.class_name,
-                level=c.level
-            ))
+    # chars_by_user logic
+    # chars_by_user logic
+    chars_by_user = {}
+    for c in chars:
+        uid = str(c.user_id)
+        if uid not in chars_by_user:
+            chars_by_user[uid] = []
+        chars_by_user[uid].append({
+            "id": str(c.id),
+            "name": c.name,
+            "race": c.race or "Unknown",
+            "class_name": c.class_name, # aliased
+            "level": c.level
+        })
 
     response = []
     for u in users:
+        # u is a Row object
+        uid = str(u.id)
         response.append(CampaignParticipantResponse(
-            id=u.id,
+            id=uid, # user_id
             username=u.username,
             role=u.role,
             status=u.status,
             joined_at=u.joined_at,
-            characters=chars_by_user.get(u.id, [])
+            characters=chars_by_user.get(uid, [])
         ))
 
     return response
@@ -663,7 +674,7 @@ async def get_campaign_logs(
         )
         result = await db.execute(query)
         rows = result.all()
-        
+
         return [
             {
                 "type": row.type,
@@ -676,3 +687,33 @@ async def get_campaign_logs(
     except Exception as e:
         logger.error(f"Error fetching logs: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch logs")
+
+@router.post("/{campaign_id}/images/generate", response_model=ImageGenerationResponse)
+async def generate_campaign_image(
+    campaign_id: str,
+    req: ImageGenerationRequest,
+    user: dict = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    from app.services.ai_service import AIService
+    # Check if participant
+    if not await is_admin(user, db):
+         query = select(campaign_participants.c.status).where(
+             campaign_participants.c.campaign_id == campaign_id,
+             campaign_participants.c.user_id == user['uid']
+         )
+         check = await db.execute(query)
+         if not check.scalar():
+              raise HTTPException(status_code=403, detail="Access denied")
+
+    image_bytes = await AIService.generate_scene_image(campaign_id, req.prompt, db)
+    if not image_bytes:
+        raise HTTPException(status_code=500, detail="Failed to generate image")
+
+    import base64
+    b64_img = base64.b64encode(image_bytes).decode('utf-8')
+
+    return ImageGenerationResponse(
+        image_base64=b64_img,
+        prompt_used=req.prompt
+    )

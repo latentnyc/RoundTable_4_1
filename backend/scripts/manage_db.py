@@ -12,13 +12,13 @@ from db.schema import metadata
 
 async def reset_db():
     print(f"Resetting database: {engine.url}")
-    
+
     async with engine.begin() as conn:
         print("Dropping all tables...")
         await conn.run_sync(metadata.drop_all)
         print("Creating all tables...")
         await conn.run_sync(metadata.create_all)
-    
+
     print("Database reset complete.")
 
 async def create_db():
@@ -30,14 +30,18 @@ async def create_db():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Manage the database.")
     parser.add_argument("action", choices=["reset", "create"], help="Action to perform")
-    
+    parser.add_argument("--force", action="store_true", help="Skip confirmation prompt")
+
     args = parser.parse_args()
-    
+
     if args.action == "reset":
-        confirm = input("This will DESTROY ALL DATA in the database. Are you sure? (y/N): ")
-        if confirm.lower() == "y":
+        if args.force:
             asyncio.run(reset_db())
         else:
-            print("Operation cancelled.")
+            confirm = input("This will DESTROY ALL DATA in the database. Are you sure? (y/N): ")
+            if confirm.lower() == "y":
+                asyncio.run(reset_db())
+            else:
+                print("Operation cancelled.")
     elif args.action == "create":
         asyncio.run(create_db())

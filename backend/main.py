@@ -10,7 +10,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 fastapi_app = FastAPI(title=settings.PROJECT_NAME, version=settings.VERSION)
-logger.info("FastAPI app initialized")
+logger.warning("FastAPI app initialized")
 
 # Import Routers
 from app.routers import game, auth, characters, settings as settings_router, items, compendium, campaigns, users, chat

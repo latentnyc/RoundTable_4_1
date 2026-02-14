@@ -1,4 +1,18 @@
+name: roundtable_4_1
+
 services:
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=roundtable_dev_2024
+      - POSTGRES_DB=postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
   backend:
     build:
       context: ./backend
@@ -7,14 +21,11 @@ services:
       - "8000:8000"
     environment:
       - PORT=8000
-      - SQLITE_DB_PATH=/data/game.db
+      - DATABASE_URL=postgresql+asyncpg://postgres:roundtable_dev_2024@db:5432/postgres
       - ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-    volumes:
-      # Mount the local backend directory's database to the container's data directory
-      # This mimics the Cloud Run volume persistence
-      - ./backend/game.db:/data/game.db
-      # Optional: Mount credentials if needed
-      # - ./serviceAccountKey.json:/app/serviceAccountKey.json
+    depends_on:
+      - db
+
 
   frontend:
     build: ./frontend
@@ -24,3 +35,6 @@ services:
       - VITE_API_URL=http://localhost:8000
     depends_on:
       - backend
+
+volumes:
+  postgres_data:
