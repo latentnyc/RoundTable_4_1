@@ -388,6 +388,7 @@
       "target_id": "valerius",
       "unidentified_name": "Tall Pale Figure",
       "unidentified_description": "A tall figure in a dark cloak, face obscured by shadows but radiating a cold, ancient power.",
+      "llm_description": "A tall, imposing aristocratic vampire lord. Pale flawless skin, sharp cheekbones, piercing red eyes, and slicked-back raven hair. He wears a high-collared crimson velvet coat adorned with gold trim over black silken clothes.",
       "secrets": [
         "Incredibly lonely."
       ],
@@ -428,6 +429,7 @@
       "target_id": "elara",
       "unidentified_name": "Tavern Maid",
       "unidentified_description": "A kind-faced woman scrubbing tables.",
+      "llm_description": "A beautiful but exhausted young woman in a drab, flour-dusted peasant dress. She has long, messy auburn hair tied loosely back, and striking emerald green eyes that hold a deep, unspoken sadness. She holds a wooden serving tray.",
       "role": "Victim / Love Interest",
       "race": "Human",
       "stats": {
@@ -478,6 +480,7 @@
       "target_id": "thomas",
       "unidentified_name": "Priest",
       "unidentified_description": "A man in vestments looking up at the sky.",
+      "llm_description": "A tired, middle-aged man in worn clerical robes. He has a receding hairline, thick graying beard, and deep bags under his eyes. He loosely grips a tarnished silver holy symbol.",
       "role": "Priest",
       "race": "Human",
       "stats": {
@@ -542,6 +545,7 @@
       "target_id": "eva",
       "unidentified_name": "Old Fortune Teller",
       "unidentified_description": "An old woman shuffling tarot cards.",
+      "llm_description": "A deeply wrinkled, elderly woman shrouded in colorful, layered shawls and heavy gold jewelry. Her eyes are milky white and completely blind, yet she stares directly at the viewer while shuffling a mystical deck of cards.",
       "role": "Fortune Teller",
       "race": "Vistani",
       "stats": {
@@ -605,6 +609,7 @@
       "target_id": "bork",
       "unidentified_name": "Surly Barkeep",
       "unidentified_description": "A burly man cleaning a mug with a dirty rag.",
+      "llm_description": "A massive, heavily muscled man with a thick, bushy mustache and a stained leather apron over a rolled-up tunic. His arms are covered in faded maritime tattoos. He glares suspiciously while polishing a wooden tankard.",
       "role": "Tavern Keeper",
       "race": "Human",
       "stats": {
@@ -660,6 +665,7 @@
       "target_id": "igor",
       "unidentified_name": "Hunched Servant",
       "unidentified_description": "A hunched figure dragging a shovel.",
+      "llm_description": "A grotesque, hunched man with a severely deformed spine and one misaligned, bulging eye. He wears threadbare, dirt-caked rags and clings to an oversized rusty iron shovel.",
       "role": "Servant",
       "race": "Human",
       "stats": {
@@ -723,6 +729,7 @@
       "target_id": "mina",
       "unidentified_name": "Weeping Girl",
       "unidentified_description": "A small girl sobbing near a grave.",
+      "llm_description": "A pale, terrifying undead little girl in a soiled white nightgown. Her skin is translucent, and thin tracks of blood run down her chin. Her eyes are entirely pitch black.",
       "role": "Vampire Spawn",
       "race": "Vampire Spawn",
       "stats": {
@@ -786,6 +793,7 @@
       "target_id": "midnight",
       "unidentified_name": "Black Cat",
       "unidentified_description": "A black cat with intelligent eyes.",
+      "llm_description": "A sleek, utterly pitch-black cat with unnervingly intelligent, glowing golden eyes. It wears a polished silver collar that glints in the moonlight.",
       "role": "Graveyard Cat",
       "race": "Beast",
       "stats": {
@@ -840,6 +848,7 @@
       "target_id": "valerius_boss",
       "unidentified_name": "The Vampire Lord",
       "unidentified_description": "The master of the castle revealed in his true form.",
+      "llm_description": "Count Valerius floating in the air, his cape twisting unnaturally like bat wings. His mouth is bared in a terrifying hiss, showing elongated fangs, his eyes burning with crimson light.",
       "type": "undead",
       "description": "The vampire lord of Oakhaven.",
       "stats": {

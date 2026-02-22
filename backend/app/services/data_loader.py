@@ -47,7 +47,7 @@ async def import_table(db: AsyncSession, table_name, json_filename, json_dir, na
         return 0
 
     batch_params = []
-    
+
     # Prepare SQL statement based on table
     if table_name == "spells":
         sql = text("""
@@ -63,11 +63,11 @@ async def import_table(db: AsyncSession, table_name, json_filename, json_dir, na
             record_id = item.get('index')
             name = item.get(name_key)
             if not record_id or not name: continue
-            
+
             level = item.get('level', 0)
             try: level = int(level)
             except: level = 0
-            
+
             batch_params.append({
                 "id": record_id,
                 "name": name,
@@ -133,13 +133,13 @@ async def import_table(db: AsyncSession, table_name, json_filename, json_dir, na
             record_id = item.get('index')
             name = item.get(name_key)
             if not record_id or not name: continue
-            
+
             batch_params.append({
                 "id": record_id,
                 "name": name,
                 "data": json.dumps(item)
             })
-    
+
     else:
         logger.warning(f"Unknown table {table_name}")
         return 0
@@ -155,7 +155,7 @@ async def import_table(db: AsyncSession, table_name, json_filename, json_dir, na
             logger.error(f"Error executing batch for {table_name}: {e}")
             await db.rollback()
             return 0
-    
+
     return 0
 
 async def load_basic_dataset():

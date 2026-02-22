@@ -46,7 +46,13 @@
                     "shadows"
                 ],
                 "anti_drift": "A contained combat arena.",
-                "connections": [],
+                "connections": [
+                    {
+                        "direction": "west",
+                        "target_id": "loc_treasury",
+                        "description": "A heavy wooden door leading west. It is currently closed."
+                    }
+                ],
                 "secrets": []
             },
             "environmental_state": {
@@ -54,7 +60,67 @@
                 "light_required": false,
                 "hazards": []
             },
-            "interactables": [],
+            "interactables": [
+                {
+                    "id": "door_west",
+                    "name": "Heavy Wooden Door",
+                    "type": "door",
+                    "state": "closed",
+                    "locked": false,
+                    "key_id": "",
+                    "contents": [],
+                    "secrets": []
+                }
+            ],
+            "secrets": []
+        },
+        {
+            "id": "loc_treasury",
+            "name": "The Treasury",
+            "active_hours": "always",
+            "description": {
+                "visual": "A small alcove carved directly from the stone. Dust motes dance in the light spilling from the main room. A single chest sits against the far wall.",
+                "auditory": "Silence.",
+                "olfactory": "Dust and old metal.",
+                "anchors": [
+                    "chest",
+                    "dust",
+                    "stone alcove"
+                ],
+                "anti_drift": "A dead-end loot room.",
+                "connections": [
+                    {
+                        "direction": "east",
+                        "target_id": "loc_room",
+                        "description": "An open doorway leading back to the torchlit room."
+                    }
+                ],
+                "secrets": []
+            },
+            "environmental_state": {
+                "light_level": "dim",
+                "light_required": false,
+                "hazards": []
+            },
+            "interactables": [
+                {
+                    "id": "chest_iron",
+                    "name": "Iron-bound Chest",
+                    "type": "chest",
+                    "state": "closed",
+                    "locked": false,
+                    "key_id": "",
+                    "contents": [
+                        "item_gold_coin",
+                        "item_gold_coin",
+                        "item_gold_coin",
+                        "item_gold_coin",
+                        "item_gold_coin",
+                        "item_health_potion"
+                    ],
+                    "secrets": []
+                }
+            ],
             "secrets": []
         }
     ],
@@ -65,6 +131,7 @@
             "target_id": "grimtooth",
             "unidentified_name": "Goblin Skirmisher",
             "unidentified_description": "A small, green-skinned humanoid crouching in the shadows.",
+            "llm_description": "A small, wirey goblin with sickly green skin. He wears patchwork, stained leather armor. His most defining feature is a single, massively oversized jagged lower canine protruding past his upper lip. He crouches aggressively in the torchlight, gripping a rusted scimitar.",
             "description": "A small, scowling goblin with a jagged tooth.",
             "role": "Enemy",
             "race": "Goblin",
@@ -148,6 +215,7 @@
             "target_id": "goblin",
             "unidentified_name": "Goblin",
             "unidentified_description": "A small, violent humanoid.",
+            "llm_description": "A classic fantasy goblin: small, wiry frame, olive-green skin, pointed ears, and beady, malicious yellow eyes. Wearing scrappy leather armor and wielding a crude rusted blade.",
             "type": "humanoid",
             "description": "A small, green-skinned humanoid with sharp teeth.",
             "stats": {
@@ -194,6 +262,18 @@
             },
             "abilities": [],
             "behavior": ""
+        },
+        {
+            "id": "item_health_potion",
+            "name": "Minor Health Potion",
+            "type": "consumable",
+            "description": "A small vial of red liquid that restores hit points.",
+            "usage": "Use",
+            "stats": {
+                "healing": "1d4+1"
+            },
+            "abilities": [],
+            "behavior": "Restores health on consumption."
         }
     ]
 }

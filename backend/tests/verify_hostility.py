@@ -10,11 +10,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 # Set Env to use test DB
-TEST_DB_PATH = "test_hostility.db"
-if os.path.exists(TEST_DB_PATH):
-    os.remove(TEST_DB_PATH)
-os.environ["SQLITE_DB_PATH"] = TEST_DB_PATH
-os.environ["DATABASE_URL"] = "" # Force SQLite
+TEST_DB_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:roundtable_dev_2024@127.0.0.1:5432/postgres")
+os.environ["DATABASE_URL"] = TEST_DB_URL
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
@@ -25,7 +22,7 @@ from app.models import GameState, Player, NPC, Location, Coordinates
 from app.socket.handlers.chat import handle_chat_message
 
 async def setup_db():
-    engine = create_async_engine(f"sqlite+aiosqlite:///{TEST_DB_PATH}", echo=False)
+    engine = create_async_engine(TEST_DB_URL, echo=False)
     async with engine.begin() as conn:
         await conn.run_sync(metadata.create_all)
 
@@ -97,9 +94,7 @@ async def run_test():
     # Since we imported handle_chat_message, it typically uses the global AsyncSessionLocal from db.session.
     # But we reloaded/imported AFTER setting env, so db.session should have initialized with our TEST_DB_PATH.
     # Let's verify.
-    from db.session import SQLITE_DB_PATH as USED_PATH
-    print(f"DB Path used by app: {USED_PATH}")
-    assert "test_hostility.db" in USED_PATH
+    print(f"DB initialized with Postgres")
 
     cid, uid, pid, nid = await seed_data(SessionLocal)
     print(f"Seeded Campaign {cid}, Player {pid}, NPC {nid}")
@@ -185,9 +180,3 @@ async def run_test():
 
 if __name__ == "__main__":
     asyncio.run(run_test())
-    # Cleanup
-    if os.path.exists(TEST_DB_PATH):
-        try:
-            os.remove(TEST_DB_PATH)
-        except:
-            pass

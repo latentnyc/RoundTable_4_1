@@ -29,11 +29,11 @@ async def main():
     # Mock SID and Campaign ID
     sid = "mock_sid"
     campaign_id = "mock_campaign_id"
-    
-    # We need to mock the socketio emit and db connection within the handler 
+
+    # We need to mock the socketio emit and db connection within the handler
     # OR we can just use the handler and see what it logs if we patch the dependencies.
     # For now, let's just use a subclass that overrides _emit to print instead of using socketio/db.
-    
+
     class DebugSocketIOCallbackHandler(SocketIOCallbackHandler):
         async def _emit(self, event: str, data: dict):
             if event == 'ai_stats':

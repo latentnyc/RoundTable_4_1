@@ -12,14 +12,14 @@ async def test_turn_advancement_locking():
     """
     # Mock SIO
     mock_sio = AsyncMock()
-    
+
     # Mock DB
     mock_db = AsyncMock()
-    
+
     # Mock Game State
     active_char = Player(id="char1", name="Hero", hp_current=10, hp_max=10, is_ai=False, role="Paladin", position=Coordinates(q=0,r=0,s=0))
     enemy_char = Enemy(id="enemy1", name="Goblin", hp_current=10, hp_max=10, type="Goblin", is_ai=True, position=Coordinates(q=1,r=-1,s=0))
-    
+
     initial_state = GameState(
         session_id="test_camp",
         turn_index=0,
@@ -31,36 +31,36 @@ async def test_turn_advancement_locking():
         npcs=[],
         location={"name": "Test Loc", "description": "Test Desc"}
     )
-    
+
     # Mock GameService.next_turn to simulate work
-    async def mock_next_turn(camp_id, db, current_game_state=None):
+    async def mock_next_turn(camp_id, db, current_game_state=None, commit=True, **kwargs):
         await asyncio.sleep(0.1) # Simulate DB latency
-        
+
         # Simple toggle logic for test
         current_idx = current_game_state.turn_index if current_game_state else 0
         next_idx = (current_idx + 1) % 2
         next_id = "char1" if next_idx == 0 else "enemy1"
-        
+
         new_state = initial_state.model_copy()
         new_state.turn_index = next_idx
         new_state.active_entity_id = next_id
-        
+
         return next_id, new_state
 
     with patch('app.services.game_service.GameService.next_turn', side_effect=mock_next_turn):
         # Fire two concurrent turn advancements
         task1 = asyncio.create_task(TurnManager.advance_turn("test_camp", mock_sio, db=mock_db, current_game_state=initial_state))
         task2 = asyncio.create_task(TurnManager.advance_turn("test_camp", mock_sio, db=mock_db, current_game_state=initial_state))
-        
+
         await asyncio.gather(task1, task2)
-        
+
         # We expect GameService.next_turn to be called essentially sequentially due to the lock
-        # Verification is tricky with mocks since we mocked the implementation. 
+        # Verification is tricky with mocks since we mocked the implementation.
         # But we can check if the lock was used.
         # Actually, let's verified that we didn't get interleaved logs or errors.
         # And specifically, since we added a specific "Skipping concurrent request" log usage or similar logic.
         # If both ran, next_turn would be called twice.
-        
+
         assert GameService.next_turn.call_count >= 1
 
 @pytest.mark.asyncio
@@ -69,20 +69,20 @@ async def test_combat_start_race_condition():
     Verify that start_combat checks for existing combat.
     """
     mock_db = AsyncMock()
-    
+
     # Scene 1: Combat already active
     active_state = GameState(
-        session_id="test_camp", 
-        turn_index=0, 
-        phase="combat", 
-        turn_order=[], 
-        active_entity_id="", 
-        party=[], 
-        enemies=[], 
+        session_id="test_camp",
+        turn_index=0,
+        phase="combat",
+        turn_order=[],
+        active_entity_id="",
+        party=[],
+        enemies=[],
         npcs=[],
         location={"name": "Test Loc", "description": "Test Desc"}
     )
-    
+
     with patch('app.services.game_service.GameService.get_game_state', return_value=active_state):
         result = await GameService.start_combat("test_camp", mock_db)
         assert result['success'] == False
@@ -90,17 +90,17 @@ async def test_combat_start_race_condition():
 
     # Scene 2: Combat NOT active
     peace_state = GameState(
-        session_id="test_camp", 
-        turn_index=0, 
-        phase="exploration", 
-        turn_order=[], 
-        active_entity_id="", 
-        party=[], 
-        enemies=[], 
+        session_id="test_camp",
+        turn_index=0,
+        phase="exploration",
+        turn_order=[],
+        active_entity_id="",
+        party=[],
+        enemies=[],
         npcs=[],
         location={"name": "Test Loc", "description": "Test Desc"}
     )
-    
+
     with patch('app.services.game_service.GameService.get_game_state', return_value=peace_state):
         with patch('app.services.game_service.GameService.save_game_state', new_callable=AsyncMock) as mock_save:
              result = await GameService.start_combat("test_camp", mock_db)

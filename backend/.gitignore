@@ -7,8 +7,6 @@ __pycache__/
 # Local DB
 game.db
 *.db
-*.sqlite
-*.sqlite3
 
 # Ensure data is tracked
 !backend/data/

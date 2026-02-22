@@ -5,6 +5,7 @@ import { useAuthStore } from '@/store/authStore';
 import { Send, User, Bot, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Character } from '@/lib/api';
+import CommandSuggestions from './CommandSuggestions';
 
 interface ChatInterfaceProps {
     campaignId: string;
@@ -133,10 +134,17 @@ export default function ChatInterface({ characterId }: ChatInterfaceProps) {
                     const isAI = senderChar?.is_ai || senderChar?.control_mode === 'ai';
 
                     if (isSystem) {
+                        const isTurnAnnouncement = msg.content.includes("It is now") && msg.content.includes("turn!");
+                        const displayContent = msg.content.replace(/\*\*/g, '');
                         return (
                             <div key={idx} className="flex justify-center my-4">
-                                <span className="text-xs text-neutral-500 bg-neutral-800/50 px-3 py-1 rounded-full border border-neutral-800">
-                                    {msg.content}
+                                <span className={cn(
+                                    "px-3 py-1 rounded-full border shadow-sm",
+                                    isTurnAnnouncement
+                                        ? "text-sm text-orange-200 bg-orange-950/60 border-orange-800/50 font-semibold tracking-wide"
+                                        : "text-xs text-neutral-500 bg-neutral-800/50 border-neutral-800"
+                                )}>
+                                    {displayContent}
                                 </span>
                             </div>
                         );
@@ -178,14 +186,24 @@ export default function ChatInterface({ characterId }: ChatInterfaceProps) {
             </div>
 
             {/* Input Area */}
-            <div className="p-4 bg-neutral-900/80 border-t border-neutral-800">
+            <div className="p-4 bg-neutral-900/80 border-t border-neutral-800 relative">
+
+                {/* Command Suggestions Popup */}
+                <CommandSuggestions
+                    inputValue={inputValue}
+                    onSelect={(cmd) => {
+                        setInputValue(`@${cmd} `);
+                        // Optional: focus input ref
+                    }}
+                />
+
                 <div className="relative">
                     <input
                         type="text"
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder="What do you do?"
+                        placeholder="What do you do? (Type @ for commands)"
                         className="w-full bg-neutral-950/50 border border-neutral-700 rounded-xl pl-4 pr-12 py-3 text-white focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all placeholder:text-neutral-600"
                     />
                     <button
@@ -202,40 +220,41 @@ export default function ChatInterface({ characterId }: ChatInterfaceProps) {
 }
 
 // Helper to render complex message content
+// Helper to render complex message content
 const renderMessageContent = (content: any) => {
     try {
-        // 1. If it's a string, try to parse it as JSON
-        let parsed = content;
-        if (typeof content === 'string') {
+        if (!content) return "";
+        if (typeof content !== 'string') return String(content);
+
+        // 1. Check if it *might* be JSON
+        const trimmed = content.trim();
+        if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+            (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
             try {
-                // If it looks like a JSON array/object, parse it
-                if (content.trim().startsWith('{') || content.trim().startsWith('[')) {
-                    parsed = JSON.parse(content);
+                const parsed = JSON.parse(trimmed);
+
+                // 2. Handle Arrays (Rich Text)
+                if (Array.isArray(parsed)) {
+                    return parsed.map((block: any, i: number) => {
+                        if (typeof block === 'string') return <span key={i}>{block}</span>;
+                        if (block?.type === 'text') return <span key={i}>{block.text}</span>;
+                        return null;
+                    });
                 }
-            } catch (e) {
-                // Not JSON, just plain text
-                return content;
+
+                // 3. Handle Single Object
+                if (typeof parsed === 'object' && parsed !== null) {
+                    return parsed.text || JSON.stringify(parsed);
+                }
+
+                return String(parsed);
+            } catch {
+                // Not JSON, fall through
             }
         }
 
-        // 2. Handle Arrays (Rich Text)
-        if (Array.isArray(parsed)) {
-            return parsed.map((block: any, i: number) => {
-                if (typeof block === 'string') return <span key={i}>{block}</span>;
-                if (block.type === 'text') return <span key={i}>{block.text}</span>;
-                return null;
-            });
-        }
-
-        // 3. Handle Single Object
-        if (typeof parsed === 'object' && parsed !== null) {
-            if (parsed.text) return parsed.text;
-            // Fallback for unknown objects
-            return JSON.stringify(parsed);
-        }
-
-        // 4. Fallback (Plain Value)
-        return String(parsed);
+        // 4. Default: Plain Text
+        return content;
 
     } catch (e) {
         console.error("Error rendering message:", e);

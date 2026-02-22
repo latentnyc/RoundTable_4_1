@@ -77,6 +77,7 @@ export interface GameState {
     npcs: NPC[];
     turn_order: string[];
     combat_log: LogEntry[];
+    vessels?: any[];
 }
 
 
@@ -98,7 +99,7 @@ interface SocketState {
     connectingPromise: Promise<void> | null;
     // AI Stats
     aiStats: AIStats;
-    setInitialStats: (totalTokens: number, inputTokens: number, outputTokens: number, queryCount: number) => void;
+    setInitialStats: (totalTokens: number, inputTokens: number, outputTokens: number, queryCount: number, imageCount: number) => void;
     fetchLogs: (campaignId: string) => Promise<void>;
     isTyping: boolean;
 }
@@ -124,10 +125,14 @@ export interface AIStats {
     inputTokens: number;
     outputTokens: number;
     queryCount: number;
+    imageCount: number;
     lastRequest?: {
         tokens: number;
         model: string;
         agent: string;
+    };
+    lastImageRequest?: {
+        model: string;
     };
 }
 
@@ -143,7 +148,8 @@ export const useSocketStore = create<SocketState>((set, get) => ({
         totalTokens: 0,
         inputTokens: 0,
         outputTokens: 0,
-        queryCount: 0
+        queryCount: 0,
+        imageCount: 0
     },
     isTyping: false,
 
@@ -245,26 +251,35 @@ export const useSocketStore = create<SocketState>((set, get) => ({
                                 inputTokens: data.input_tokens || 0,
                                 outputTokens: data.output_tokens || 0,
                                 queryCount: data.query_count || (state.aiStats.queryCount + 1),
+                                imageCount: data.image_count || state.aiStats.imageCount,
                                 lastRequest: data.last_request ? {
                                     tokens: data.last_request.tokens,
                                     model: data.last_request.model,
                                     agent: data.last_request.agent
-                                } : state.aiStats.lastRequest
+                                } : state.aiStats.lastRequest,
+                                lastImageRequest: data.last_image_request ? {
+                                    model: data.last_image_request.model
+                                } : state.aiStats.lastImageRequest
                             }
                         }));
                     } else if (data.type === 'usage') {
                         // Fallback for incremental
+                        const isImage = data.is_image === true;
                         set((state) => ({
                             aiStats: {
                                 totalTokens: state.aiStats.totalTokens + (data.total_tokens || 0),
                                 inputTokens: state.aiStats.inputTokens + (data.input_tokens || 0),
                                 outputTokens: state.aiStats.outputTokens + (data.output_tokens || 0),
-                                queryCount: state.aiStats.queryCount + 1,
-                                lastRequest: {
+                                queryCount: state.aiStats.queryCount + (isImage ? 0 : 1),
+                                imageCount: state.aiStats.imageCount + (isImage ? 1 : 0),
+                                lastRequest: !isImage ? {
                                     tokens: data.total_tokens || 0,
                                     model: data.model || 'unknown',
                                     agent: data.agent_name || 'unknown'
-                                }
+                                } : state.aiStats.lastRequest,
+                                lastImageRequest: isImage ? {
+                                    model: data.model || 'unknown'
+                                } : state.aiStats.lastImageRequest
                             }
                         }));
                     }
@@ -281,10 +296,8 @@ export const useSocketStore = create<SocketState>((set, get) => ({
                         timestamp: new Date().toLocaleTimeString(),
                         is_system: true
                     };
-                    const exists = state.messages.some(m =>
-                        m.content === newMsg.content &&
-                        m.is_system
-                    );
+                    const lastMsg = state.messages.length > 0 ? state.messages[state.messages.length - 1] : null;
+                    const exists = lastMsg && lastMsg.content === newMsg.content && lastMsg.is_system;
                     if (exists) return state;
                     return { messages: [...state.messages, newMsg] };
                 });
@@ -340,9 +353,15 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     disconnect: () => {
         const { socket } = get();
         if (socket) {
-
             socket.disconnect();
-            set({ socket: null, isConnected: false, lastPing: null });
+            set({
+                socket: null,
+                isConnected: false,
+                lastPing: null,
+                messages: [],
+                gameState: null,
+                debugLogs: []
+            });
         }
     },
 

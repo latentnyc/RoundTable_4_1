@@ -14,6 +14,7 @@ class Entity(BaseModel):
     name: str
     unidentified_name: Optional[str] = None
     unidentified_description: Optional[str] = None
+    llm_description: Optional[str] = None
     is_ai: bool
     hp_current: int
     hp_max: int
@@ -21,11 +22,21 @@ class Entity(BaseModel):
     initiative: int = 0
     speed: int = 30
     position: Coordinates
-    inventory: List[str] = []
+    inventory: List[str | Dict] = []
     status_effects: List[str] = []
     barks: Optional[Dict[str, List[str]]] = None
     knowledge: List[Dict] = []
     loot: Optional[Dict] = None
+    currency: Dict[str, int] = {"pp": 0, "gp": 0, "sp": 0, "cp": 0}
+    identified: bool = True
+
+class Vessel(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    name: str # e.g. "Corpse of Goblin"
+    description: str = "A container."
+    position: Coordinates
+    contents: List[str] = [] # Item IDs
+    currency: Dict[str, int] = {"pp": 0, "gp": 0, "sp": 0, "cp": 0}
 
 class Player(Entity):
     role: str # Class e.g. "Paladin"
@@ -40,6 +51,7 @@ class Player(Entity):
 class Enemy(Entity):
     type: str # e.g. "Goblin"
     identified: bool = False
+    data: Dict = {}
 
 # --- Game State ---
 class NPC(Entity):
@@ -75,6 +87,7 @@ class GameState(BaseModel):
     party: List[Player]
     enemies: List[Enemy] = []
     npcs: List[NPC] = []
+    vessels: List[Vessel] = []
     turn_order: List[str] = []
     combat_log: List[LogEntry] = []
     dm_settings: DMSettings = Field(default_factory=DMSettings)

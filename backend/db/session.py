@@ -10,13 +10,12 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 # Determine DB Driver
-# If DATABASE_URL is set, use it (Postgres).
-# Otherwise, fall back to SQLite.
+# DATABASE_URL should be set (Postgres).
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if not DATABASE_URL:
-    raise ValueError("DATABASE_URL must be set. SQLite is no longer supported.")
+    raise ValueError("DATABASE_URL must be set.")
 
 # Postgres
 # Ensure usage of asyncpg driver

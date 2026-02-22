@@ -26,14 +26,46 @@ class GameEngine:
         if not target:
             return {"success": False, "message": "No target specified."}
 
-        # 1. Roll to Hit
-        # Simplified: Assume using Strength for now
-        hit_mod = actor.get_mod("strength")
+        # Determine weapon and stats
+        weapon = actor.get_weapon()
+        weapon_name = "Unarmed Strike"
+        damage_dice = "1d4"
+        is_finesse = False
+        is_ranged = False
 
+        if weapon:
+            weapon_name = weapon.get("name", "Unknown Weapon")
+            weapon_data = weapon.get("data") or {}
+            damage_info = weapon_data.get("damage") or {}
+            damage_dice = damage_info.get("damage_dice", "1d4")
+
+            properties = weapon_data.get("properties", [])
+            for prop in properties:
+                if isinstance(prop, dict):
+                    prop_name = (prop.get("name") or "").lower()
+                    if "finesse" in prop_name:
+                        is_finesse = True
+
+            w_type = (weapon_data.get("type") or "").lower()
+            if "ranged" in w_type:
+                is_ranged = True
+
+        str_mod = actor.get_mod("strength")
+        dex_mod = actor.get_mod("dexterity")
+
+        # Determine attack modifier
+        if is_ranged:
+            hit_mod = dex_mod
+        elif is_finesse:
+            hit_mod = max(str_mod, dex_mod)
+        else:
+            hit_mod = str_mod
+
+        # 1. Roll to Hit
         roll = Dice.roll("1d20")
         to_hit = roll["total"] + hit_mod
 
-        ac = 10 + target.get_mod("dexterity") # Simplified AC
+        ac = target.get_ac()
 
         is_hit = to_hit >= ac
         is_crit = roll["total"] == 20
@@ -57,31 +89,47 @@ class GameEngine:
         }
 
         # Construct summary string
-        result_str = f"{actor.name} attacks {target.name}. Roll: {roll['total']} + {hit_mod} = {to_hit} vs AC {ac}. "
+        # Determine attack tags for the AI Narrator
+        attack_tags = []
+        if weapon_name == "Unarmed Strike":
+            attack_tags.append("[UNARMED STRIKE]")
+        elif is_ranged:
+            attack_tags.append("[RANGED WEAPON ATTACK]")
+        elif is_finesse:
+            attack_tags.append("[FINESSE MELEE WEAPON ATTACK]")
+        else:
+            attack_tags.append("[HEAVY/STANDARD MELEE WEAPON ATTACK]")
+
+        tags_str = " ".join(attack_tags)
+
+        result_str = f"{tags_str}\n{actor.name} attacks {target.name} with {weapon_name}. Roll: {roll['total']} + {hit_mod} = {to_hit} vs AC {ac}. "
 
         if is_hit:
             # 2. Roll Damage
-            # Simplified: 1d8 + Str
-            dmg_roll = Dice.roll("1d8")
-            damage = dmg_roll["total"] + actor.get_mod("strength")
+            dmg_roll = Dice.roll(damage_dice)
+            damage = dmg_roll["total"] + hit_mod
+            detail_str = dmg_roll["detail"]
 
             # Crit double dice
             if is_crit:
-                crit_roll = Dice.roll("1d8")
+                crit_roll = Dice.roll(damage_dice)
                 damage += crit_roll["total"]
+                detail_str += f" + {crit_roll['detail']} [CRIT]"
                 result_str += f"CRITICAL HIT! "
 
-            result_str += f"Hit! Damage: {damage} ({dmg_roll['detail']}"
-            if is_crit:
-                result_str += f" + {crit_roll['detail']} CRIT"
-            result_str += f" + {actor.get_mod('strength')}). "
+            detail_str += f" + {hit_mod}"
+            result_str += f"Hit! Damage: {damage} ({detail_str}). "
 
             # Apply damage (updates target object)
             damage_result_str = target.take_damage(damage)
 
             result_data["damage_total"] = damage
-            result_data["damage_detail"] = f"{dmg_roll['detail']} + {actor.get_mod('strength')}"
+            result_data["damage_detail"] = detail_str
             result_data["target_hp_remaining"] = target.hp["current"]
+
+            if target.hp["current"] <= 0:
+                result_str += f"\n[KILLING BLOW] "
+
             result_data["message"] = result_str + damage_result_str
             result_data["target_status"] = "Unconscious" if target.hp["current"] <= 0 else "Active"
         else:

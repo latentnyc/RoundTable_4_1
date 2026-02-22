@@ -1,63 +1,64 @@
-# RoundTable_4_1 - Friday the 13th Edition 👻
+# RoundTable_4_1 - Waiting for the Blizzard Release ❄️🌨️
 
-A TTRPG application with AI-powered Game Master and 5e rules integration.
+A TTRPG application with an AI-powered Game Master and 5e rules integration.
 
-## 👻 The "Spooky Commit" Changelog
+## 🌨️ The "Waiting for the Blizzard" Changelog
 
-This release brings a massive architectural overhaul and spirited improvements:
+This release brings a blizzard of architectural overhauls, sub-zero bugs fixed, immersive new UI flows, and freezing-cool improvements:
 
-### 🕸️ Web of Interface
-*   **Entity List Panel**: A new side panel (`EntityListPanel.tsx`) to track combatants, HP, and status effects in real-time.
-*   **Chat Improvements**: Enhanced `ChatInterface` and `LogViewer` with better color-coding for System, DM, and Character messages.
+### 🦸 Character Creation Flow (NEW!)
+*   **Create Character Interface**: A massive new robust flow (`CreateCharacter.tsx`) for generating player characters, featuring race/class selection, stat point-buy systems, and auto-populated racial bonuses.
+*   **Rules & Loadouts**: Deeply integrated 5e `characterRules.ts` and `classLoadouts.ts` to instantly calculate derived AC, HP thresholds, and starting equipment based on SRD rules.
+*   **Compendium Search**: Native ability to search and add Feats, Spells, and Equipment natively during the creation workflow.
 
-### 👻 Spooky Architecture
-*   **Service Refactor**: The backend has been exorcised of monolithic logic!
-    *   `ChatService`: Handles all chat logic.
-    *   `CommandService`: Processes slash commands (`@attack`, `@check`).
-    *   `NarratorService`: Manages AI narration generation.
-    *   `TurnManager`: Controls the flow of combat turns.
-*   **SocketIO Reliability**: Enhanced `SocketIOCallbackHandler` to prevent crashes during tool execution.
+### 🏰 Fortified Architecture (Command Processing)
+*   **Command Registry System**: The monolithic `CommandService` has been decomposed into a modular registry structure (`backend/app/commands/`), allowing clear separation for `combat`, `exploration`, `interaction`, and `system` commands.
+*   **Service Refactor**: A massive overhaul to the `GameService` ensures `GameState`, `Player`, and `Enemy` objects are accurately tracked, saved, and loaded with proper `session_id`s.
+*   **Turn Manager Fixes**: Addressed crashes when enemies are defeated, ensuring smooth turn progression even in the coldest encounters.
 
-### 💀 Skeleton Crew (Testing)
-*   **New Verification Suite**: added `backend/tests/` containing:
-    *   `verify_db_schema_actual.py`: Ensures database tables haunt the right columns.
-    *   `verify_logs_api.py`: Checks that logs are properly recorded from the beyond.
-    *   `verify_postgres_schema.py`: Validates Cloud SQL compatibility.
+### 🎒 Winter Supplies (UI Improvements)
+*   **Loot Modal**: A new `LootModal.tsx` handles item dropping and generation natively via `inventory.py` sockets after successful encounters.
+*   **Command Suggestions**: Added `CommandSuggestions.tsx` to intuitively suggest slash/at-commands as you type.
+*   **Entity List & Scene Viz**: Immersive real-time tracking of combatants (`EntityListPanel`) and DM narrative visualizations (`SceneVisPanel`), now completely aware of bounding-boxes to prevent cutoffs.
 
-### ⚰️ Buried Bugs
-*   **Root Clutter Cleared**: Moved/Deleted debug scripts from the root directory.
-*   **Combat Race Conditions**: Fixed issues where AI would attack with outdated game state.
-*   **Message Sync**: Fixed frontend deduplication hiding rapid-fire messages.
+### 🤖 AI Game Master Upgrades
+*   **Dynamic Combat Narration**: Opportunity attacks now trigger custom DM narrations.
+*   **Identify Command Overhaul**: The `@identify` command's mechanical success now perfectly dictates the narrative outcome.
+*   **AI Token Counter Fixed**: Spectral economy restored! The UI now accurately bills token usage from LangGraph and Gemini models after intense combat turns.
 
-### 🔮 The Crystal Ball Update
-*   **Visualizing the Unknown**: A new `SceneVisPanel` has been conjured to manifest the DM's descriptions into the visible realm.
-*   **Silence of the Logs**: Replaced backend whispers (`print` statements) with proper `logging` invocations, silencing the noise of the void.
-*   **Deployment Grimoire**: The `deploy_cloud` script has been transmuted into a readable tome (`deploy_cloud.md`) for those brave enough to host their own realm.
-*   **Spectral Economy**: Fixed the AI Token usage tracking, ensuring every drop of spectral energy is accounted for.
+### 🗄️ Frosty Infrastructure & Testing
+*   **Expanded Verification Suite**: Added robust testing for monster attacks (`test_monster_attack.py`), equipment stats verification, and batched save testing.
+*   **Database Migration**: Migrated from SQLite to robust PostgreSQL structure.
+*   **Docker-Compose**: Included local `docker-compose.yml` for standing up the connected Postgres instances easily.
+*   **Logging Refactor**: Cleansed the terminal of `print` clutter—everything is tracked via proper standard `logging`.
+*   **Cloud Ready**: A robust deployment script (`deploy_cloud.ps1`) makes Cloud Run deployment a breeze.
 
 ---
 
-## 🔮 Setup & Running
+## ❄️ Setup & Running
 
 ### 🍎 Mac / 🐧 Linux (Recommended)
-We have a new unified script that handles Java, Python venv, and Node dependencies automatically.
+Our unified script bundles Java, Python venv, and Node dependencies together before the freeze sets in.
 
 ```bash
 ./run_local.sh
 ```
 
 ### 🪟 Windows
-Legacy support is available via PowerShell:
+Stay warm and use PowerShell:
 ```powershell
 .\run_local.ps1
 ```
 
 ### Manual Setup (Advanced)
 
-**Backend**
+**Backend (PostgreSQL)**
+Ensure Docker is running for the database:
 ```bash
+docker-compose up -d
 cd backend
 python -m venv venv
+# Use venv\Scripts\activate on Windows
 source venv/bin/activate
 pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
@@ -77,9 +78,10 @@ firebase emulators:start --only auth,firestore,hosting,ui
 
 ---
 
-## 📜 Features
+## 📜 Core Features
 *   **5e Compendium**: Integrated 2014 SRD data for spells, monsters, classes, races, and items.
-*   **AI Game Master**: Powered by LangGraph and Gemini.
-*   **Real-time Combat**: WebSocket-driven combat updates.
+*   **AI Game Master**: Powered by LangGraph and Gemini for immersive storytelling.
+*   **Real-time Combat**: WebSocket-driven combat and state updates.
+*   **Character Creation**: Full interactive creation suite.
 
-HAPPY FRIDAY THE 13TH! 🔪
+STAY WARM AND HAPPY ADVENTURING! ☕

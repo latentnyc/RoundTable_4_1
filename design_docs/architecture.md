@@ -14,8 +14,8 @@ graph TD
         DM_Agent -->|Tool Calls| GameEngine["Modular Game Engine"]
         DM_Agent -->|Query World| VectorDB["Vector Knowledge Base"]
 
-        subgraph "Persistence (Cloud Storage Volume)"
-            GameEngine -->|Persist State| DB[("SQLite (mounted)")]
+        subgraph "Persistence (Cloud Storage Volume / DB)"
+            GameEngine -->|Persist State| DB[("PostgreSQL")]
             VectorDB -->|Lore/Rules| VectorStore[("ChromaDB (mounted)")]
         end
     end
@@ -45,7 +45,7 @@ graph TD
 *   **LLM Interface**: **Google GenAI (Gemini)**.
 
 ### Database & Persistence
-*   **Primary DB**: **SQLite** (`game.db`) stored on a **Cloud Run Persistent Volume**.
+*   **Primary DB**: **PostgreSQL**.
 *   **Vector DB**: **ChromaDB** stored on a **Cloud Run Persistent Volume**.
 *   **Auth**: **Firebase Authentication** (Google Sign-In / Email).
 
@@ -100,9 +100,9 @@ Implementation based on `backend/app/models.py`.
 
 ## 4. Data Persistence Strategy
 
-The system uses **Cloud Run Volumes** to persist files across container restarts.
+The system uses **Cloud Run Volumes** for vector persistence and a Postgres DB for game state.
 
-*   **Game State**: Snapshot saved to SQLite `game.db` in `/data` volume.
+*   **Game State**: Snapshot saved to **PostgreSQL**.
 *   **Vector Index**: ChromaDB persisted in `/data/chroma_db`.
 
 ## 5. Agent Prompt Strategy

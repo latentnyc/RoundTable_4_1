@@ -1,6 +1,7 @@
 import { Character, Item } from '@/lib/api';
-import { Shield, Sword, Brain, Heart, Zap, Eye, User, X, Backpack, Activity, Scroll } from 'lucide-react';
+import { Shield, Sword, Brain, Heart, Zap, Eye, User, X, Backpack, Activity, Scroll, Component } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useSocketStore } from '@/lib/socket';
 
 interface FullCharacterSheetProps {
     character: Character;
@@ -8,16 +9,65 @@ interface FullCharacterSheetProps {
 }
 
 export default function FullCharacterSheet({ character, onClose }: FullCharacterSheetProps) {
+    const { socket } = useSocketStore();
     const sheet = character.sheet_data || {};
     const stats = sheet.stats || {};
     const equipment = (sheet.equipment || []) as Item[];
+    const inventory = (character.inventory || []) as (string | Item)[];
     const spells = (sheet.spells || []) as Item[];
     const feats = (sheet.feats || []) as Item[];
+
+    const handleEquipToggle = (itemId: string, isEquip: boolean) => {
+        if (!socket) return;
+        socket.emit('equip_item', {
+            actor_id: character.id,
+            item_id: itemId,
+            is_equip: isEquip
+        });
+    };
 
     // Vitals with fallbacks
     const hpMax = sheet.hpMax ?? (10 + Math.floor(((stats.Constitution || 10) - 10) / 2));
     const hpCurrent = sheet.hpCurrent ?? hpMax;
-    const ac = sheet.ac ?? (10 + Math.floor(((stats.Dexterity || 10) - 10) / 2));
+
+    // Calculate AC based on equipment
+    let baseAc = 10;
+    const dexMod = Math.floor(((stats.Dexterity || 10) - 10) / 2);
+    let shieldBonus = 0;
+    let equippedArmor = null;
+    let equippedShield = null;
+
+    for (const item of equipment) {
+        if (item.type === "Armor") {
+            if (item.data?.type === "Shield") {
+                equippedShield = item;
+            } else {
+                equippedArmor = item;
+            }
+        }
+    }
+
+    if (equippedArmor) {
+        const acInfo = equippedArmor.data?.armor_class || {};
+        baseAc = acInfo.base || 10;
+        if (acInfo.dex_bonus) {
+            if (acInfo.max_bonus !== null && acInfo.max_bonus !== undefined && dexMod > acInfo.max_bonus) {
+                baseAc += acInfo.max_bonus;
+            } else {
+                baseAc += dexMod;
+            }
+        }
+    } else {
+        baseAc += dexMod;
+    }
+
+    if (equippedShield) {
+        const acInfo = equippedShield.data?.armor_class || {};
+        shieldBonus = acInfo.base || 2;
+    }
+
+    const ac = sheet.ac ? Math.max(sheet.ac, baseAc + shieldBonus) : baseAc + shieldBonus;
+
     const initiative = sheet.initiative ?? Math.floor(((stats.Dexterity || 10) - 10) / 2);
     const speed = sheet.speed || 30;
 
@@ -150,34 +200,97 @@ export default function FullCharacterSheet({ character, onClose }: FullCharacter
 
                 {/* Right Column: Inventory & Spells (4 cols) */}
                 <div className="lg:col-span-4 space-y-6">
-                    {/* Equipment */}
-                    <div className="bg-neutral-950/50 p-4 rounded-xl border border-neutral-800 max-h-[400px] flex flex-col">
-                        <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-3 pb-1 border-b border-neutral-800 flex items-center gap-2 flex-shrink-0">
-                            <Backpack className="w-4 h-4" /> Inventory
-                        </h3>
-                        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1">
-                            {equipment.length === 0 ? (
-                                <p className="text-sm text-neutral-600 italic text-center py-4">Empty inventory.</p>
-                            ) : (
-                                equipment.map((item, idx) => (
-                                    <div key={idx} className="bg-neutral-900 border border-neutral-800 rounded p-2 flex justify-between items-start group">
-                                        <div>
-                                            <div className="font-bold text-sm text-neutral-300 group-hover:text-white transition-colors">{item.name}</div>
-                                            <div className="text-[10px] text-neutral-500 uppercase">{item.type}</div>
+                    {/* Equipment & Backpack Container */}
+                    <div className="flex flex-col gap-4 max-h-[800px]">
+                        {/* Equipment */}
+                        <div className="bg-neutral-950/50 p-4 rounded-xl border border-neutral-800 flex flex-col max-h-[300px]">
+                            <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-3 pb-1 border-b border-neutral-800 flex items-center justify-between flex-shrink-0">
+                                <span className="flex items-center gap-2"><Component className="w-4 h-4" /> Equipped</span>
+                                <span className="bg-neutral-900 px-2 py-0.5 rounded-full text-neutral-600">{equipment.length}</span>
+                            </h3>
+                            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1">
+                                {equipment.length === 0 ? (
+                                    <p className="text-sm text-neutral-600 italic text-center py-4">Nothing equipped.</p>
+                                ) : (
+                                    equipment.map((item, idx) => (
+                                        <div key={idx} className="bg-neutral-900 border border-neutral-800 rounded p-2 flex justify-between items-start group">
+                                            <div>
+                                                <div className="font-bold text-sm text-neutral-300 group-hover:text-white transition-colors">{item.name}</div>
+                                                <div className="text-[10px] text-neutral-500 uppercase">{item.type}</div>
+                                                <div className="flex gap-2 mt-1">
+                                                    {item.data?.armor_class && (
+                                                        <span className="text-xs font-mono text-blue-400 bg-blue-950/30 px-1.5 py-0.5 rounded">
+                                                            AC {item.data.armor_class.base}
+                                                        </span>
+                                                    )}
+                                                    {item.data?.damage && (
+                                                        <span className="text-xs font-mono text-red-400 bg-red-950/30 px-1.5 py-0.5 rounded">
+                                                            {item.data.damage.damage_dice}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => handleEquipToggle(item.id, false)}
+                                                className="text-[10px] bg-neutral-800 hover:bg-neutral-700 text-neutral-400 px-2 py-1 rounded transition-colors opacity-0 group-hover:opacity-100"
+                                            >
+                                                Unequip
+                                            </button>
                                         </div>
-                                        {item.data?.armor_class && (
-                                            <div className="text-xs font-mono text-blue-400 bg-blue-950/30 px-1.5 py-0.5 rounded">
-                                                AC {item.data.armor_class.base}
-                                            </div>
-                                        )}
-                                        {item.data?.damage && (
-                                            <div className="text-xs font-mono text-red-400 bg-red-950/30 px-1.5 py-0.5 rounded">
-                                                {item.data.damage.damage_dice}
-                                            </div>
-                                        )}
-                                    </div>
-                                ))
-                            )}
+                                    ))
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Backpack */}
+                        <div className="bg-neutral-950/50 p-4 rounded-xl border border-neutral-800 flex flex-col max-h-[300px]">
+                            <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-3 pb-1 border-b border-neutral-800 flex items-center justify-between flex-shrink-0">
+                                <span className="flex items-center gap-2"><Backpack className="w-4 h-4" /> Backpack</span>
+                                <span className="bg-neutral-900 px-2 py-0.5 rounded-full text-neutral-600">{inventory.length}</span>
+                            </h3>
+                            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1">
+                                {inventory.length === 0 ? (
+                                    <p className="text-sm text-neutral-600 italic text-center py-4">Backpack is empty.</p>
+                                ) : (
+                                    (() => {
+                                        const groupedInventory = inventory.reduce((acc, item) => {
+                                            const isString = typeof item === 'string';
+                                            const itemId = isString ? item : (item as Item).id;
+                                            if (acc[itemId]) {
+                                                acc[itemId].count += 1;
+                                            } else {
+                                                acc[itemId] = { item, count: 1 };
+                                            }
+                                            return acc;
+                                        }, {} as Record<string, { item: string | Item, count: number }>);
+
+                                        return Object.values(groupedInventory).map(({ item, count }, idx) => {
+                                            const isString = typeof item === 'string';
+                                            const itemId = isString ? item : (item as Item).id;
+                                            const itemName = isString
+                                                ? item.replace(/^(wpn-|arm-|itm-|eqp-|item_)/i, '').replace(/[-_]/g, ' ')
+                                                : (item as Item).name;
+
+                                            return (
+                                                <div key={idx} className="bg-neutral-900 border border-neutral-800 rounded p-2 flex justify-between items-center group">
+                                                    <span className="text-sm text-neutral-300 font-medium capitalize group-hover:text-white transition-colors flex items-center gap-2">
+                                                        {itemName}
+                                                        {count > 1 && (
+                                                            <span className="text-[10px] bg-neutral-800 text-neutral-400 px-1.5 py-0.5 rounded-full font-mono">x{count}</span>
+                                                        )}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => handleEquipToggle(itemId, true)}
+                                                        className="text-[10px] bg-purple-900/40 hover:bg-purple-800/60 text-purple-300 px-2 py-1 rounded transition-colors opacity-0 group-hover:opacity-100"
+                                                    >
+                                                        Equip
+                                                    </button>
+                                                </div>
+                                            );
+                                        });
+                                    })()
+                                )}
+                            </div>
                         </div>
                     </div>
 

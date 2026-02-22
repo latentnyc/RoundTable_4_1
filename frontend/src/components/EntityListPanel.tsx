@@ -10,7 +10,6 @@ export default function EntityListPanel() {
     const { user } = useAuthStore();
     const [participants, setParticipants] = useState<CampaignParticipant[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [showCombatToast, setShowCombatToast] = useState(false);
 
     // Fetch Participants (DB Source)
     useEffect(() => {

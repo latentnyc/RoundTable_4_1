@@ -55,8 +55,13 @@
                 "auditory": "",
                 "olfactory": "",
                 "anchors": [],
-                "anti_drift": "",
-                "connections": []
+                "connections": [
+                    {
+                        "direction": "",
+                        "target_id": "",
+                        "description": ""
+                    }
+                ]
             },
             "environmental_state": {
                 "light_level": "bright",
@@ -67,8 +72,11 @@
                 {
                     "id": "",
                     "name": "",
+                    "type": "door",
+                    "state": "closed",
                     "locked": false,
                     "key_id": "",
+                    "contents": [],
                     "secrets": []
                 }
             ],
@@ -82,6 +90,7 @@
             "name": "",
             "unidentified_name": "",
             "unidentified_description": "",
+            "llm_description": "",
             "role": "",
             "race": "",
             "stats": {
@@ -144,6 +153,7 @@
             "name": "",
             "unidentified_name": "",
             "unidentified_description": "",
+            "llm_description": "",
             "type": "",
             "description": "",
             "usage": "",

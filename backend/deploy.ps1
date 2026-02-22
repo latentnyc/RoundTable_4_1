@@ -41,31 +41,13 @@ if (-not $ALLOWED_USERS) {
 
 # --- DATABASE RESET LOGIC ---
 Write-Host "Do you want to RESET the Cloud SQL database? (This will DESTROY ALL DATA in $DB_INSTANCE) (y/N)" -ForegroundColor Yellow
-$timeout = 10
-$startTime = Get-Date
-$resetDb = $null
-
-while ((Get-Date) -lt $startTime.AddSeconds($timeout)) {
-    $remaining = [math]::Ceiling(($startTime.AddSeconds($timeout) - (Get-Date)).TotalSeconds)
-    Write-Host "Waiting... $remaining s (Press 'y' to reset, any other key to skip)   `r" -NoNewline
-
-    if ([Console]::KeyAvailable) {
-        $key = [Console]::ReadKey($true)
-        if ($key.KeyChar -eq 'y' -or $key.KeyChar -eq 'Y') {
-            $resetDb = "y"
-            Write-Host "`nReset Confirmed!" -ForegroundColor Red
-        } else {
-            $resetDb = "n"
-            Write-Host "`nSkipping Reset." -ForegroundColor Green
-        }
-        break
-    }
-    Start-Sleep -Milliseconds 100
-}
-
-if ($null -eq $resetDb) {
-    Write-Host "`nTimeout reached. Skipping Reset." -ForegroundColor Green
+$resetDb = Read-Host "Enter 'y' to confirm reset, or press Enter to skip"
+if ($resetDb -match "^[yY]$") {
+    $resetDb = "y"
+    Write-Host "Reset Confirmed!" -ForegroundColor Red
+} else {
     $resetDb = "n"
+    Write-Host "Skipping Reset." -ForegroundColor Green
 }
 
 if ($resetDb -eq "y") {

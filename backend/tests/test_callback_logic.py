@@ -23,7 +23,10 @@ async def test_callback_logic():
     print(f"Creating dummy campaign {dummy_camp_id}...", flush=True)
     async with AsyncSessionLocal() as db:
         await db.execute(
-            text("INSERT INTO campaigns (id, title, status) VALUES (:id, 'Test Campaign', 'active')"),
+            text("INSERT INTO profiles (id, username) VALUES ('test_user', 'Test User') ON CONFLICT DO NOTHING")
+        )
+        await db.execute(
+            text("INSERT INTO campaigns (id, name, gm_id, status) VALUES (:id, 'Test Campaign', 'test_user', 'active')"),
             {"id": dummy_camp_id}
         )
         await db.commit()
@@ -83,6 +86,7 @@ async def test_callback_logic():
         try:
             async with AsyncSessionLocal() as db:
                 await db.execute(text("DELETE FROM campaigns WHERE id = :id"), {"id": dummy_camp_id})
+                await db.execute(text("DELETE FROM profiles WHERE id = 'test_user'"))
                 await db.commit()
         except:
             pass

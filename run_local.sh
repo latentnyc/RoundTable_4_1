@@ -46,7 +46,7 @@ if [[ "$DB_URL" == postgresql* ]]; then
 
     echo "Checking Cloud SQL Instance status..."
     INSTANCE_STATE=$(gcloud sql instances describe roundtable-db --project=roundtable41-1dc2c --format="value(state)" 2>/dev/null || echo "UNKNOWN")
-    
+
     if [ "$INSTANCE_STATE" != "RUNNABLE" ]; then
         echo "Instance state is: $INSTANCE_STATE. Starting instance..."
         gcloud sql instances patch roundtable-db --project=roundtable41-1dc2c --activation-policy=ALWAYS
@@ -85,7 +85,7 @@ if [[ "$DB_URL" == postgresql* ]]; then
     if [[ "$RESET_CONFIRM" =~ ^[Yy]$ ]]; then
         echo "Resetting Database Schema..."
         echo "y" | python3 backend/scripts/manage_db.py reset
-        
+
         # 4. Initialize Data
         echo "Initializing Data..."
         python3 backend/db/init_db.py
@@ -100,11 +100,10 @@ if [[ "$DB_URL" == postgresql* ]]; then
 
 else
     echo "---------------------------------------------------"
-    echo "Using Local SQLite"
+    echo "Error: Postgres DATABASE_URL not found. Local SQLite is no longer supported."
+    echo "Please configure DATABASE_URL in backend/.env"
     echo "---------------------------------------------------"
-    rm -f backend/game.db # Delete local DB to reset admin rights
-    # init_db.py will run at startup or can be run here
-    python3 backend/db/init_db.py
+    exit 1
 fi
 
 echo "Backend ready."

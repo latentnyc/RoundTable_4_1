@@ -1,9 +1,11 @@
 import { create } from 'zustand';
 import { Stat, Skill, RACES, CLASSES } from '@/lib/srd-data';
 import { Item, characterApi, Character } from '@/lib/api';
-import { calculateRemainingPoints, getPointBuyCost, validateStat, STAT_PRIORITIES, STANDARD_ARRAY, getInitialSkillState } from '@/lib/rules/characterRules';
+import { calculateRemainingPoints, getPointBuyCost, validateStat, getInitialSkillState } from '@/lib/rules/characterRules';
+import { CLASS_LOADOUTS } from '@/lib/rules/classLoadouts';
 import { useAuthStore } from '@/store/authStore';
 import { useCampaignStore } from '@/store/campaignStore';
+import { useCharacterStore } from '@/store/characterStore';
 
 interface CreateCharacterState {
     // Wizard State
@@ -11,6 +13,7 @@ interface CreateCharacterState {
     isLoading: boolean;
     error: string | null;
     isSaving: boolean;
+    isDirty: boolean;
     editingId: string | null;
 
     // Form Data
@@ -36,6 +39,8 @@ interface CreateCharacterState {
 
     // Inventory & extras
     equipment: Item[];
+    inventory: (string | Item)[];
+    currency: Record<string, number>;
     spells: Item[];
     feats: Item[];
     features: string; // Custom notes
@@ -45,6 +50,7 @@ interface CreateCharacterState {
     // hp, ac, speed etc. are calculated from class/race/stats
 
     // Actions
+    setDirty: (val: boolean) => void;
     setField: (field: keyof CreateCharacterState, value: any) => void;
     setStat: (stat: Stat, value: number) => void;
     toggleSkill: (skill: Skill) => void;
@@ -63,11 +69,37 @@ interface CreateCharacterState {
     submitCharacter: () => Promise<void>;
 }
 
+// Extracted helper for payload generation
+const buildCharacterPayload = (state: CreateCharacterState, currentSheetData: any) => {
+    return {
+        ...currentSheetData,
+        stats: state.stats,
+        skills: state.skills,
+        savingThrows: {}, // Future implementation: logic for calculating saving throws based on class/stats
+        hpMax: state.hpMax,
+        hpCurrent: state.hpCurrent,
+        ac: state.ac,
+        initiative: state.initiative,
+        speed: state.speed,
+        attacks: currentSheetData.attacks || [],
+        equipment: state.equipment,
+        inventory: state.inventory,
+        currency: state.currency,
+        spells: state.spells,
+        feats: state.feats,
+        features: state.features,
+        subrace: state.subrace,
+        background: state.background,
+        alignment: state.alignment
+    };
+};
+
 export const useCreateCharacterStore = create<CreateCharacterState>((set, get) => ({
     step: 1,
     isLoading: false,
     error: null,
     isSaving: false,
+    isDirty: false,
     editingId: null,
 
     name: '',
@@ -89,10 +121,14 @@ export const useCreateCharacterStore = create<CreateCharacterState>((set, get) =
     speed: 30,
 
     equipment: [],
+    inventory: [],
+    currency: { pp: 0, gp: 0, sp: 0, cp: 0 },
     spells: [],
     feats: [],
     features: '',
     backstory: '',
+
+    setDirty: (isDirty) => set({ isDirty }),
 
     setField: (field, value) => set((state) => {
         const updates: any = { [field]: value };
@@ -103,6 +139,20 @@ export const useCreateCharacterStore = create<CreateCharacterState>((set, get) =
             return { ...state, background: value as string, skills: newSkills };
         }
 
+        if (field === 'role') {
+            const loadout = CLASS_LOADOUTS[value as string];
+            if (loadout) {
+                return {
+                    ...state,
+                    role: value as string,
+                    stats: { ...loadout.stats },
+                    equipment: [...loadout.equipment],
+                    inventory: [...loadout.inventory],
+                    isDirty: true
+                };
+            }
+        }
+
         if (field === 'race') {
             // Reset subrace when race changes
             const raceData = RACES[value as string];
@@ -110,11 +160,12 @@ export const useCreateCharacterStore = create<CreateCharacterState>((set, get) =
                 ...state,
                 race: value as string,
                 subrace: null,
-                speed: raceData?.speed || 30
+                speed: raceData?.speed || 30,
+                isDirty: true
             };
         }
 
-        return { ...state, ...updates };
+        return { ...state, ...updates, isDirty: true };
     }),
 
     setStat: (stat, value) => set((state) => {
@@ -140,18 +191,19 @@ export const useCreateCharacterStore = create<CreateCharacterState>((set, get) =
         const current = state.skills[skill] || false;
         return {
             ...state,
-            skills: { ...state.skills, [skill]: !current }
+            skills: { ...state.skills, [skill]: !current },
+            isDirty: true
         };
     }),
 
-    addEquipment: (item) => set((state) => ({ equipment: [...state.equipment, item] })),
-    removeEquipment: (id) => set((state) => ({ equipment: state.equipment.filter(i => i.id !== id) })),
+    addEquipment: (item) => set((state) => ({ equipment: [...state.equipment, item], isDirty: true })),
+    removeEquipment: (id) => set((state) => ({ equipment: state.equipment.filter(i => i.id !== id), isDirty: true })),
 
-    addSpell: (spell) => set((state) => ({ spells: [...state.spells, spell] })),
-    removeSpell: (id) => set((state) => ({ spells: state.spells.filter(s => s.id !== id) })),
+    addSpell: (spell) => set((state) => ({ spells: [...state.spells, spell], isDirty: true })),
+    removeSpell: (id) => set((state) => ({ spells: state.spells.filter(s => s.id !== id), isDirty: true })),
 
-    addFeat: (feat) => set((state) => ({ feats: [...state.feats, feat] })),
-    removeFeat: (id) => set((state) => ({ feats: state.feats.filter(f => f.id !== id) })),
+    addFeat: (feat) => set((state) => ({ feats: [...state.feats, feat], isDirty: true })),
+    removeFeat: (id) => set((state) => ({ feats: state.feats.filter(f => f.id !== id), isDirty: true })),
 
     resetForm: () => set({
         step: 1,
@@ -170,11 +222,14 @@ export const useCreateCharacterStore = create<CreateCharacterState>((set, get) =
         initiative: 0,
         speed: 30,
         equipment: [],
+        inventory: [],
+        currency: { pp: 0, gp: 0, sp: 0, cp: 0 },
         spells: [],
         feats: [],
         features: '',
         backstory: '',
         error: null,
+        isDirty: false,
         editingId: null
     }),
 
@@ -184,21 +239,18 @@ export const useCreateCharacterStore = create<CreateCharacterState>((set, get) =
         const randomRace = raceKeys[Math.floor(Math.random() * raceKeys.length)];
         const randomClass = classKeys[Math.floor(Math.random() * classKeys.length)];
 
-        // Random Stats (Standard Array optimized)
-        const priorities = STAT_PRIORITIES[randomClass] || STAT_PRIORITIES["Fighter"];
-        const newStats: any = {};
-        priorities.forEach((stat, index) => {
-            newStats[stat] = STANDARD_ARRAY[index];
-        });
-
         const speed = RACES[randomRace]?.speed || 30;
+        const loadout = CLASS_LOADOUTS[randomClass];
 
         set({
             race: randomRace,
             role: randomClass,
-            stats: newStats,
+            stats: loadout ? { ...loadout.stats } : { Strength: 10, Dexterity: 10, Constitution: 10, Intelligence: 10, Wisdom: 10, Charisma: 10 },
+            equipment: loadout ? [...loadout.equipment] : [],
+            inventory: loadout ? [...loadout.inventory] : [],
             pointBuyMode: true,
-            speed
+            speed,
+            isDirty: true
         });
     },
 
@@ -224,10 +276,13 @@ export const useCreateCharacterStore = create<CreateCharacterState>((set, get) =
             initiative: sheet.initiative || 0,
             speed: sheet.speed || 30,
             equipment: sheet.equipment || [],
+            inventory: sheet.inventory || [],
+            currency: sheet.currency || { pp: 0, gp: 0, sp: 0, cp: 0 },
             spells: sheet.spells || [],
             feats: sheet.feats || [],
             features: sheet.features || '',
-            backstory: char.backstory || ''
+            backstory: char.backstory || '',
+            isDirty: false
         });
     },
 
@@ -242,25 +297,10 @@ export const useCreateCharacterStore = create<CreateCharacterState>((set, get) =
             const campaignId = useCampaignStore.getState().selectedCampaignId;
             if (!campaignId) throw new Error("No campaign context");
 
+            const currentSheetData = state.editingId ? (useCharacterStore.getState().characters.find(c => c.id === state.editingId)?.sheet_data || {}) : {};
+
             // Construct Sheet Data
-            const finalSheet = {
-                stats: state.stats,
-                skills: state.skills,
-                savingThrows: {}, // Future implementation: logic for calculating saving throws based on class/stats
-                hpMax: state.hpMax,
-                hpCurrent: state.hpCurrent,
-                ac: state.ac,
-                initiative: state.initiative,
-                speed: state.speed,
-                attacks: [],
-                equipment: state.equipment,
-                spells: state.spells,
-                feats: state.feats,
-                features: state.features,
-                subrace: state.subrace,
-                background: state.background,
-                alignment: state.alignment
-            };
+            const finalSheet = buildCharacterPayload(state, currentSheetData);
 
             if (state.editingId) {
                 await characterApi.update(state.editingId, {
@@ -283,6 +323,8 @@ export const useCreateCharacterStore = create<CreateCharacterState>((set, get) =
                     backstory: state.backstory
                 });
             }
+
+            set({ isDirty: false });
 
         } catch (err: any) {
             console.error(err);

@@ -11,6 +11,7 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from app.socket.decorators import socket_event_handler
 from app.models import GameState
+from app.services.game_service import GameService
 from app.services.context_builder import build_narrative_context
 from app.services.ai_service import AIService
 from app.services.chat_service import ChatService
@@ -105,150 +106,13 @@ async def handle_chat_message(sid, data, sio, connected_users):
     }, room=campaign_id)
 
 
-    # 3. Handle @move command
-    if content.strip().lower().startswith("@move"):
-        target_name = content.strip()[5:].strip()
-        if not target_name:
-             await sio.emit('system_message', {'content': "Usage: @move <location_name>"}, room=campaign_id)
-             return
+    # 3. Handle Commands via Registry
+    # This handles @move, @attack, @identify, @dm, @help, etc.
+    if content.strip().startswith("@"):
+        was_command = await CommandService.dispatch(campaign_id, sender_id, sender_name, content, sio, sid=sid)
+        if was_command:
+            return
 
-        await CommandService.handle_move(campaign_id, sender_id, sender_name, target_name, sio, sid=sid)
-        return
-
-    # 4. Handle @attack command
-    if content.strip().lower().startswith("@attack"):
-        target_name = content.strip()[7:].strip()
-        if not target_name:
-             await sio.emit('system_message', {'content': "Usage: @attack <target_name>"}, room=campaign_id)
-             return
-
-        await CommandService.handle_attack(campaign_id, sender_id, sender_name, target_name, sio, sid=sid)
-        return
-
-
-    # 5. Handle @identify command
-    if content.strip().lower().startswith("@identify"):
-        target_name = content.strip()[9:].strip()
-        if not target_name:
-             await sio.emit('system_message', {'content': "Usage: @identify <target_name>"}, room=campaign_id)
-             return
-
-        await CommandService.handle_identify(campaign_id, sender_id, sender_name, target_name, sio, sid=sid)
-        return
-
-    # 4. Trigger DM
-    if "@dm" in content.lower():
-        await sio.emit('typing_indicator', {'sender_id': 'dm', 'is_typing': True}, room=campaign_id)
-
-        try:
-            # Build Rich Context
-            rich_context = ""
-            async with AsyncSessionLocal() as db:
-                result = await db.execute(
-                    text("SELECT state_data FROM game_states WHERE campaign_id = :campaign_id ORDER BY turn_index DESC, updated_at DESC LIMIT 1"),
-                    {"campaign_id": campaign_id}
-                )
-                state_row = result.mappings().fetchone()
-                if state_row:
-                    gs = GameState(**json.loads(state_row['state_data']))
-                    rich_context = await build_narrative_context(db, campaign_id, gs)
-
-                # Call Service
-                response_text = await AIService.generate_chat_response(
-                    campaign_id=campaign_id,
-                    sender_name=sender_name,
-                    db=db,
-                    sid=sid,
-                    rich_context=rich_context
-                )
-
-                save_result = await ChatService.save_message(campaign_id, 'dm', 'Dungeon Master', response_text, db=db)
-                await db.commit() # ENSURE COMMIT
-
-                await sio.emit('chat_message', {
-                    'sender_id': 'dm', 'sender_name': 'Dungeon Master', 'content': response_text, 'id': save_result['id'], 'timestamp': save_result['timestamp']
-                }, room=campaign_id)
-                log_debug(f"DEBUG: Successfully sent DM response to campaign {campaign_id}")
-
-            # --- BANTER LOGIC ---
-            import random
-
-            ai_characters = []
-            state_row = None
-
-            async with AsyncSessionLocal() as db:
-                result = await db.execute(
-                    text("SELECT state_data FROM game_states WHERE campaign_id = :campaign_id ORDER BY turn_index DESC, updated_at DESC LIMIT 1"),
-                    {"campaign_id": campaign_id}
-                )
-                state_row = result.mappings().fetchone()
-
-            if state_row:
-                state_data = json.loads(state_row['state_data'])
-                party = state_data.get('party', [])
-                for char in party:
-                    if char.get('is_ai') or char.get('control_mode') == 'ai':
-                        ai_characters.append(char)
-
-            if ai_characters:
-                banter_char = random.choice(ai_characters)
-                log_debug(f"DEBUG: Selected {banter_char['name']} for banter.")
-
-                try:
-                    await sio.emit('typing_indicator', {'sender_id': banter_char['id'], 'is_typing': True}, room=campaign_id)
-
-                    async with AsyncSessionLocal() as db:
-                        banter_history = await ChatService.get_chat_history(campaign_id, limit=20, db=db)
-
-                        banter_instruction = HumanMessage(content=f"""
-                        [System] The Dungeon Master just said: "{response_text}"
-
-                        React to this statement.
-                        - Make a short, in-character quip, comment, or observation.
-                        - Do NOT be repetitive.
-                        - If the DM was describing danger, be on guard.
-                        - If the DM was funny, laugh.
-                        - Keep it under 2 sentences.
-                        """)
-
-                        banter_response = await AIService.generate_character_response(
-                            campaign_id=campaign_id,
-                            character=banter_char,
-                            history=banter_history + [banter_instruction],
-                            db=db,
-                            sid=sid
-                        )
-
-                        if banter_response:
-                            save_result = await ChatService.save_message(campaign_id, banter_char['id'], banter_char['name'], banter_response, db=db)
-
-                            await sio.emit('chat_message', {
-                                'sender_id': banter_char['id'],
-                                'sender_name': banter_char['name'],
-                                'content': banter_response,
-                                'id': save_result['id'],
-                                'timestamp': save_result['timestamp']
-                            }, room=campaign_id)
-                            log_debug(f"DEBUG: Banter response content: '{banter_response}'")
-
-                        await db.commit()
-
-                except Exception as e:
-                    log_debug(f"Error in Banter generation: {e}")
-
-                await sio.emit('typing_indicator', {'sender_id': banter_char['id'], 'is_typing': False}, room=campaign_id)
-            # --- END BANTER LOGIC ---
-
-        except Exception as e:
-            log_debug(f"Agent Error: {e}")
-            await sio.emit('chat_message', {
-                'sender_id': 'dm',
-                'sender_name': 'System',
-                'content': f"The DM is confused. (Error: {e})",
-                'timestamp': 'Just now'
-            }, room=campaign_id)
-
-        await sio.emit('typing_indicator', {'sender_id': 'dm', 'is_typing': False}, room=campaign_id)
 
     # 4. Trigger AI Characters via @Mention
     import re
@@ -258,29 +122,36 @@ async def handle_chat_message(sid, data, sio, connected_users):
         unique_mentions = set(mentions)
         for mentioned_name in unique_mentions:
             async with AsyncSessionLocal() as db:
-                result = await db.execute(
-                    text("SELECT state_data FROM game_states WHERE campaign_id = :campaign_id ORDER BY turn_index DESC, updated_at DESC LIMIT 1"),
-                    {"campaign_id": campaign_id}
-                )
-                state_row = result.mappings().fetchone()
-
+                game_state = await GameService.get_game_state(campaign_id, db)
                 target_char = None
-                if state_row:
-                    state_data = json.loads(state_row['state_data'])
-                    party = state_data.get('party', [])
 
-                    for char in party:
-                        c_names = char['name'].split()
+                if game_state:
+                    # Check Party
+                    for char in game_state.party:
+                        c_names = char.name.split()
                         if any(n.lower() == mentioned_name.lower() for n in c_names):
-                            if char.get('is_ai') or char.get('control_mode') == 'ai':
+                            if char.is_ai or char.control_mode == 'ai':
                                 target_char = char
                                 break
                             else:
-                                log_debug(f"DEBUG: {char['name']} matched but is NOT AI.")
+                                log_debug(f"DEBUG: {char.name} matched but is NOT AI.")
+
+                    # If not found in party, maybe check NPCs?
+                    # The original code only checked 'party' from state_data.
+                    # But if we want to talk to NPCs, we should check them too.
+                    if not target_char:
+                        for npc in game_state.npcs:
+                             n_names = npc.name.split()
+                             if any(n.lower() == mentioned_name.lower() for n in n_names):
+                                 # NPCs are usually AI driven if they have data?
+                                 # Or just always respond if mentioned?
+                                 # Let's assume yes for now.
+                                 target_char = npc
+                                 break
 
             if target_char:
-                log_debug(f"DEBUG: triggering AI response for {target_char['name']}")
-                await sio.emit('typing_indicator', {'sender_id': target_char['id'], 'is_typing': True}, room=campaign_id)
+                log_debug(f"DEBUG: triggering AI response for {target_char.name}")
+                await sio.emit('typing_indicator', {'sender_id': target_char.id, 'is_typing': True}, room=campaign_id)
 
                 try:
                     async with AsyncSessionLocal() as db:
@@ -295,10 +166,10 @@ async def handle_chat_message(sid, data, sio, connected_users):
                         )
 
                         if response_text:
-                            save_result = await ChatService.save_message(campaign_id, target_char['id'], target_char['name'], response_text, db=db)
+                            save_result = await ChatService.save_message(campaign_id, target_char.id, target_char.name, response_text, db=db)
                             await sio.emit('chat_message', {
-                                'sender_id': target_char['id'],
-                                'sender_name': target_char['name'],
+                                'sender_id': target_char.id,
+                                'sender_name': target_char.name,
                                 'content': response_text,
                                 'id': save_result['id'],
                                 'timestamp': save_result['timestamp']
@@ -306,6 +177,11 @@ async def handle_chat_message(sid, data, sio, connected_users):
 
                         await db.commit()
                 except Exception as e:
+                    if 'db' in locals() and db is not None:
+                        try:
+                            await db.rollback()
+                        except Exception:
+                            pass
                     log_debug(f"Error in Mention generation: {e}")
 
-                await sio.emit('typing_indicator', {'sender_id': target_char['id'], 'is_typing': False}, room=campaign_id)
+                await sio.emit('typing_indicator', {'sender_id': target_char.id, 'is_typing': False}, room=campaign_id)

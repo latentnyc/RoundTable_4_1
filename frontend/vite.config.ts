@@ -14,5 +14,17 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+  },
+  build: {
+    chunkSizeWarningLimit: 1000, // Increase limit slightly
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'firebase-vendor': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/analytics'],
+          'ui-vendor': ['framer-motion', 'lucide-react', 'react-icons', 'clsx', 'tailwind-merge']
+        }
+      }
+    }
   }
 })

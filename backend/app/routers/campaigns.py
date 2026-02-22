@@ -81,6 +81,7 @@ async def list_campaigns(
 
         result = await db.execute(query)
         rows = result.all()
+        import os
         return [
             CampaignResponse(
                 id=row.id,
@@ -89,7 +90,7 @@ async def list_campaigns(
                 status=row.status,
                 created_at=row.created_at,
                 api_key_verified=row.api_key_verified,
-                api_key_configured=bool(row.api_key)
+                api_key_configured=bool(row.api_key or os.getenv("GEMINI_API_KEY"))
             )
             for row in rows
         ]
@@ -249,6 +250,7 @@ async def create_campaign(
                                  target_id=n_data.get('target_id'),
                                  unidentified_name=n_data.get('unidentified_name'),
                                  unidentified_description=n_data.get('unidentified_description'),
+                                 llm_description=n_data.get('llm_description'),
                                  position=Coordinates(q=0, r=0, s=0),
                                  barks=n_data.get('voice', {}).get('barks'),
                                  knowledge=n_data.get('knowledge', []),
@@ -344,15 +346,16 @@ async def update_campaign(
 
     if not row: raise HTTPException(status_code=404)
 
+    import os
     return CampaignDetailsResponse(
         id=row.id,
         name=row.name,
         gm_id=row.gm_id,
         status=row.status,
         created_at=row.created_at,
-        api_key=row.api_key,
+        api_key=None, # NEVER expose to frontend
         api_key_verified=row.api_key_verified,
-        api_key_configured=bool(row.api_key),
+        api_key_configured=bool(row.api_key or os.getenv("GEMINI_API_KEY")),
         model=row.model,
         system_prompt=row.system_prompt
     )
@@ -427,15 +430,16 @@ async def get_campaign(
     elif await is_admin(user, db):
         pass
 
+    import os
     return CampaignDetailsResponse(
         id=row.id,
         name=row.name,
         gm_id=row.gm_id,
         status=row.status,
         created_at=row.created_at,
-        api_key=row.api_key if await is_admin(user, db) else None,
+        api_key=None, # NEVER expose to frontend
         api_key_verified=row.api_key_verified,
-        api_key_configured=bool(row.api_key),
+        api_key_configured=bool(row.api_key or os.getenv("GEMINI_API_KEY")),
         model=row.model,
         system_prompt=row.system_prompt,
         user_status=user_status,
@@ -696,6 +700,11 @@ async def generate_campaign_image(
     db: AsyncSession = Depends(get_db)
 ):
     from app.services.ai_service import AIService
+    import hashlib
+    from db.schema import image_cache
+    from sqlalchemy import select, insert
+    import base64
+
     # Check if participant
     if not await is_admin(user, db):
          query = select(campaign_participants.c.status).where(
@@ -706,12 +715,48 @@ async def generate_campaign_image(
          if not check.scalar():
               raise HTTPException(status_code=403, detail="Access denied")
 
+    # Hash the prompt for caching
+    prompt_hash = hashlib.sha256(req.prompt.encode('utf-8')).hexdigest()
+
+    # Check Cache
+    try:
+        cache_query = select(image_cache.c.image_base64).where(image_cache.c.prompt_hash == prompt_hash)
+        cache_res = await db.execute(cache_query)
+        cached_img = cache_res.scalar()
+        if cached_img:
+            return ImageGenerationResponse(
+                image_base64=cached_img,
+                prompt_used=req.prompt
+            )
+    except Exception as e:
+        logger.warning(f"Cache read error: {e}")
+
+    # Generate Image via AI
     image_bytes = await AIService.generate_scene_image(campaign_id, req.prompt, db)
     if not image_bytes:
         raise HTTPException(status_code=500, detail="Failed to generate image")
 
-    import base64
     b64_img = base64.b64encode(image_bytes).decode('utf-8')
+
+    # Save cache
+    try:
+        stmt = insert(image_cache).values(
+            prompt_hash=prompt_hash,
+            image_base64=b64_img
+        )
+        await db.execute(stmt)
+        await db.commit()
+    except Exception as e:
+         logger.warning(f"Cache write error: {e}")
+         await db.rollback()
+
+    # Broadcast stats
+    from app.socket_manager import sio
+    await sio.emit('ai_stats', {
+        'type': 'usage',
+        'is_image': True,
+        'model': 'imagen-4.0-fast-generate-001'
+    }, room=campaign_id)
 
     return ImageGenerationResponse(
         image_base64=b64_img,

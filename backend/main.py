@@ -58,6 +58,10 @@ async def startup_event():
         # Raise exception to crash the container so Cloud Run knows it failed
         raise e
 
+    # Register Commands
+    from app.services.command_service import CommandService
+    CommandService.register_commands()
+
 # 2. Include Routers
 fastapi_app.include_router(game.router, dependencies=[Depends(verify_token)])
 fastapi_app.include_router(auth.router)

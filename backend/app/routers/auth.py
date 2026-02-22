@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 async def login(token_data: dict = Depends(verify_token), db: AsyncSession = Depends(get_db)):
 
     """
-    Syncs the Firebase User with the local SQLite 'profiles' table.
+    Syncs the Firebase User with the 'profiles' table.
     """
     try:
         uid = token_data["uid"]

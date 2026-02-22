@@ -43,3 +43,17 @@ async def update_game_state(session_id: str, state: GameState, db: AsyncSession 
     )
     await db.commit()
     return {"status": "updated"}
+
+@router.get("/commands")
+async def get_commands():
+    from ..commands.registry import CommandRegistry
+    commands = CommandRegistry.get_all_commands()
+    return [
+        {
+            "name": cmd.name,
+            "description": cmd.description,
+            "usage": cmd.usage,
+            "aliases": cmd.aliases
+        }
+        for cmd in commands
+    ]

@@ -4,35 +4,16 @@ Write-Host "Starting RoundTable 4.1 Local Environment..." -ForegroundColor Cyan
 
 # Ask for DB Reset early with 10s timeout
 Write-Host "Do you want to RESET the database? (y/N)" -ForegroundColor Yellow
-$timeout = 10
-$startTime = Get-Date
-$resetDb = $null
-
-while ((Get-Date) -lt $startTime.AddSeconds($timeout)) {
-    $remaining = [math]::Ceiling(($startTime.AddSeconds($timeout) - (Get-Date)).TotalSeconds)
-    Write-Host "Waiting... $remaining s (Press 'y' to reset, any other key to skip)   `r" -NoNewline
-
-    if ([Console]::KeyAvailable) {
-        $key = [Console]::ReadKey($true)
-        if ($key.KeyChar -eq 'y' -or $key.KeyChar -eq 'Y') {
-            $resetDb = "y"
-            Write-Host "`nReset Confirmed!" -ForegroundColor Red
-        } else {
-            $resetDb = "n"
-            Write-Host "`nSkipping Reset." -ForegroundColor Green
-        }
-        break
-    }
-    Start-Sleep -Milliseconds 100
-}
-
-if ($null -eq $resetDb) {
-    Write-Host "`nTimeout reached. Skipping Reset." -ForegroundColor Green
+$resetDb = Read-Host "Enter 'y' to confirm reset, or press Enter to skip"
+if ($resetDb -match "^[yY]$") {
+    $resetDb = "y"
+    Write-Host "Reset Confirmed!" -ForegroundColor Red
+} else {
     $resetDb = "n"
+    Write-Host "Skipping Reset." -ForegroundColor Green
 }
 
 # 0. Clean Setup (Optional but requested for testing)
-# SQLite cleanup is done.
 
 # 1. Java Setup (Crucial for Firebase Emulators)
 $javaPath = "C:\Program Files\Java\jdk-21.0.10"

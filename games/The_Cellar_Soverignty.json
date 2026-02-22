@@ -320,6 +320,7 @@
       "target_id": "gilda",
       "unidentified_name": "Stressed Innkeeper",
       "unidentified_description": "A woman wiping a glass furiously.",
+      "llm_description": "A harried, middle-aged human woman with greying auburn hair messyly pulled into a bun. She wears a stained brown apron over a simple dress and is furiously scrubbing a wooden tankard, looking exhausted.",
       "role": "Quest Giver",
       "race": "Human",
       "stats": {
@@ -404,6 +405,7 @@
       "target_id": "tom",
       "unidentified_name": "Drunk Patron",
       "unidentified_description": "A man swaying in his seat.",
+      "llm_description": "An incredibly drunk, red-nosed old man with patchy grey hair. He wears a ragged tunic and sways heavily while clutching a half-empty flagon of ale with a goofy smile.",
       "role": "Patron",
       "race": "Human",
       "stats": {
@@ -476,6 +478,7 @@
       "target_id": "elara",
       "unidentified_name": "Enthusiastic Bard",
       "unidentified_description": "An elf tuning a lute loudly.",
+      "llm_description": "A young, bright-eyed elven bard with blonde hair wearing flashy, mismatched brightly colored clothing. She enthusiastically strums a battered wooden lute, ignorant to the wincing patrons around her.",
       "role": "Bard",
       "race": "Elf",
       "stats": {
@@ -545,6 +548,7 @@
       "target_id": "silas",
       "unidentified_name": "Shifty Gambler",
       "unidentified_description": "A half-elf shuffling cards with practiced ease.",
+      "llm_description": "A smooth-talking half-elf with slicked-back dark hair and a thin mustache. He wears a sharply tailored vest and is effortlessly performing a one-handed card shuffle with a sly, knowing grin.",
       "role": "Gambler",
       "race": "Half-Elf",
       "stats": {
@@ -624,6 +628,7 @@
       "target_id": "marge",
       "unidentified_name": "Large Orc",
       "unidentified_description": "A muscular orc leaning against the wall.",
+      "llm_description": "A massively built, intimidating female orc with green skin, heavy tusks, and leather armor reinforced with iron studs. She leans cross-armed against a wooden tavern beam, scowling intensely.",
       "role": "Gambler/Muscle",
       "race": "Orc",
       "stats": {
@@ -693,6 +698,7 @@
       "target_id": "thaddeus",
       "unidentified_name": "Gnome Shopkeeper",
       "unidentified_description": "A gnome adjusting his spectacles.",
+      "llm_description": "An older, fussy gnome with a bald head and tufts of white hair over his ears. He wears wire-rimmed spectacles and an ink-stained shirt, counting coins on a wooden desk cluttered with strange jars.",
       "role": "Shopkeeper",
       "race": "Gnome",
       "stats": {
@@ -762,6 +768,7 @@
       "target_id": "barnaby",
       "unidentified_name": "Small Assistant",
       "unidentified_description": "A helpful halfling looking eager.",
+      "llm_description": "A very small, incredibly eager halfling boy with curly brown hair. He wears a simple tunic that is slightly too large for him and wields an oversized wooden push broom with intense determination.",
       "role": "Shop Assistant",
       "race": "Halfling",
       "stats": {
@@ -831,6 +838,7 @@
       "target_id": "bernie_guard",
       "unidentified_name": "Sleepy Guard",
       "unidentified_description": "A guard leaning heavily on a spear.",
+      "llm_description": "A human city guard in standard-issue chainmail armor and a bucket helmet that has slipped slightly over his eyes. He is fast asleep on his feet, leaning entirely on his upright iron-tipped spear.",
       "role": "Bank Guard",
       "race": "Human",
       "stats": {
@@ -901,6 +909,7 @@
       "target_id": "sterling",
       "unidentified_name": "Elf Official",
       "unidentified_description": "A high elf looking down his nose at you.",
+      "llm_description": "An aristocratic high elf in an immaculate, expensive silk suit. He sits behind a large polished mahogany desk, peering over steepled fingers with an expression of utter disdain and arrogance.",
       "role": "Bank Manager",
       "race": "High Elf",
       "stats": {
@@ -980,6 +989,7 @@
       "target_id": "penny",
       "unidentified_name": "Nervous Teller",
       "unidentified_description": "A human woman looking around frantically.",
+      "llm_description": "A visibly nervous young human woman with mousy brown hair peering anxiously through the iron bars of a bank teller cage. She grips an ink stamp tightly in both hands.",
       "role": "Bank Teller",
       "race": "Human",
       "stats": {
@@ -1049,6 +1059,7 @@
       "target_id": "rattigan",
       "unidentified_name": "Rat King",
       "unidentified_description": "A giant rat wearing a tiny crown.",
+      "llm_description": "A massive, unusually intelligent-looking dire rat standing upright like a man. He wears a tiny, polished gold crown perched between his ears and holds a large sewing needle like a fencing foil. He looks regal and haughty.",
       "role": "Boss / Negotiator",
       "race": "Awakened Giant Rat",
       "stats": {
@@ -1122,6 +1133,7 @@
       "target_id": "whiskers",
       "unidentified_name": "Rat Commander",
       "unidentified_description": "A rat barking orders.",
+      "llm_description": "A scowling rat standing on its hind legs wearing a breastplate fashioned out of a bent tin can. He holds a splintered wooden toothpick serving as a spear and barks orders menacingly.",
       "role": "Rat Commander",
       "race": "Awakened Rat",
       "stats": {
@@ -1267,6 +1279,7 @@
       "name": "Royal Rat Guard",
       "type": "beast",
       "description": "A rat standing on two legs, holding a toothpick spear.",
+      "llm_description": "A large rat standing erect on its hind legs, disciplined and organized. It wears scraps of leather as armor and wields a sharp wooden splinter as a spear.",
       "stats": {
         "ac": 12,
         "hp": 10,
@@ -1280,6 +1293,7 @@
       "name": "King Rattigan IV",
       "type": "beast",
       "description": "The Rat King himself.",
+      "llm_description": "A massive, unusually intelligent-looking dire rat standing upright like a man. He wears a tiny, polished gold crown perched between his ears and holds a large sewing needle like a fencing foil. He looks regal and haughty.",
       "stats": {
         "ac": 15,
         "hp": 40,

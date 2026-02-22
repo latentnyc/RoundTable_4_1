@@ -30,36 +30,36 @@ async def inspect_game_state():
 
         campaign_id, state_data_str = row
         print(f"Campaign ID: {campaign_id}")
-        
+
         try:
             state_data = json.loads(state_data_str)
             game_state = GameState(**state_data)
-            
+
             print("\n--- Party ---")
             for p in game_state.party:
                 print(f"Name: '{p.name}', ID: {p.id}, UserID: {p.user_id}")
-                
+
             print("\n--- Enemies ---")
             for e in game_state.enemies:
                 print(f"Name: '{e.name}', ID: {e.id}")
-                
+
             print("\n--- NPCs ---")
             for n in game_state.npcs:
                 print(f"Name: '{n.name}', ID: {n.id}")
                 print(f"Data: {n.data}")
-                
+
             # Simulate lookup
             attacker_name = "Ilium"
             target_name = "goblin"
-            
+
             print(f"\n--- Testing GameService._find_char_by_name ---")
             actor = GameService._find_char_by_name(game_state, attacker_name)
             print(f"Lookup '{attacker_name}': {actor.name if actor else 'None'} ({type(actor).__name__})")
-            
+
             target = GameService._find_char_by_name(game_state, target_name)
             print(f"Lookup '{target_name}': {target.name if target else 'None'} ({type(target).__name__})")
 
-                
+
         except Exception as e:
             print(f"Error parsing game state: {e}")
 

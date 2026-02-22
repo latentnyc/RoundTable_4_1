@@ -53,7 +53,6 @@ def configure_logging():
     # Silence noisy libraries
     logging.getLogger("socketio").setLevel(logging.WARNING)
     logging.getLogger("engineio").setLevel(logging.WARNING)
-    logging.getLogger("aiosqlite").setLevel(logging.WARNING)
 
     return root_logger
 

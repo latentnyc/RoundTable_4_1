@@ -42,7 +42,8 @@ export default function CampaignMain() {
                         const output = found.total_output_tokens || 0;
                         const total = input + output;
                         const count = found.query_count || 0;
-                        useSocketStore.getState().setInitialStats(total, input, output, count);
+                        const images = found.image_count || 0;
+                        useSocketStore.getState().setInitialStats(total, input, output, count, images);
                     }
                 } else {
                     console.error("Campaign not found in list");

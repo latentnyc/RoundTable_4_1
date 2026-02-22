@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
 from typing import List, Optional
@@ -14,17 +13,17 @@ class CompendiumItem(BaseModel):
     name: str
     data: dict
 
-@router.get("/spells", response_model=List[CompendiumItem])
-async def search_spells(q: str = Query(None), db: AsyncSession = Depends(get_db)):
-    """Search for spells by name. Returns first 25 if no query."""
+async def search_compendium(table_name: str, q: str, db: AsyncSession, limit_val: int = 25) -> List[CompendiumItem]:
+    """Generic helper to search a given table by name."""
     if q and len(q.strip()) > 0:
         result = await db.execute(
-            text("SELECT id, name, data FROM spells WHERE name LIKE :q LIMIT 25"),
-            {"q": f"%{q}%"}
+            text(f"SELECT id, name, data FROM {table_name} WHERE name LIKE :q LIMIT :limit"),
+            {"q": f"%{q}%", "limit": limit_val}
         )
     else:
         result = await db.execute(
-            text("SELECT id, name, data FROM spells LIMIT 25")
+            text(f"SELECT id, name, data FROM {table_name} LIMIT :limit"),
+            {"limit": limit_val}
         )
     rows = result.mappings().all()
 
@@ -32,7 +31,7 @@ async def search_spells(q: str = Query(None), db: AsyncSession = Depends(get_db)
     for row in rows:
         try:
             data = json.loads(row['data'])
-        except:
+        except Exception:
             data = {}
 
         results.append(CompendiumItem(
@@ -42,178 +41,38 @@ async def search_spells(q: str = Query(None), db: AsyncSession = Depends(get_db)
         ))
 
     return results
+
+@router.get("/spells", response_model=List[CompendiumItem])
+async def search_spells(q: str = Query(None), db: AsyncSession = Depends(get_db)):
+    """Search for spells by name. Returns first 25 if no query."""
+    return await search_compendium("spells", q, db)
 
 @router.get("/feats", response_model=List[CompendiumItem])
 async def search_feats(q: str = Query(None), db: AsyncSession = Depends(get_db)):
     """Search for feats by name. Returns first 25 if no query."""
-    if q and len(q.strip()) > 0:
-        result = await db.execute(
-            text("SELECT id, name, data FROM feats WHERE name LIKE :q LIMIT 25"),
-            {"q": f"%{q}%"}
-        )
-    else:
-        result = await db.execute(
-            text("SELECT id, name, data FROM feats LIMIT 25")
-        )
-    rows = result.mappings().all()
-
-    results = []
-    for row in rows:
-        try:
-            data = json.loads(row['data'])
-        except:
-            data = {}
-
-        results.append(CompendiumItem(
-            id=row['id'],
-            name=row['name'],
-            data=data
-        ))
-
-    return results
+    return await search_compendium("feats", q, db)
 
 @router.get("/races", response_model=List[CompendiumItem])
 async def search_races(q: str = Query(None), db: AsyncSession = Depends(get_db)):
     """Search for races by name. Returns first 25 if no query."""
-    if q and len(q.strip()) > 0:
-        result = await db.execute(
-            text("SELECT id, name, data FROM races WHERE name LIKE :q LIMIT 25"),
-            {"q": f"%{q}%"}
-        )
-    else:
-        result = await db.execute(
-            text("SELECT id, name, data FROM races LIMIT 25")
-        )
-    rows = result.mappings().all()
-
-    results = []
-    for row in rows:
-        try:
-            data = json.loads(row['data'])
-        except:
-            data = {}
-
-        results.append(CompendiumItem(
-            id=row['id'],
-            name=row['name'],
-            data=data
-        ))
-
-    return results
+    return await search_compendium("races", q, db)
 
 @router.get("/classes", response_model=List[CompendiumItem])
 async def search_classes(q: str = Query(None), db: AsyncSession = Depends(get_db)):
     """Search for classes by name. Returns first 25 if no query."""
-    if q and len(q.strip()) > 0:
-        result = await db.execute(
-            text("SELECT id, name, data FROM classes WHERE name LIKE :q LIMIT 25"),
-            {"q": f"%{q}%"}
-        )
-    else:
-        result = await db.execute(
-            text("SELECT id, name, data FROM classes LIMIT 25")
-        )
-    rows = result.mappings().all()
-
-    results = []
-    for row in rows:
-        try:
-            data = json.loads(row['data'])
-        except:
-            data = {}
-
-        results.append(CompendiumItem(
-            id=row['id'],
-            name=row['name'],
-            data=data
-        ))
-
-    return results
+    return await search_compendium("classes", q, db)
 
 @router.get("/alignments", response_model=List[CompendiumItem])
 async def search_alignments(q: str = Query(None), db: AsyncSession = Depends(get_db)):
     """Search for alignments by name. Returns first 25 if no query."""
-    if q and len(q.strip()) > 0:
-        result = await db.execute(
-            text("SELECT id, name, data FROM alignments WHERE name LIKE :q LIMIT 25"),
-            {"q": f"%{q}%"}
-        )
-    else:
-        result = await db.execute(
-            text("SELECT id, name, data FROM alignments LIMIT 25")
-        )
-    rows = result.mappings().all()
-
-    results = []
-    for row in rows:
-        try:
-            data = json.loads(row['data'])
-        except:
-            data = {}
-
-        results.append(CompendiumItem(
-            id=row['id'],
-            name=row['name'],
-            data=data
-        ))
-
-    return results
+    return await search_compendium("alignments", q, db)
 
 @router.get("/subraces", response_model=List[CompendiumItem])
 async def search_subraces(q: str = Query(None), db: AsyncSession = Depends(get_db)):
     """Search for subraces by name. Returns first 25 if no query."""
-    if q and len(q.strip()) > 0:
-        result = await db.execute(
-            text("SELECT id, name, data FROM subraces WHERE name LIKE :q LIMIT 25"),
-            {"q": f"%{q}%"}
-        )
-    else:
-        result = await db.execute(
-            text("SELECT id, name, data FROM subraces LIMIT 25")
-        )
-    rows = result.mappings().all()
-
-    results = []
-    for row in rows:
-        try:
-            data = json.loads(row['data'])
-        except:
-            data = {}
-
-        results.append(CompendiumItem(
-            id=row['id'],
-            name=row['name'],
-            data=data
-        ))
-
-    return results
-
+    return await search_compendium("subraces", q, db)
 
 @router.get("/backgrounds", response_model=List[CompendiumItem])
 async def search_backgrounds(q: str = Query(None), db: AsyncSession = Depends(get_db)):
     """Search for backgrounds. Returns all or matches."""
-    if q and len(q.strip()) > 0:
-        result = await db.execute(
-            text("SELECT id, name, data FROM backgrounds WHERE name LIKE :q LIMIT 25"),
-            {"q": f"%{q}%"}
-        )
-    else:
-        result = await db.execute(
-            text("SELECT id, name, data FROM backgrounds LIMIT 50")
-        )
-    rows = result.mappings().all()
-
-    results = []
-    for row in rows:
-        try:
-            data = json.loads(row['data'])
-        except:
-            data = {}
-
-        results.append(CompendiumItem(
-            id=row['id'],
-            name=row['name'],
-            data=data
-        ))
-
-    return results
+    return await search_compendium("backgrounds", q, db, limit_val=50)

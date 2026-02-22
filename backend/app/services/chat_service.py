@@ -15,7 +15,7 @@ class ChatService:
         msg_id = str(uuid4())
         timestamp = datetime.datetime.now()
 
-        # Ensure content is a string for SQLite
+        # Ensure content is a string for the DB
         if not isinstance(content, str):
             try:
                 content = json.dumps(content)

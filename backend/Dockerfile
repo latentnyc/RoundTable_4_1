@@ -8,15 +8,19 @@ ENV PYTHONUNBUFFERED True
 WORKDIR /app
 
 # Copy requirements and install
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy requirements and install
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir --root-user-action=ignore -r requirements.txt
+
+# Copy Games Data (Templates) - Must be at /games to match relative path logic in loader
+COPY games/ /games/
 
 # Copy the application code
-COPY . .
+COPY backend/ .
 
 # Environment Variables (Overridden by Cloud Run config)
 ENV PORT 8080
-ENV SQLITE_DB_PATH /data/game.db
 
 
 # Create the data directory (for local testing, Cloud Run will mount over this)

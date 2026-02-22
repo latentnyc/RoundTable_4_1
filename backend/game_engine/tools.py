@@ -29,7 +29,7 @@ class AttackTool(BaseTool):
         # For now, we mock the data lookup or pass it in context
 
         # MOCK DATA LOOKUP
-        # This is where we'd fetch from SQLite
+        # This is where we'd fetch from the DB
         # For prototype, we'll just invent stats if they don't exist
         mock_actor = {"name": attacker_name, "stats": {"strength": 16, "dexterity": 12}, "hp": {"current": 20, "max": 20}}
         mock_target = {"name": target_name, "stats": {"dexterity": 10}, "hp": {"current": 10, "max": 10}}

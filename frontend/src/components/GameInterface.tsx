@@ -5,29 +5,28 @@ import AIStatsPanel from './AIStatsPanel';
 import PartyMember from './PartyMember';
 import EntityListPanel from './EntityListPanel';
 import SceneVisPanel from './SceneVisPanel';
+import LootModal, { VesselData } from './LootModal';
 import { useSocketStore } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
 import { useCharacterStore } from '@/store/characterStore';
 import { useCreateCharacterStore } from '@/store/createCharacterStore';
+import CreateCharacterPage from '@/pages/CreateCharacter';
 import { Character } from '@/lib/api';
 import { Users } from 'lucide-react';
 
 interface GameInterfaceProps {
     campaignId: string;
 }
-
-import { useNavigate } from 'react-router-dom';
-
 export default function GameInterface({ campaignId }: GameInterfaceProps) {
-    const { gameState } = useSocketStore();
+    const { gameState, socket } = useSocketStore();
     const { user } = useAuthStore();
     const { activeCharacterId } = useCharacterStore();
     const [activeTab, setActiveTab] = useState<'chat' | 'party' | 'debug'>('chat');
-    const navigate = useNavigate();
+    const [activeVessel, setActiveVessel] = useState<VesselData | null>(null);
+    const [showCharacterSheet, setShowCharacterSheet] = useState(false);
 
     // Derived state
     const party = (gameState?.party || []) as Character[];
-    // const activeCharacter = party.find(p => p.id === activeCharacterId) || party[0]; // activeCharacter is unused
 
     useEffect(() => {
         if (campaignId && user?.uid) {
@@ -39,8 +38,46 @@ export default function GameInterface({ campaignId }: GameInterfaceProps) {
         };
     }, [campaignId, user, activeCharacterId]);
 
+    useEffect(() => {
+        if (!socket) return;
+
+        const handleVesselOpened = (data: { vessel: VesselData, opener_id: string }) => {
+            // Only show modal if this user is the opener
+            if (data.opener_id === user?.uid || data.opener_id === activeCharacterId) {
+                setActiveVessel(data.vessel);
+            }
+        };
+
+        socket.on('vessel_opened', handleVesselOpened);
+        return () => {
+            socket.off('vessel_opened', handleVesselOpened);
+        };
+    }, [socket, user?.uid, activeCharacterId]);
+
     return (
-        <div className="flex h-full w-full gap-4 p-4">
+        <div className="flex h-full w-full gap-4 p-4 relative">
+            {/* Character Sheet Modal */}
+            {showCharacterSheet && (
+                <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur flex items-center justify-center p-0 lg:p-10 pointer-events-auto">
+                    <div className="w-full h-full max-w-7xl bg-neutral-950 lg:rounded-2xl shadow-2xl overflow-hidden border border-neutral-800 flex flex-col animate-in slide-in-from-bottom-4 zoom-in-95">
+                        <CreateCharacterPage
+                            onClose={() => setShowCharacterSheet(false)}
+                            embedded={true}
+                            forceEditMode={true}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* Loot Modal */}
+            {activeVessel && (
+                <LootModal
+                    vessel={activeVessel}
+                    campaignId={campaignId}
+                    onClose={() => setActiveVessel(null)}
+                />
+            )}
+
             {/* Left Sidebar: Party List & Scene Vis (Hidden on mobile, visible on lg) */}
             <div className="hidden lg:flex w-64 flex-col gap-4 shrink-0">
                 <div className="flex-[2] bg-neutral-900/50 rounded-xl border border-neutral-800 p-4 overflow-y-auto">
@@ -53,10 +90,10 @@ export default function GameInterface({ campaignId }: GameInterfaceProps) {
                             <PartyMember
                                 key={char.id}
                                 character={char}
-                                isActive={false} // Future implementation: Highlight active turn based on initiative order
+                                isActive={gameState?.active_entity_id === char.id}
                                 onClick={() => {
                                     useCreateCharacterStore.getState().loadCharacter(char);
-                                    navigate('/create-character?edit=true');
+                                    setShowCharacterSheet(true);
                                 }}
                             />
                         ))}
@@ -113,7 +150,15 @@ export default function GameInterface({ campaignId }: GameInterfaceProps) {
                     <div className={`${activeTab === 'party' ? 'block' : 'hidden'} lg:hidden h-full p-4 overflow-y-auto`}>
                         <div className="space-y-4">
                             {party.map(char => (
-                                <PartyMember key={char.id} character={char} />
+                                <PartyMember
+                                    key={char.id}
+                                    character={char}
+                                    isActive={gameState?.active_entity_id === char.id}
+                                    onClick={() => {
+                                        useCreateCharacterStore.getState().loadCharacter(char);
+                                        setShowCharacterSheet(true);
+                                    }}
+                                />
                             ))}
                         </div>
                     </div>

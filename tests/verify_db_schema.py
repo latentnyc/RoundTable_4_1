@@ -10,20 +10,24 @@ sys.path.append(os.path.join(os.getcwd(), 'backend'))
 from db.schema import metadata
 
 async def test_schema():
-    print("Testing schema creation on fresh SQLite DB...")
+    print("Testing schema creation on PostgreSQL DB...")
 
-    # Use memory DB for test
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
+    url = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:roundtable_dev_2024@127.0.0.1:5432/postgres")
+    engine = create_async_engine(url, echo=False)
 
     try:
         async with engine.begin() as conn:
             await conn.run_sync(metadata.create_all)
             print("Tables created.")
 
-            # Inspect columns via SQL because inspector is sync and easier sometimes
+            print("Tables created.")
+
+            def get_cols(table):
+                return f"SELECT column_name as name FROM information_schema.columns WHERE table_name = '{table}'"
+
             # Check Campaigns
             print("Checking 'campaigns' table...")
-            res = await conn.execute(text("PRAGMA table_info(campaigns)"))
+            res = await conn.execute(text(get_cols("campaigns")))
             columns = [row.name for row in res.fetchall()]
             required = ['template_id', 'total_input_tokens', 'query_count', 'description']
             for req in required:
@@ -34,7 +38,7 @@ async def test_schema():
 
             # Check Monsters
             print("Checking 'monsters' table...")
-            res = await conn.execute(text("PRAGMA table_info(monsters)"))
+            res = await conn.execute(text(get_cols("monsters")))
             columns = [row.name for row in res.fetchall()]
             required = ['campaign_id', 'template_id']
             for req in required:
@@ -45,7 +49,7 @@ async def test_schema():
 
             # Check Items
             print("Checking 'items' table...")
-            res = await conn.execute(text("PRAGMA table_info(items)"))
+            res = await conn.execute(text(get_cols("items")))
             columns = [row.name for row in res.fetchall()]
             required = ['campaign_id', 'template_id']
             for req in required:

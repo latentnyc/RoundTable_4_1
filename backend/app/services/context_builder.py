@@ -107,7 +107,11 @@ async def format_npc_state(npcs: List[NPC]) -> str:
         line = f"- **{display_name}**: {status} | Attitude: {attitude} [{tone}]"
         if desc:
             line += f" - _{desc}_"
-        
+
+        llm_desc = getattr(n, 'llm_description', None) or data.get('llm_description', '')
+        if llm_desc:
+            line += f" - *Visuals*: {llm_desc}"
+
         # Knowledge Hints (for DM context only)
         knowledge = data.get('knowledge', [])
         if knowledge:
@@ -156,12 +160,24 @@ async def build_narrative_context(db: AsyncSession, campaign_id: str, state: Gam
             else:
                 display_name = e.type.upper()
 
-            enemy_lines.append(f"- {display_name}: {status}")
+            line = f"- {display_name}: {status}"
+
+            e_data = getattr(e, 'data', {}) or {}
+            desc = getattr(e, 'unidentified_description', None) or e_data.get('unidentified_description', '')
+            if desc:
+                line += f" - _{desc}_"
+
+            llm_desc = getattr(e, 'llm_description', None) or e_data.get('llm_description', '')
+            if llm_desc:
+                line += f" - *Visuals*: {llm_desc}"
+
+            enemy_lines.append(line)
         if enemy_lines:
             enemy_block = "\n**ENEMIES**:\n" + "\n".join(enemy_lines)
 
     # 5. Visible Paths / Exits
     paths_block = "None visible."
+    interactables_block = ""
     if state.location.source_id:
         try:
             # Fetch current location data to get 'connections'
@@ -172,26 +188,40 @@ async def build_narrative_context(db: AsyncSession, campaign_id: str, state: Gam
             l_row = l_res.mappings().fetchone()
             if l_row:
                 l_data = json.loads(l_row['data'])
-                # connections is list of strings (IDs)
-                conn_ids = l_data.get('connections', [])
-
-                if conn_ids:
-                    # Fetch names for these connections
-                    # We have to handle list params carefully with SQLAlchemy text,
-                    # but since it's a list of IDs, we can just loop or dynamic query.
-                    # Simple loop for safety and small number of exits
+                description_data = l_data.get('description', {})
+                connections = description_data.get('connections', [])
+                if connections:
                     exit_names = []
-                    for cid in conn_ids:
-                        c_res = await db.execute(
-                            text("SELECT name FROM locations WHERE campaign_id = :cid AND source_id = :sid"),
-                            {"cid": campaign_id, "sid": cid}
-                        )
-                        c_row = c_res.mappings().fetchone()
-                        if c_row:
-                            exit_names.append(f"- {c_row['name']}")
+                    for conn in connections:
+                        if isinstance(conn, dict):
+                            direction = conn.get('direction', 'unknown')
+                            desc = conn.get('description', '')
+                            if desc:
+                                exit_names.append(f"- {direction.capitalize()}: {desc}")
+                            else:
+                                exit_names.append(f"- {direction.capitalize()} (pathway)")
+                        else:
+                            # Fallback for old string IDs
+                            c_res = await db.execute(
+                                text("SELECT name FROM locations WHERE campaign_id = :cid AND source_id = :sid"),
+                                {"cid": campaign_id, "sid": conn}
+                            )
+                            c_row = c_res.mappings().fetchone()
+                            if c_row:
+                                exit_names.append(f"- {c_row['name']}")
 
                     if exit_names:
                         paths_block = "\n".join(exit_names)
+
+                # Also process interactables (Doors/Chests)
+                interactables = l_data.get('interactables', [])
+                if interactables:
+                    int_names = []
+                    for it in interactables:
+                        state_str = f" ({it.get('state')})" if 'state' in it else ""
+                        int_names.append(f"- {it.get('name')}{state_str}")
+                    if int_names:
+                        interactables_block = "\n**INTERACTABLES**:\n" + "\n".join(int_names)
         except Exception as e:
             logger.error(f"Error fetching paths: {e}")
 
@@ -199,6 +229,7 @@ async def build_narrative_context(db: AsyncSession, campaign_id: str, state: Gam
     context = f"""
 {loc_header}
 {loc_desc}
+{interactables_block}
 
 **VISIBLE PATHS**:
 {paths_block}

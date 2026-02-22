@@ -273,6 +273,7 @@
       "target_id": "bernie",
       "unidentified_name": "Large Bear",
       "unidentified_description": "A massive brown bear wearing a flour-dusted apron.",
+      "llm_description": "A massive, friendly, gentle-looking brown bear standing on two legs. He wears a flour-dusted white baker's apron and a puffy white chef's hat. He holds a wooden mixing spoon and looks slightly worried.",
       "role": "Quest Giver",
       "race": "Bear",
       "stats": {
@@ -352,6 +353,7 @@
       "target_id": "florence",
       "unidentified_name": "Elegant Poodle",
       "unidentified_description": "A perfectly groomed standard poodle with a sun hat.",
+      "llm_description": "An incredibly elegant standard white poodle walking upright. She wears a wide-brimmed floral sun hat and a chic silk scarf. Her fur is perfectly manicured into rounded puffs.",
       "role": "Townsfolk",
       "race": "Poodle",
       "stats": {
@@ -429,6 +431,7 @@
       "target_id": "rocket",
       "unidentified_name": "Masked Bandit",
       "unidentified_description": "A small creature in a mask, chittering mischievously.",
+      "llm_description": "A scrappy, nimble raccoon wearing a tiny black domino mask over his eyes. He has a sly, mischievous grin and holds a half-eaten blueberry pie with purple stains around his mouth.",
       "role": "Antagonist / Friend",
       "race": "Raccoon",
       "stats": {
@@ -502,6 +505,7 @@
       "target_id": "mayor",
       "unidentified_name": "Pompous Lion",
       "unidentified_description": "A lion with a magnificent mane and a sash.",
+      "llm_description": "A majestic but slightly portly lion with a spectacularly styled, voluminous mane. He wears a tailored three-piece suit and a bright red sash that says 'MAYOR' in gold lettering.",
       "role": "Mayor",
       "race": "Lion",
       "stats": {
@@ -581,6 +585,7 @@
       "target_id": "barnaby",
       "unidentified_name": "Bulldog Officer",
       "unidentified_description": "A stern bulldog with a shiny badge (wrapper).",
+      "llm_description": "A stout, no-nonsense bulldog. He wears a vintage blue British police bobby helmet and a dark blue uniform. A very shiny, crinkled candy wrapper is pinned meticulously to his chest proudly like a badge.",
       "role": "Law Enforcement",
       "race": "Bulldog",
       "stats": {
@@ -661,6 +666,7 @@
       "target_id": "percy",
       "unidentified_name": "Blur of Fur",
       "unidentified_description": "A hare moving so fast he's barely visible.",
+      "llm_description": "A frantic, wirey hare with incredibly long ears trailing behind him in the wind. He wears an oversized leather mail satchel overflowing with envelopes, and a pair of tiny goggles resting on his forehead.",
       "role": "Postal Worker",
       "race": "Hare",
       "stats": {
@@ -738,6 +744,7 @@
       "target_id": "hoot",
       "unidentified_name": "Spectacled Owl",
       "unidentified_description": "A large owl peering over reading glasses.",
+      "llm_description": "A large, very round, very fluffy owl perched atop a stack of books. He wears thick, wire-rimmed half-moon spectacles perched precariously on his beak. He looks extremely tired.",
       "role": "Librarian",
       "race": "Owl",
       "stats": {
@@ -815,6 +822,7 @@
       "target_id": "gertie",
       "unidentified_name": "Angry Goose",
       "unidentified_description": "A white goose that looks ready to bite.",
+      "llm_description": "A pristine white goose wearing a frilly pink lace bonnet tied under her chin. Despite the cute hat, she has an extremely aggressive, territorial posture with wings half-extended and beak open mid-honk.",
       "role": "Gossip",
       "race": "Goose",
       "stats": {
@@ -882,6 +890,7 @@
       "target_id": "squiggles",
       "unidentified_name": "Beret Squirrel",
       "unidentified_description": "A red squirrel wearing a tiny artist's beret.",
+      "llm_description": "A hyperactive red squirrel wearing a slightly askew black velvet artist's beret. He carries a wooden palette covered in brightly colored paw-prints rather than brush strokes.",
       "role": "Artist",
       "race": "Red Squirrel",
       "stats": {
@@ -948,6 +957,7 @@
       "target_id": "mcgoat",
       "unidentified_name": "Old Goat",
       "unidentified_description": "An elderly goat chewing on a tin can.",
+      "llm_description": "An old, grizzled goat with patchy white fur, impressive curved horns, and a long wiry beard. He wears faded denim overalls and is aggressively chewing on a rusted tin can.",
       "role": "Farmer",
       "race": "Goat",
       "stats": {
@@ -1020,6 +1030,7 @@
       "target_id": "rocket_boss",
       "unidentified_name": "The Thief",
       "unidentified_description": "The masked bandit you've been chasing.",
+      "llm_description": "Rocket the raccoon, cornered and defensive. He clutches the remnants of a blueberry pie defensively, purple filling smeared across his domino mask.",
       "type": "beast",
       "description": "Fast and tricky.",
       "stats": {

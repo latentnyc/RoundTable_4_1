@@ -87,6 +87,7 @@ export interface Character {
     sheet_data?: Record<string, any>;
     control_mode?: 'human' | 'ai' | 'disabled';
     is_ai?: boolean;
+    inventory?: (string | Item)[];
 }
 
 export interface Campaign {
@@ -105,6 +106,7 @@ export interface Campaign {
     total_input_tokens?: number;
     total_output_tokens?: number;
     query_count?: number;
+    image_count?: number;
     template_id?: string;
 }
 

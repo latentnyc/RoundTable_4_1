@@ -12,15 +12,17 @@ export default function SceneVisPanel({ campaignId, locationName, description }:
     const [image, setImage] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const lastDescriptionRef = useRef<string | null>(null);
+    const lastLocationRef = useRef<string | null>(null);
 
     useEffect(() => {
         const generate = async () => {
-            // Avoid re-generating if description is same or empty
-            if (!description || description === lastDescriptionRef.current) return;
+            // Avoid re-generating if we are in the same location
+            if (!description || !locationName) return;
+            if (locationName === lastLocationRef.current) return;
 
-            lastDescriptionRef.current = description;
-            const promptToUse = description;
+            lastLocationRef.current = locationName;
+
+            const promptToUse = `Background Architecture: ${description} (CRITICAL: EXTRAPOLATE THE ROOM'S ARCHITECTURE ONLY. YOU MUST ENTIRELY IGNORE/OMIT ANY LIVING CHARACTERS, MONSTERS, OR PEOPLE MENTIONED IN THIS BACKGROUND DESCRIPTION). Foreground: View looking DOWN at the floor. The completely empty floor has NO monsters, characters, or upright forms.`;
 
             setLoading(true);
             setError(null);
@@ -40,7 +42,7 @@ export default function SceneVisPanel({ campaignId, locationName, description }:
         };
 
         generate();
-    }, [campaignId, description]);
+    }, [campaignId, description, locationName]);
 
     return (
         <div className="flex flex-col h-full bg-neutral-900/50 rounded-xl border border-neutral-800 overflow-hidden relative group">

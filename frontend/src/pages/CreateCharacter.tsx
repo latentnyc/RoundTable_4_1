@@ -2,19 +2,27 @@ import { useCreateCharacterStore } from '@/store/createCharacterStore';
 import { useCharacterStore } from '@/store/characterStore';
 import { useCampaignStore } from '@/store/campaignStore';
 import { useAuthStore } from '@/store/authStore';
-import { Save, Shield, Sword, Backpack, Activity, Dice5, AlertCircle, Plus, X, Trash2 } from 'lucide-react';
+import { Save, Shield, Sword, Backpack, Activity, Dice5, AlertCircle, Plus, X, Trash2, Loader2 } from 'lucide-react';
 import { itemsApi, compendiumApi, Item } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { SKILLS_LIST, Skill, Stat, RaceData, ClassData, BackgroundData } from '@/lib/srd-data';
 import { adaptRace, adaptClass, adaptBackground } from '@/lib/api-adapters';
+import { getDerivedAC } from '@/lib/rules/characterRules';
 
-export default function CreateCharacterPage() {
+interface CreateCharacterPageProps {
+    onClose?: () => void;
+    embedded?: boolean;
+    forceEditMode?: boolean;
+}
+
+export default function CreateCharacterPage({ onClose, embedded = false, forceEditMode = false }: CreateCharacterPageProps = {}) {
     const store = useCreateCharacterStore();
     const characterStore = useCharacterStore();
     const navigate = useNavigate();
     const [isSaving, setIsSaving] = useState(false);
+    const [showCloseConfirm, setShowCloseConfirm] = useState(false);
     const [mounted, setMounted] = useState(false);
     const [racesData, setRacesData] = useState<Record<string, RaceData>>({});
     const [classesData, setClassesData] = useState<Record<string, ClassData>>({});
@@ -23,7 +31,7 @@ export default function CreateCharacterPage() {
     const [loadingData, setLoadingData] = useState(true);
 
     const [searchParams] = useSearchParams();
-    const isEditMode = searchParams.get('edit') === 'true';
+    const isEditMode = forceEditMode || searchParams.get('edit') === 'true';
 
     useEffect(() => {
         if (!isEditMode) {
@@ -87,32 +95,6 @@ export default function CreateCharacterPage() {
                     const suffixes = ["a", "an", "ar", "or", "ius", "ia", "on", "in", "en", "el", "eth", "ath", "ith", "yx", "um", "us"];
                     const randomName = prefixes[Math.floor(Math.random() * prefixes.length)] + suffixes[Math.floor(Math.random() * suffixes.length)];
                     store.setField('name', randomName);
-
-                    try {
-                        const [armorResults, weaponResults, spellResults] = await Promise.all([
-                            itemsApi.search("Leather Armor"),
-                            itemsApi.search("Quarterstaff"),
-                            compendiumApi.searchSpells("Light")
-                        ]);
-
-                        const armor = armorResults.find(i => i.name === "Leather Armor");
-                        const weapon = weaponResults.find(i => i.name === "Quarterstaff");
-                        const spell = spellResults.find(i => i.name === "Light");
-
-                        const current = useCreateCharacterStore.getState();
-
-                        if (armor && !current.equipment.some(e => e.name === armor.name)) {
-                            store.addEquipment(armor);
-                        }
-                        if (weapon && !current.equipment.some(e => e.name === weapon.name)) {
-                            store.addEquipment(weapon);
-                        }
-                        if (spell && !current.spells.some(s => s.name === spell.name)) {
-                            store.addSpell(spell);
-                        }
-                    } catch (err) {
-                        console.error("Failed to pre-populate items", err);
-                    }
                 }
 
 
@@ -210,17 +192,33 @@ export default function CreateCharacterPage() {
 
     if (!mounted) return null;
 
+    const performClose = () => {
+        if (onClose) {
+            onClose();
+            return;
+        }
+        const campaignId = useCampaignStore.getState().selectedCampaignId;
+        if (campaignId) {
+            navigate(`/campaign_dash/${campaignId}`);
+        } else {
+            navigate('/campaign_start');
+        }
+    };
+
+    const handleClose = () => {
+        if (store.isDirty) {
+            setShowCloseConfirm(true);
+        } else {
+            performClose();
+        }
+    };
+
     const handleSave = async () => {
         setIsSaving(true);
         try {
             await store.submitCharacter();
             if (!store.error) {
-                const campaignId = useCampaignStore.getState().selectedCampaignId;
-                if (campaignId) {
-                    navigate(`/campaign_dash/${campaignId}`);
-                } else {
-                    navigate('/campaign_start');
-                }
+                performClose();
             }
         } catch (e) {
             // Error handled in store
@@ -253,9 +251,41 @@ export default function CreateCharacterPage() {
         return Object.entries(store.skills).filter(([s, v]) => v && !isSkillFromBg(s as Skill)).length;
     };
     const maxClassSkills = classData?.skills?.choose || 2;
+    const containerStyles = embedded
+        ? "bg-neutral-950 text-neutral-100 p-4 font-sans h-full overflow-y-auto w-full relative"
+        : "min-h-screen bg-neutral-950 text-neutral-100 p-4 lg:p-8 font-sans relative";
 
     return (
-        <div className="min-h-screen bg-neutral-950 text-neutral-100 p-4 lg:p-8 font-sans">
+        <div className={containerStyles}>
+            {/* Close Confirmation Modal */}
+            {showCloseConfirm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 shadow-2xl max-w-sm w-full animate-in zoom-in-95">
+                        <div className="flex items-center gap-3 mb-4 text-amber-500">
+                            <AlertCircle className="w-6 h-6" />
+                            <h2 className="text-xl font-bold">Unsaved Changes</h2>
+                        </div>
+                        <p className="text-neutral-400 mb-6 text-sm">
+                            You have unsaved changes. Are you sure you want to close this sheet? All unsaved data will be lost.
+                        </p>
+                        <div className="flex justify-end gap-3.5">
+                            <button
+                                onClick={() => setShowCloseConfirm(false)}
+                                className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded font-medium transition-colors text-sm"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={performClose}
+                                className="px-4 py-2 bg-red-600/20 hover:bg-red-600 border border-red-900 hover:border-red-600 text-red-500 hover:text-white rounded font-medium transition-colors text-sm"
+                            >
+                                Discard Changes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Background Atmosphere */}
             <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
                 <div className="absolute top-[-20%] left-[-10%] w-[60vw] h-[60vw] bg-purple-900/10 blur-[150px] rounded-full" />
@@ -293,13 +323,23 @@ export default function CreateCharacterPage() {
                             </div>
                         </div>
 
-                        <button
-                            onClick={handleSave}
-                            disabled={isSaving || store.isLoading}
-                            className="h-12 px-6 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-lg font-bold shadow-lg shadow-purple-900/30 transition-all hover:scale-105 disabled:opacity-50 disabled:scale-100 whitespace-nowrap flex items-center gap-2 self-start md:self-center"
-                        >
-                            {isSaving ? 'Processing...' : (store.editingId ? 'Update Character' : 'Save Character')} <Save className="w-5 h-5" />
-                        </button>
+                        <div className="flex gap-3 self-start md:self-center">
+                            <button
+                                onClick={handleClose}
+                                className="h-12 px-6 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 hover:border-neutral-500 text-neutral-300 hover:text-white rounded-lg font-bold transition-colors whitespace-nowrap flex items-center gap-2"
+                            >
+                                <X className="w-5 h-5" />
+                                Close
+                            </button>
+                            <button
+                                onClick={handleSave}
+                                disabled={isSaving || store.isLoading || !store.isDirty}
+                                className="h-12 px-6 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-lg font-bold shadow-lg shadow-purple-900/30 transition-all hover:scale-105 disabled:opacity-50 disabled:scale-100 whitespace-nowrap flex items-center gap-2"
+                            >
+                                {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                                {isSaving ? 'Saving...' : 'Save Sheet'}
+                            </button>
+                        </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t border-neutral-800/50">
                         {/* Race */}
@@ -483,9 +523,10 @@ export default function CreateCharacterPage() {
                                     <label className="text-xs font-bold text-neutral-500 uppercase block mb-1">AC</label>
                                     <input
                                         type="number"
-                                        value={store.ac}
-                                        onChange={(e) => store.setField('ac', parseInt(e.target.value) || 10)}
-                                        className="w-full bg-transparent text-center text-2xl font-bold text-white focus:outline-none"
+                                        value={getDerivedAC(store.stats, store.equipment, store.ac)}
+                                        readOnly
+                                        disabled
+                                        className="w-full bg-transparent text-center text-2xl font-bold text-white focus:outline-none cursor-not-allowed"
                                     />
                                 </div>
                                 <div className="bg-neutral-950/50 border border-neutral-800 rounded-lg p-3 text-center">
@@ -680,11 +721,75 @@ export default function CreateCharacterPage() {
                             }
 
                             {/* Equipment List */}
-                            <div className="bg-neutral-950/50 border border-neutral-800 rounded-lg p-2 h-64 overflow-y-auto custom-scrollbar space-y-2">
-                                {(Array.isArray(store.equipment) ? store.equipment : []).length === 0 && (
-                                    <div className="text-neutral-600 text-center py-8 text-sm italic">
-                                        No equipment added. Click + to add items.
+                            <div className="bg-neutral-950/50 border border-neutral-800 rounded-lg p-2 h-64 overflow-y-auto custom-scrollbar space-y-2 flex flex-col">
+                                {/* Currency */}
+                                <div className="flex gap-2 shrink-0 p-2 bg-neutral-900 border border-neutral-800 rounded justify-between font-mono text-xs font-bold text-amber-500">
+                                    <span>PP: {store.currency?.pp || 0}</span>
+                                    <span>GP: {store.currency?.gp || 0}</span>
+                                    <span>SP: {store.currency?.sp || 0}</span>
+                                    <span>CP: {store.currency?.cp || 0}</span>
+                                </div>
+
+                                {store.inventory?.length > 0 && (
+                                    <div className="space-y-1 shrink-0 pb-2 border-b border-neutral-800/50">
+                                        <div className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider px-1 mb-1">Backpack / Loot</div>
+                                        {(() => {
+                                            const groupedInventory = store.inventory.reduce((acc, item) => {
+                                                const isString = typeof item === 'string';
+                                                const itemId = isString ? item : (item as Item).id;
+                                                if (acc[itemId]) {
+                                                    acc[itemId].count += 1;
+                                                } else {
+                                                    acc[itemId] = { item, count: 1 };
+                                                }
+                                                return acc;
+                                            }, {} as Record<string, { item: string | Item, count: number }>);
+
+                                            return Object.values(groupedInventory).map(({ item, count }, groupIdx) => {
+                                                const isString = typeof item === 'string';
+                                                const itemId = isString ? item : (item as Item).id;
+                                                const itemName = isString
+                                                    ? item.replace(/^(wpn-|arm-|itm-|eqp-|item_)/i, '').replace(/[-_]/g, ' ')
+                                                    : (item as Item).name;
+
+                                                return (
+                                                    <div key={`inv-group-${groupIdx}`} className="bg-neutral-900 border border-neutral-800 rounded p-2 flex justify-between items-center group">
+                                                        <span className="font-bold text-sm text-indigo-300 flex items-center gap-2">
+                                                            {itemName}
+                                                            {count > 1 && (
+                                                                <span className="text-[10px] bg-neutral-800 text-neutral-400 px-1.5 py-0.5 rounded-full font-mono">x{count}</span>
+                                                            )}
+                                                        </span>
+                                                        <button
+                                                            onClick={() => {
+                                                                const copy = [...store.inventory];
+                                                                const idxToRemove = copy.findIndex(i => {
+                                                                    const iId = typeof i === 'string' ? i : (i as Item).id;
+                                                                    return iId === itemId;
+                                                                });
+                                                                if (idxToRemove !== -1) {
+                                                                    copy.splice(idxToRemove, 1);
+                                                                    store.setField('inventory', copy);
+                                                                }
+                                                            }}
+                                                            className="text-neutral-600 hover:text-red-400 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                                                        >
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                );
+                                            });
+                                        })()}
                                     </div>
+                                )}
+
+                                {(Array.isArray(store.equipment) ? store.equipment : []).length === 0 && (
+                                    <div className="text-neutral-600 text-center py-4 text-sm italic">
+                                        No system equipment added. Click + to search.
+                                    </div>
+                                )}
+                                {(Array.isArray(store.equipment) ? store.equipment : []).length > 0 && (
+                                    <div className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider px-1 mt-2 shrink-0">Official Gear</div>
                                 )}
                                 {(Array.isArray(store.equipment) ? store.equipment : []).map((item, idx) => {
                                     // Parse details

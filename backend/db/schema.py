@@ -96,6 +96,15 @@ game_states = Table(
     Column("updated_at", DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 )
 
+# IMAGE CACHE
+image_cache = Table(
+    "image_cache",
+    metadata,
+    Column("prompt_hash", String, primary_key=True),
+    Column("image_base64", Text, nullable=False),
+    Column("created_at", DateTime(timezone=True), server_default=func.now())
+)
+
 # CAMPAIGN PARTICIPANTS
 campaign_participants = Table(
     "campaign_participants",

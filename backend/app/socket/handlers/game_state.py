@@ -9,9 +9,11 @@ from db.session import AsyncSessionLocal
 from app.models import Player, Coordinates, GameState, Location
 from app.socket.decorators import socket_event_handler
 from app.services.chat_service import ChatService
+from app.services.context_builder import build_narrative_context
 from app.agents import get_dm_graph
 from app.callbacks import SocketIOCallbackHandler
 from langchain_core.messages import HumanMessage
+from app.services.game_service import GameService
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +26,14 @@ async def handle_join_campaign(sid, data, sio, connected_users):
 
     if not user_id or not campaign_id:
         return
+
+    # Check if user is already in a different campaign room (Stuck Socket / Reuse)
+    if sid in connected_users:
+        old_data = connected_users[sid]
+        old_campaign = old_data.get('campaign_id')
+        if old_campaign and old_campaign != campaign_id:
+            logger.info(f"[Socket] User {user_id} switching campaigns: Leaving {old_campaign}, Joining {campaign_id}")
+            await sio.leave_room(sid, old_campaign)
 
     # Store session info
     connected_users[sid] = data
@@ -99,14 +109,9 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                 logger.info(f"[DEBUG] Synced character {player_char.name} ({player_char.id})")
 
             # 3. Load Game State (or init)
-            result = await db.execute(
-                text("SELECT state_data FROM game_states WHERE campaign_id = :campaign_id ORDER BY turn_index DESC, updated_at DESC LIMIT 1"),
-                {"campaign_id": campaign_id}
-            )
-            state_row = result.mappings().fetchone()
+            game_state = await GameService.get_game_state(campaign_id, db)
 
-            if state_row:
-                game_state = GameState(**json.loads(state_row['state_data']))
+            if game_state:
                 # Fix for existing campaigns with generic default description
                 if game_state.location.description == "A new adventure begins.":
                     logger.info("[DEBUG] Clearing generic default description for existing campaign.")
@@ -176,6 +181,12 @@ async def handle_join_campaign(sid, data, sio, connected_users):
             await sio.emit('game_state_update', game_state.model_dump(), room=campaign_id)
 
     except Exception as e:
+        import traceback
+        if 'db' in locals() and db is not None:
+            try:
+                await db.rollback()
+            except Exception:
+                pass # Session might not be initialized or active
         logger.error(f"Error in join_campaign logic: {e}")
         logger.error(traceback.format_exc())
 
@@ -209,7 +220,7 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                 'sender_id': row['sender_id'],
                 'sender_name': row['sender_name'],
                 'content': row['content'],
-                'timestamp': row['created_at'],
+                'timestamp': row['created_at'].isoformat() if row['created_at'] else None,
                 'is_system': row['sender_id'] == 'system'
             })
 
@@ -281,40 +292,22 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                     if s_row:
                         gs = GameState(**json.loads(s_row['state_data']))
 
-                        location_txt = f"{gs.location.name}: {gs.location.description}"
-                        party_txt = ", ".join([f"{p.name} ({p.race} {p.role})" for p in gs.party])
-
-                        # Present NPCs
-                        npc_list_txt = "None visible."
-                        if gs.npcs:
-                            npc_entries = []
-                            for n in gs.npcs:
-                                # Use unidentified name if not identified, though typically for DM context we might want both or real name
-                                # For the opening scene context, giving the DM the real name + role is helpful
-                                entry = f"{n.name} ({n.role})"
-                                if n.unidentified_name:
-                                    entry += f" - appears as {n.unidentified_name}"
-                                npc_entries.append(entry)
-                            npc_list_txt = ", ".join(npc_entries)
+                        rich_context = await build_narrative_context(db, campaign_id, gs)
 
                         opening_prompt = f"""
                         You are the Dungeon Master for a campaign described as: "{camp_description}"
                         The party has just gathered for the first time.
 
                         CAMPAIGN START
-                        Location: {location_txt}
-                        Party: {party_txt}
-
-                        NPCS PRESENT:
-                        {npc_list_txt}
+                        {rich_context}
 
                         {starting_npc_info if not gs.npcs else ""}
 
                         TASK:
                         1. Welcome the players to the campaign.
-                        2. Describe the scene vividly, utilizing the location description and the mood.
-                        3. Introduce/Acknowledge the party members present ({party_txt}).
-                        4. Introduce/Acknowledge the NPCs present ({npc_list_txt}).
+                        2. Describe the scene vividly, utilizing the location description, visible paths, and any interactables like doors.
+                        3. Introduce/Acknowledge the party members present.
+                        4. Introduce/Acknowledge any NPCs or enemies present.
                         5. Do NOT ask "What do you do?" or provide an immediate hook for action.
                         6. Simply set the scene and report who is present, letting the players soak in the atmosphere.
 

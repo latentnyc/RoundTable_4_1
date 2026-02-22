@@ -6,14 +6,17 @@ from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from app.agents import get_dm_graph
 
 # Load environment variables
-import aiosqlite
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy import text
 
 async def get_db_key():
-    async with aiosqlite.connect("game.db") as db:
-        async with db.execute("SELECT api_key FROM campaigns WHERE api_key IS NOT NULL LIMIT 1") as cursor:
-            row = await cursor.fetchone()
-            if row: return row[0]
-            return None
+    url = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:roundtable_dev_2024@127.0.0.1:5432/postgres")
+    engine = create_async_engine(url)
+    async with engine.connect() as conn:
+        result = await conn.execute(text("SELECT api_key FROM campaigns WHERE api_key IS NOT NULL LIMIT 1"))
+        row = result.fetchone()
+        if row: return row[0]
+        return None
 
 async def verify_fix():
     api_key = await get_db_key()
