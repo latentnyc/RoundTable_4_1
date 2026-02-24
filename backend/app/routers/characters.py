@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 import logging
 from ..dependencies import get_db
+from ..permissions import verify_token
 from ..dtos import CreateCharacterRequest, CharacterResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 import json
 from uuid import uuid4
 
@@ -11,7 +13,7 @@ router = APIRouter(prefix="/characters", tags=["characters"])
 logger = logging.getLogger(__name__)
 
 @router.post("/", response_model=CharacterResponse)
-async def create_character(req: CreateCharacterRequest, db: AsyncSession = Depends(get_db)):
+async def create_character(req: CreateCharacterRequest, user: dict = Depends(verify_token), db: AsyncSession = Depends(get_db)):
     if not req.campaign_id:
         raise HTTPException(status_code=400, detail="Campaign ID is required to create a character.")
 
@@ -57,7 +59,7 @@ async def create_character(req: CreateCharacterRequest, db: AsyncSession = Depen
     )
 
 @router.get("/user/{user_id}", response_model=list[CharacterResponse])
-async def get_user_characters(user_id: str, campaign_id: str | None = None, db: AsyncSession = Depends(get_db)):
+async def get_user_characters(user_id: str, campaign_id: str | None = None, user: dict = Depends(verify_token), db: AsyncSession = Depends(get_db)):
     if campaign_id:
         result = await db.execute(text("SELECT * FROM characters WHERE user_id = :user_id AND campaign_id = :campaign_id"), {"user_id": user_id, "campaign_id": campaign_id})
     else:
@@ -84,7 +86,7 @@ async def get_user_characters(user_id: str, campaign_id: str | None = None, db: 
     ]
 
 @router.delete("/{character_id}")
-async def delete_character(character_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_character(character_id: str, user: dict = Depends(verify_token), db: AsyncSession = Depends(get_db)):
     # Check if exists
     result = await db.execute(text("SELECT * FROM characters WHERE id = :id"), {"id": character_id})
     row = result.mappings().fetchone()
@@ -96,7 +98,7 @@ async def delete_character(character_id: str, db: AsyncSession = Depends(get_db)
     return {"message": "Character deleted successfully"}
 
 @router.patch("/{character_id}", response_model=CharacterResponse)
-async def update_character(character_id: str, req: CreateCharacterRequest | dict, db: AsyncSession = Depends(get_db)):
+async def update_character(character_id: str, req: CreateCharacterRequest | dict, user: dict = Depends(verify_token), db: AsyncSession = Depends(get_db)):
     # Note: Using CreateCharacterRequest | dict is a bit loose, ideally use UpdateCharacterRequest
     # But for now let's just accept a partial update if we can, or strict.
     # Let's use the actual UpdateCharacterRequest we defined in DTOs.
