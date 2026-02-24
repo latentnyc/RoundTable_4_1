@@ -1,10 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { useSocketStore, DebugLogItem } from '@/lib/socket';
+import { useSocketContext } from '@/lib/SocketProvider';
 import { useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 
 export default function LogViewer() {
-    const { debugLogs, clearLogs, connect, disconnect, isConnected } = useSocketStore();
+    const debugLogs = useSocketStore(state => state.debugLogs);
+    const { socket, isConnected } = useSocketContext();
     const { user } = useAuthStore();
     const [searchParams] = useSearchParams();
     const campaignId = searchParams.get('campaignId');
@@ -12,16 +14,12 @@ export default function LogViewer() {
 
     // Connect to socket on mount
     useEffect(() => {
-        if (campaignId && user?.uid) {
-            connect(campaignId, user.uid);
-            useSocketStore.getState().fetchLogs(campaignId);
+        if (campaignId && user?.uid && socket && isConnected) {
+            // Emitting get_logs once connected
+            socket.emit('get_logs', { campaign_id: campaignId });
         }
-
-        return () => {
-            disconnect();
-        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [campaignId, user?.uid]);
+    }, [campaignId, user?.uid, socket, isConnected]);
     // We only want to trigger this once or when IDs change, not when `connect` changes reference (though it shouldn't)
 
     // Auto-scroll
@@ -75,7 +73,11 @@ export default function LogViewer() {
                 <div className="flex items-center gap-2">
                     <span className="text-[10px] text-neutral-600 uppercase tracking-wider">{campaignId.slice(0, 8)}...</span>
                     <button
-                        onClick={clearLogs}
+                        onClick={() => {
+                            if (socket && campaignId) {
+                                socket.emit('clear_logs', { campaign_id: campaignId });
+                            }
+                        }}
                         className="px-2 py-1 bg-red-900/30 text-red-400 rounded hover:bg-red-900/50 transition-colors"
                     >
                         Clear Logs

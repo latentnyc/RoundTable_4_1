@@ -59,7 +59,7 @@ async def test_identification():
     )
 
     # Mock get_game_state to return our mock state
-    with patch('app.services.game_service.GameService.get_game_state', new_callable=AsyncMock) as mock_get:
+    with patch('app.services.state_service.StateService.get_game_state', new_callable=AsyncMock) as mock_get:
         mock_get.return_value = mock_game_state
 
         # Mock update_npc_field

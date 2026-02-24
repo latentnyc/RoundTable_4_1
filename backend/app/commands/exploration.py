@@ -1,6 +1,7 @@
 from typing import List
 from .base import Command, CommandContext
 from app.services.game_service import GameService
+from app.services.loot_service import LootService
 from app.services.chat_service import ChatService
 from app.services.narrator_service import NarratorService
 from app.services.turn_manager import TurnManager
@@ -56,7 +57,7 @@ class MoveCommand(Command):
                     await TurnManager.process_turn(ctx.campaign_id, opp_state.active_entity_id, opp_state, ctx.sio, db=ctx.db)
 class IdentifyCommand(Command):
     name = "identify"
-    aliases = ["id", "examine", "investigate"]
+    aliases = ["id", "examine", "investigate", "inspect"]
     description = "Investigate an entity to learn its true nature."
     args_help = "<target_name>"
 
@@ -98,3 +99,60 @@ class IdentifyCommand(Command):
             sid=ctx.sid
         )
         await ctx.db.commit()
+
+class EquipCommand(Command):
+    name = "equip"
+    aliases = ["eq", "wield", "wear"]
+    description = "Equip an item from your backpack."
+    args_help = "<item_name>"
+
+    async def execute(self, ctx: CommandContext, args: List[str]):
+        if not args:
+            await ctx.sio.emit('system_message', {'content': f"Usage: @{self.name} {self.args_help}"}, room=ctx.campaign_id)
+            return
+
+        item_name = " ".join(args)
+
+        # Basic ID lookup by replacing spaces with hyphens, real implementation might do fuzzy matching
+        item_id = item_name.lower().replace(' ', '-')
+        if not (item_id.startswith('wpn-') or item_id.startswith('arm-') or item_id.startswith('itm-')):
+             # Naive fallback: try wpn- first
+             item_id = f"wpn-{item_id}"
+
+        result = await LootService.equip_item(ctx.campaign_id, ctx.sender_id, item_id, True, ctx.db)
+
+        if result['success']:
+            await ctx.sio.emit('system_message', {'content': f"**{ctx.sender_name}** equipped **{item_name.title()}**."}, room=ctx.campaign_id)
+            game_state = await GameService.get_game_state(ctx.campaign_id, ctx.db)
+            if game_state:
+                 await ctx.sio.emit('game_state_update', game_state.model_dump(), room=ctx.campaign_id)
+        else:
+            await ctx.sio.emit('system_message', {'content': result.get('message', "Failed to equip item.")}, room=ctx.campaign_id)
+
+class UnequipCommand(Command):
+    name = "unequip"
+    aliases = ["uneq", "remove", "doff"]
+    description = "Remove an equipped item."
+    args_help = "<item_name>"
+
+    async def execute(self, ctx: CommandContext, args: List[str]):
+        if not args:
+            await ctx.sio.emit('system_message', {'content': f"Usage: @{self.name} {self.args_help}"}, room=ctx.campaign_id)
+            return
+
+        item_name = " ".join(args)
+
+        # Basic ID lookup
+        item_id = item_name.lower().replace(' ', '-')
+        if not (item_id.startswith('wpn-') or item_id.startswith('arm-') or item_id.startswith('itm-')):
+             item_id = f"wpn-{item_id}"
+
+        result = await LootService.equip_item(ctx.campaign_id, ctx.sender_id, item_id, False, ctx.db)
+
+        if result['success']:
+            await ctx.sio.emit('system_message', {'content': f"**{ctx.sender_name}** unequipped **{item_name.title()}**."}, room=ctx.campaign_id)
+            game_state = await GameService.get_game_state(ctx.campaign_id, ctx.db)
+            if game_state:
+                 await ctx.sio.emit('game_state_update', game_state.model_dump(), room=ctx.campaign_id)
+        else:
+            await ctx.sio.emit('system_message', {'content': result.get('message', "Failed to unequip item.")}, room=ctx.campaign_id)

@@ -2,8 +2,9 @@ import { useCreateCharacterStore } from '@/store/createCharacterStore';
 import { useCharacterStore } from '@/store/characterStore';
 import { useCampaignStore } from '@/store/campaignStore';
 import { useAuthStore } from '@/store/authStore';
-import { Save, Shield, Sword, Backpack, Activity, Dice5, AlertCircle, Plus, X, Trash2, Loader2 } from 'lucide-react';
+import { Save, Shield, Sword, Backpack, Activity, Dice5, AlertCircle, Plus, X, Trash2, Loader2, Component, Hand, Gem } from 'lucide-react';
 import { itemsApi, compendiumApi, Item } from '@/lib/api';
+import { useSocketContext } from '@/lib/SocketProvider';
 import { cn } from '@/lib/utils';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
@@ -20,6 +21,7 @@ interface CreateCharacterPageProps {
 export default function CreateCharacterPage({ onClose, embedded = false, forceEditMode = false }: CreateCharacterPageProps = {}) {
     const store = useCreateCharacterStore();
     const characterStore = useCharacterStore();
+    const { socket } = useSocketContext();
     const navigate = useNavigate();
     const [isSaving, setIsSaving] = useState(false);
     const [showCloseConfirm, setShowCloseConfirm] = useState(false);
@@ -188,6 +190,127 @@ export default function CreateCharacterPage({ onClose, embedded = false, forceEd
         store.addEquipment(item);
         setShowItemSearch(false);
         setItemQuery('');
+    };
+
+    // Drag and Drop Mechanics
+    const handleEquipToggle = (itemId: string, isEquip: boolean, targetSlot?: string) => {
+        // Optimistic local update
+        const equipList = Array.isArray(store.equipment) ? [...store.equipment] : [];
+        const invList = Array.isArray(store.inventory) ? [...store.inventory] : [];
+
+        if (isEquip) {
+            // Move from inventory to equipment
+            const itemIdx = invList.findIndex(i => (typeof i === 'string' ? i : i.id) === itemId);
+            if (itemIdx > -1) {
+                let item = invList[itemIdx];
+                invList.splice(itemIdx, 1);
+
+                // Mock an item object if it's just a string ID
+                if (typeof item === 'string') {
+                    item = {
+                        id: item,
+                        name: item.replace(/^(wpn-|arm-|itm-|eqp-|item_)/i, '').replace(/[-_]/g, ' '),
+                        type: 'Unknown',
+                        data: {}
+                    } as any;
+                }
+
+                const itemObj = item as Item;
+                let canEquip = true;
+
+                if (!embedded) {
+                    const isTwoHanded = itemObj.data?.properties?.some((p: any) => p.index === 'two-handed');
+                    const isWeapon = itemObj.type === 'Weapon';
+                    const isShield = itemObj.data?.type === 'Shield';
+                    const isArmor = itemObj.type === 'Armor';
+                    const isAccessory = !isWeapon && !isArmor && !isShield;
+
+                    const equippedMain = equipList.find(i => i.type === 'Weapon' && !i.data?.properties?.some((p: any) => p.index === 'two-handed'));
+                    const equippedTwoHander = equipList.find(i => i.type === 'Weapon' && i.data?.properties?.some((p: any) => p.index === 'two-handed'));
+                    const equippedOff = equipList.find(i => i.data?.type === 'Shield' || (i.type === 'Weapon' && i !== equippedMain && i !== equippedTwoHander));
+                    const equippedArmor = equipList.find(i => i.type === 'Armor');
+                    const equippedAccessory = equipList.find(i => !['Weapon', 'Armor'].includes(i.type || '') && i.data?.type !== 'Shield');
+
+                    if (targetSlot === 'main_hand' || targetSlot === 'off_hand') {
+                        if (!isWeapon && !isShield) canEquip = false;
+                        if (isTwoHanded) {
+                            if (equippedMain || equippedTwoHander || equippedOff) canEquip = false;
+                        } else {
+                            if (equippedTwoHander) canEquip = false;
+                            else if (targetSlot === 'main_hand' && equippedMain) canEquip = false;
+                            else if (targetSlot === 'off_hand' && equippedOff) canEquip = false;
+                        }
+                    } else if (targetSlot === 'armor') {
+                        if (!isArmor || equippedArmor) canEquip = false;
+                    } else if (targetSlot === 'accessory') {
+                        if (!isAccessory || equippedAccessory) canEquip = false;
+                    } else if (!targetSlot) {
+                        if (isArmor && equippedArmor) canEquip = false;
+                        else if (isAccessory && equippedAccessory) canEquip = false;
+                        else if (isWeapon) {
+                            if (isTwoHanded && (equippedMain || equippedTwoHander || equippedOff)) canEquip = false;
+                            else if (!isTwoHanded && equippedTwoHander) canEquip = false;
+                            else if (!isTwoHanded && equippedMain && equippedOff) canEquip = false;
+                        } else if (isShield) {
+                            if (equippedTwoHander || equippedOff) canEquip = false;
+                        }
+                    }
+                }
+
+                if (canEquip) {
+                    equipList.push(itemObj);
+                    store.setField('equipment', equipList);
+                    store.setField('inventory', invList);
+                } else {
+                    invList.push(itemObj);
+                }
+            }
+        } else {
+            // Move from equipment to inventory
+            const itemIdx = equipList.findIndex(i => i.id === itemId);
+            if (itemIdx > -1) {
+                const item = equipList[itemIdx];
+                equipList.splice(itemIdx, 1);
+                invList.push(item);
+                store.setField('equipment', equipList);
+                store.setField('inventory', invList);
+            }
+        }
+
+        if (!embedded || !socket) return;
+
+        const charId = characterStore.activeCharacter?.id;
+        if (!charId) return;
+
+        socket.emit('equip_item', {
+            actor_id: charId,
+            item_id: itemId,
+            is_equip: isEquip,
+            target_slot: targetSlot
+        });
+    };
+
+    const handleDragStart = (e: React.DragEvent, itemId: string) => {
+        e.dataTransfer.setData('itemId', itemId);
+        e.dataTransfer.effectAllowed = 'move';
+    };
+
+    const handleDropOnSlot = (e: React.DragEvent, targetSlot?: string) => {
+        e.preventDefault();
+        const itemId = e.dataTransfer.getData('itemId');
+        if (!itemId) return;
+        handleEquipToggle(itemId, true, targetSlot);
+    };
+
+    const handleDropOnBackpack = (e: React.DragEvent) => {
+        e.preventDefault();
+        const itemId = e.dataTransfer.getData('itemId');
+        if (!itemId) return;
+        handleEquipToggle(itemId, false);
+    };
+
+    const allowDrop = (e: React.DragEvent) => {
+        e.preventDefault();
     };
 
     if (!mounted) return null;
@@ -720,124 +843,186 @@ export default function CreateCharacterPage({ onClose, embedded = false, forceEd
                                 )
                             }
 
-                            {/* Equipment List */}
-                            <div className="bg-neutral-950/50 border border-neutral-800 rounded-lg p-2 h-64 overflow-y-auto custom-scrollbar space-y-2 flex flex-col">
-                                {/* Currency */}
-                                <div className="flex gap-2 shrink-0 p-2 bg-neutral-900 border border-neutral-800 rounded justify-between font-mono text-xs font-bold text-amber-500">
-                                    <span>PP: {store.currency?.pp || 0}</span>
-                                    <span>GP: {store.currency?.gp || 0}</span>
-                                    <span>SP: {store.currency?.sp || 0}</span>
-                                    <span>CP: {store.currency?.cp || 0}</span>
-                                </div>
+                            {/* Equipment & Backpack Container */}
+                            <div className="flex flex-col gap-4">
+                                {/* Equipment - Paper Doll */}
+                                <div className="bg-neutral-950/50 p-4 rounded-xl border border-neutral-800 flex flex-col">
+                                    <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-3 pb-1 border-b border-neutral-800 flex items-center justify-between flex-shrink-0">
+                                        <span className="flex items-center gap-2"><Component className="w-4 h-4" /> Equipped</span>
+                                        <span className="bg-neutral-900 px-2 py-0.5 rounded-full text-neutral-600">{(store.equipment || []).length}</span>
+                                    </h3>
 
-                                {store.inventory?.length > 0 && (
-                                    <div className="space-y-1 shrink-0 pb-2 border-b border-neutral-800/50">
-                                        <div className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider px-1 mb-1">Backpack / Loot</div>
+                                    <div className="grid grid-cols-2 gap-3 mt-2">
                                         {(() => {
-                                            const groupedInventory = store.inventory.reduce((acc, item) => {
-                                                const isString = typeof item === 'string';
-                                                const itemId = isString ? item : (item as Item).id;
-                                                if (acc[itemId]) {
-                                                    acc[itemId].count += 1;
-                                                } else {
-                                                    acc[itemId] = { item, count: 1 };
+                                            const equipment = Array.isArray(store.equipment) ? store.equipment : [];
+                                            const slots = [
+                                                { id: 'main_hand', label: 'Main Hand', accept: 'Weapon', icon: <Hand className="w-4 h-4" /> },
+                                                { id: 'off_hand', label: 'Off Hand', accept: 'Shield', icon: <Hand className="w-4 h-4" /> },
+                                                { id: 'armor', label: 'Armor', accept: 'Armor', icon: <Shield className="w-4 h-4" /> },
+                                                { id: 'accessory', label: 'Accessory', accept: 'Item', icon: <Gem className="w-4 h-4" /> }
+                                            ];
+
+                                            const slotted: Record<string, Item> = {};
+                                            for (const e of equipment) {
+                                                if (e.data?.type === 'Shield') slotted['off_hand'] = e;
+                                                else if (e.type === 'Armor') slotted['armor'] = e;
+                                                else if (e.type === 'Weapon') {
+                                                    if (!slotted['main_hand']) slotted['main_hand'] = e;
+                                                    else if (!slotted['off_hand']) slotted['off_hand'] = e;
+                                                    else if (!slotted['accessory']) slotted['accessory'] = e;
                                                 }
-                                                return acc;
-                                            }, {} as Record<string, { item: string | Item, count: number }>);
+                                                else if (!slotted['accessory']) slotted['accessory'] = e;
+                                            }
 
-                                            return Object.values(groupedInventory).map(({ item, count }, groupIdx) => {
-                                                const isString = typeof item === 'string';
-                                                const itemId = isString ? item : (item as Item).id;
-                                                const itemName = isString
-                                                    ? item.replace(/^(wpn-|arm-|itm-|eqp-|item_)/i, '').replace(/[-_]/g, ' ')
-                                                    : (item as Item).name;
-
+                                            return slots.map(slot => {
+                                                const item = slotted[slot.id];
                                                 return (
-                                                    <div key={`inv-group-${groupIdx}`} className="bg-neutral-900 border border-neutral-800 rounded p-2 flex justify-between items-center group">
-                                                        <span className="font-bold text-sm text-indigo-300 flex items-center gap-2">
-                                                            {itemName}
-                                                            {count > 1 && (
-                                                                <span className="text-[10px] bg-neutral-800 text-neutral-400 px-1.5 py-0.5 rounded-full font-mono">x{count}</span>
-                                                            )}
-                                                        </span>
-                                                        <button
-                                                            onClick={() => {
-                                                                const copy = [...store.inventory];
-                                                                const idxToRemove = copy.findIndex(i => {
-                                                                    const iId = typeof i === 'string' ? i : (i as Item).id;
-                                                                    return iId === itemId;
-                                                                });
-                                                                if (idxToRemove !== -1) {
-                                                                    copy.splice(idxToRemove, 1);
-                                                                    store.setField('inventory', copy);
-                                                                }
-                                                            }}
-                                                            className="text-neutral-600 hover:text-red-400 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                                                        >
-                                                            <Trash2 className="w-3.5 h-3.5" />
-                                                        </button>
+                                                    <div
+                                                        key={slot.id}
+                                                        className={cn(
+                                                            "border-2 border-dashed rounded-lg p-3 min-h-[70px] flex flex-col items-center justify-center relative group transition-colors",
+                                                            item ? "border-purple-600/50 bg-neutral-900" : "border-neutral-800 bg-neutral-950/30",
+                                                        )}
+                                                        onDragOver={allowDrop}
+                                                        onDrop={(e) => handleDropOnSlot(e, slot.id)}
+                                                    >
+                                                        {!item ? (
+                                                            <div className="flex flex-col items-center justify-center text-neutral-600">
+                                                                {slot.icon}
+                                                                <span className="text-[10px] mt-1 font-medium">{slot.label}</span>
+                                                            </div>
+                                                        ) : (
+                                                            <div
+                                                                className="w-full h-full flex flex-col cursor-grab active:cursor-grabbing"
+                                                                draggable
+                                                                onDragStart={(e) => handleDragStart(e, item.id)}
+                                                            >
+                                                                <div className="font-bold text-xs text-neutral-300 group-hover:text-white transition-colors truncate w-full text-center" title={item.name}>{item.name}</div>
+                                                                <div className="flex justify-center gap-1 mt-1">
+                                                                    {item.data?.armor_class && (
+                                                                        <span className="text-[9px] font-mono text-blue-400 bg-blue-950/30 px-1.5 py-0.5 rounded">
+                                                                            AC {item.data.armor_class.base}
+                                                                        </span>
+                                                                    )}
+                                                                    {item.data?.damage && (
+                                                                        <span className="text-[9px] font-mono text-red-400 bg-red-950/30 px-1.5 py-0.5 rounded">
+                                                                            {item.data.damage.damage_dice}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                {embedded ? (
+                                                                    <button
+                                                                        onClick={() => handleEquipToggle(item.id, false)}
+                                                                        className="absolute -top-1.5 -right-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 p-0.5 rounded-full transition-colors opacity-0 group-hover:opacity-100 shadow-md border border-neutral-700"
+                                                                        title="Unequip"
+                                                                    >
+                                                                        <X className="w-3 h-3" />
+                                                                    </button>
+                                                                ) : (
+                                                                    <button
+                                                                        onClick={() => store.removeEquipment(item.id)}
+                                                                        className="absolute -top-1.5 -right-1.5 bg-neutral-800 hover:bg-red-900/50 text-neutral-400 hover:text-red-400 p-0.5 rounded-full transition-colors opacity-0 group-hover:opacity-100 shadow-md border border-neutral-700"
+                                                                        title="Remove completely"
+                                                                    >
+                                                                        <Trash2 className="w-3 h-3" />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 );
                                             });
                                         })()}
                                     </div>
-                                )}
+                                </div>
 
-                                {(Array.isArray(store.equipment) ? store.equipment : []).length === 0 && (
-                                    <div className="text-neutral-600 text-center py-4 text-sm italic">
-                                        No system equipment added. Click + to search.
+                                {/* Backpack */}
+                                <div
+                                    className="bg-neutral-950/50 p-4 rounded-xl border border-neutral-800 flex flex-col max-h-[300px]"
+                                    onDragOver={allowDrop}
+                                    onDrop={handleDropOnBackpack}
+                                >
+                                    <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-3 pb-1 border-b border-neutral-800 flex items-center justify-between flex-shrink-0">
+                                        <span className="flex items-center gap-2"><Backpack className="w-4 h-4" /> Backpack</span>
+                                        <span className="bg-neutral-900 px-2 py-0.5 rounded-full text-neutral-600">{(store.inventory || []).length}</span>
+                                    </h3>
+
+                                    {/* Currency */}
+                                    <div className="flex gap-2 shrink-0 p-2 mb-2 bg-neutral-900 border border-neutral-800 rounded justify-between font-mono text-xs font-bold text-amber-500">
+                                        <span>PP: {store.currency?.pp || 0}</span>
+                                        <span>GP: {store.currency?.gp || 0}</span>
+                                        <span>SP: {store.currency?.sp || 0}</span>
+                                        <span>CP: {store.currency?.cp || 0}</span>
                                     </div>
-                                )}
-                                {(Array.isArray(store.equipment) ? store.equipment : []).length > 0 && (
-                                    <div className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider px-1 mt-2 shrink-0">Official Gear</div>
-                                )}
-                                {(Array.isArray(store.equipment) ? store.equipment : []).map((item, idx) => {
-                                    // Parse details
-                                    const cost = item.data.cost ? `${item.data.cost.quantity} ${item.data.cost.unit}` : null;
-                                    const weight = item.data.weight ? `${item.data.weight} lb` : null;
-                                    const damage = item.data.damage ? `${item.data.damage.damage_dice} ${item.data.damage.damage_type?.name}` : null;
-                                    const ac = item.data.armor_class ? `AC ${item.data.armor_class.base}` : null;
-                                    const props = item.data.properties ? item.data.properties.map((p: any) => p.name).join(', ') : null;
 
-                                    return (
-                                        <div key={item.id + idx} className="bg-neutral-900 border border-neutral-800 rounded p-2 flex flex-col gap-1 group relative">
-                                            <div className="flex justify-between items-start">
-                                                <span className="font-bold text-sm text-neutral-200">{item.name}</span>
-                                                <button
-                                                    onClick={() => store.removeEquipment(item.id)}
-                                                    className="text-neutral-600 hover:text-red-400 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2"
-                                                >
-                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                </button>
-                                            </div>
+                                    <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1">
+                                        {(!store.inventory || store.inventory.length === 0) ? (
+                                            <p className="text-sm text-neutral-600 italic text-center py-4">Backpack is empty.</p>
+                                        ) : (
+                                            (() => {
+                                                const groupedInventory = store.inventory.reduce((acc, item) => {
+                                                    const isString = typeof item === 'string';
+                                                    const itemId = isString ? item : (item as Item).id;
+                                                    if (acc[itemId]) {
+                                                        acc[itemId].count += 1;
+                                                    } else {
+                                                        acc[itemId] = { item, count: 1 };
+                                                    }
+                                                    return acc;
+                                                }, {} as Record<string, { item: string | Item, count: number }>);
 
-                                            <div className="flex flex-wrap gap-2 text-[10px] text-neutral-500 uppercase font-mono">
-                                                {item.type && <span className="bg-neutral-800 px-1 rounded">{item.type}</span>}
-                                                {cost && <span>{cost}</span>}
-                                                {weight && <span>{weight}</span>}
-                                            </div>
+                                                return Object.values(groupedInventory).map(({ item, count }, idx) => {
+                                                    const isString = typeof item === 'string';
+                                                    const itemId = isString ? item : (item as Item).id;
+                                                    const itemName = isString
+                                                        ? item.replace(/^(wpn-|arm-|itm-|eqp-|item_)/i, '').replace(/[-_]/g, ' ')
+                                                        : (item as Item).name;
 
-                                            {(damage || ac) && (
-                                                <div className="text-xs text-indigo-300 font-medium flex gap-2">
-                                                    {damage && <span>{damage}</span>}
-                                                    {ac && <span>{ac}</span>}
-                                                </div>
-                                            )}
-
-                                            {props && (
-                                                <div className="text-[10px] text-neutral-400 italic">
-                                                    {props}
-                                                </div>
-                                            )}
-
-                                            {item.data.desc && Array.isArray(item.data.desc) && (
-                                                <div className="text-[10px] text-neutral-500 line-clamp-2 hover:line-clamp-none cursor-help">
-                                                    {item.data.desc.join(' ')}
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
+                                                    return (
+                                                        <div
+                                                            key={idx}
+                                                            className="bg-neutral-900 border border-neutral-800 rounded p-2 flex justify-between items-center group transition-colors cursor-grab active:cursor-grabbing hover:border-purple-600/50"
+                                                            draggable
+                                                            onDragStart={(e) => handleDragStart(e, itemId)}
+                                                        >
+                                                            <span className="text-sm text-neutral-300 font-medium capitalize group-hover:text-white transition-colors flex items-center gap-2">
+                                                                {itemName}
+                                                                {count > 1 && (
+                                                                    <span className="text-[10px] bg-neutral-800 text-neutral-400 px-1.5 py-0.5 rounded-full font-mono">x{count}</span>
+                                                                )}
+                                                            </span>
+                                                            {embedded ? (
+                                                                <button
+                                                                    onClick={() => handleEquipToggle(itemId, true)}
+                                                                    className="text-[10px] bg-purple-900/40 hover:bg-purple-800/60 text-purple-300 px-2 py-1 rounded transition-colors opacity-0 md:group-hover:opacity-100"
+                                                                >
+                                                                    Equip
+                                                                </button>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const copy = [...store.inventory];
+                                                                        const idxToRemove = copy.findIndex(i => {
+                                                                            const iId = typeof i === 'string' ? i : (i as Item).id;
+                                                                            return iId === itemId;
+                                                                        });
+                                                                        if (idxToRemove !== -1) {
+                                                                            copy.splice(idxToRemove, 1);
+                                                                            store.setField('inventory', copy);
+                                                                        }
+                                                                    }}
+                                                                    className="text-neutral-600 hover:text-red-400 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                >
+                                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                });
+                                            })()
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         </section >
 

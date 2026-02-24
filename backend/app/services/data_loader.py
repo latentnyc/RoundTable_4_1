@@ -6,6 +6,7 @@ import traceback
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..dependencies import get_db
+from sqlalchemy.exc import SQLAlchemyError
 from db.session import AsyncSessionLocal
 
 # Define paths relative to this file
@@ -34,8 +35,8 @@ async def is_dataset_loaded(db: AsyncSession):
         count_monsters = result_monsters.scalar()
 
         return count_spells > 0 and count_monsters > 0
-    except Exception as e:
-        logger.error(f"Error checking dataset status: {e}")
+    except SQLAlchemyError as e:
+        logger.error("Database error checking dataset status: %s", str(e))
         return False
 
 async def import_table(db: AsyncSession, table_name, json_filename, json_dir, name_key="name"):
@@ -151,8 +152,8 @@ async def import_table(db: AsyncSession, table_name, json_filename, json_dir, na
             await db.commit()
             logger.info(f"Processed {len(batch_params)} records for {table_name} (Batched)")
             return len(batch_params)
-        except Exception as e:
-            logger.error(f"Error executing batch for {table_name}: {e}")
+        except SQLAlchemyError as e:
+            logger.error("Database error executing batch for %s: %s", table_name, str(e))
             await db.rollback()
             return 0
 
@@ -204,8 +205,11 @@ async def load_basic_dataset():
                      await db.commit()
 
             return True, "Dataset loaded successfully from custom JSON."
-        except Exception as e:
-            msg = f"Dataset load failed: {str(e)}"
+        except SQLAlchemyError as e:
+            msg = f"Dataset database load failed: {str(e)}"
             logger.error(msg)
-            logger.error(traceback.format_exc())
+            return False, msg
+        except OSError as e:
+            msg = f"Dataset file load failed: {str(e)}"
+            logger.error(msg)
             return False, msg

@@ -29,7 +29,8 @@ def parse_logs(file_path):
             print(log.strip())
 
     except Exception as e:
-        print(f"Error parsing logs: {e}")
+        print(f"Fatal Error: {e}")
+        import sys; sys.exit(1)
 
 if __name__ == "__main__":
     file_path = "trace_logs.json"

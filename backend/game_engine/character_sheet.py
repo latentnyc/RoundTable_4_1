@@ -1,4 +1,5 @@
 import math
+from typing import Optional
 
 class CharacterSheet:
     def __init__(self, data: dict):
@@ -132,3 +133,62 @@ class CharacterSheet:
             monster_ac = monster_ac_data
 
         return max(base_ac, explicit_ac, monster_ac)
+
+    def get_spellcasting_ability(self) -> str:
+        """
+        Returns the primary spellcasting ability based on class, or highest mental stat if unknown.
+        """
+        role = getattr(self, "role", "").lower()
+        if hasattr(self, "data") and isinstance(self.data, dict):
+            role = self.data.get("role", role).lower()
+
+        if role in ["wizard", "artificer"]:
+            return "intelligence"
+        elif role in ["cleric", "druid", "ranger"]:
+            return "wisdom"
+        elif role in ["bard", "paladin", "sorcerer", "warlock"]:
+            return "charisma"
+
+        # Fallback to highest mental stat
+        int_mod = self.get_mod("intelligence")
+        wis_mod = self.get_mod("wisdom")
+        cha_mod = self.get_mod("charisma")
+
+        if int_mod >= wis_mod and int_mod >= cha_mod:
+            return "intelligence"
+        elif wis_mod >= int_mod and wis_mod >= cha_mod:
+            return "wisdom"
+        return "charisma"
+
+    def get_proficiency_bonus(self) -> int:
+        """
+        Calculates proficiency bonus based on character level.
+        Levels 1-4: +2, 5-8: +3, 9-12: +4, 13-16: +5, 17-20: +6
+        """
+        level = 1
+        if hasattr(self, "data") and isinstance(self.data, dict):
+             level = self.data.get("level", 1)
+
+        return 2 + ((int(level) - 1) // 4)
+
+    def get_spell_attack_mod(self, ability: Optional[str] = None) -> int:
+        """
+        Calculates Spell Attack Modifier: Proficiency + Ability Modifier
+        """
+        if not ability:
+            ability = self.get_spellcasting_ability()
+
+        abil_mod = self.get_mod(ability)
+        prof_bonus = self.get_proficiency_bonus()
+        return abil_mod + prof_bonus
+
+    def get_spell_save_dc(self, ability: Optional[str] = None) -> int:
+        """
+        Calculates Spell Save DC: 8 + Proficiency + Ability Modifier
+        """
+        if not ability:
+            ability = self.get_spellcasting_ability()
+
+        abil_mod = self.get_mod(ability)
+        prof_bonus = self.get_proficiency_bonus()
+        return 8 + prof_bonus + abil_mod

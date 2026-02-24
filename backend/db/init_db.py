@@ -12,6 +12,7 @@ from db.session import engine
 from db.schema import metadata
 from app.firebase_config import init_firebase
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 async def init_db_async():
     logger.info("Initializing Database...")
@@ -25,7 +26,7 @@ async def init_db_async():
             try:
                 # PostgreSQL support IF NOT EXISTS for ADD COLUMN
                 await conn.execute(text("ALTER TABLE profiles ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'interested'"))
-            except Exception as e:
+            except SQLAlchemyError as e:
                 logger.warning(f"Migration Warning (status column): {e}")
 
             # Migration for template_id in campaigns
@@ -40,7 +41,7 @@ async def init_db_async():
             # Migration for json_path in campaign_templates
             try:
                 await conn.execute(text("ALTER TABLE campaign_templates ADD COLUMN IF NOT EXISTS json_path VARCHAR"))
-            except Exception as e:
+            except SQLAlchemyError as e:
                 logger.warning(f"Migration Warning (campaign_templates.json_path): {e}")
 
             # --- MIGRATIONS FOR AI STATS ---
@@ -48,7 +49,7 @@ async def init_db_async():
                 await conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS total_input_tokens INTEGER DEFAULT 0"))
                 await conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS total_output_tokens INTEGER DEFAULT 0"))
                 await conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS query_count INTEGER DEFAULT 0"))
-            except Exception as e:
+            except SQLAlchemyError as e:
                 logger.warning(f"Migration Warning (campaign stats columns): {e}")
 
             # --- MIGRATIONS FOR SCOPED TABLES (npcs, locations, quests) ---
@@ -59,25 +60,25 @@ async def init_db_async():
             try:
                 await conn.execute(text("ALTER TABLE npcs ADD COLUMN IF NOT EXISTS campaign_id VARCHAR"))
                 await conn.execute(text("ALTER TABLE npcs ADD COLUMN IF NOT EXISTS source_id VARCHAR"))
-            except Exception as e:
+            except SQLAlchemyError as e:
                 logger.warning(f"Migration Warning (npcs columns): {e}")
 
             # locations
             try:
                 await conn.execute(text("ALTER TABLE locations ADD COLUMN IF NOT EXISTS campaign_id VARCHAR"))
                 await conn.execute(text("ALTER TABLE locations ADD COLUMN IF NOT EXISTS source_id VARCHAR"))
-            except Exception as e:
+            except SQLAlchemyError as e:
                 logger.warning(f"Migration Warning (locations columns): {e}")
 
             # quests
             try:
                 await conn.execute(text("ALTER TABLE quests ADD COLUMN IF NOT EXISTS campaign_id VARCHAR"))
                 await conn.execute(text("ALTER TABLE quests ADD COLUMN IF NOT EXISTS source_id VARCHAR"))
-            except Exception as e:
+            except SQLAlchemyError as e:
                 logger.warning(f"Migration Warning (quests columns): {e}")
 
         logger.debug("Schema creation transaction committed.")
-    except Exception as e:
+    except SQLAlchemyError as e:
         logger.critical(f"Database initialization failed: {e}")
         raise e
     logger.info("Database Initialized.")

@@ -82,7 +82,8 @@ async def verify_refactor():
             await db.commit()
             print("Save successful.")
         except Exception as e:
-            print(f"SAVE FAILED: {e}")
+            print(f"Fatal Error: {e}")
+            import sys; sys.exit(1)
             return
 
         # 3. Load State
@@ -91,7 +92,8 @@ async def verify_refactor():
             loaded_state = await GameService.get_game_state(campaign_id, db)
             print("Load successful.")
         except Exception as e:
-            print(f"LOAD FAILED: {e}")
+            print(f"Fatal Error: {e}")
+            import sys; sys.exit(1)
             return
 
         # 4. Verification

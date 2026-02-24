@@ -3,6 +3,7 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 from app.services.turn_manager import TurnManager
 from app.services.game_service import GameService
+from app.services.combat_service import CombatService
 from app.models import GameState, Player, Enemy, Coordinates
 
 @pytest.mark.asyncio
@@ -32,7 +33,7 @@ async def test_turn_advancement_locking():
         location={"name": "Test Loc", "description": "Test Desc"}
     )
 
-    # Mock GameService.next_turn to simulate work
+    # Mock CombatService.next_turn to simulate work
     async def mock_next_turn(camp_id, db, current_game_state=None, commit=True, **kwargs):
         await asyncio.sleep(0.1) # Simulate DB latency
 
@@ -47,21 +48,21 @@ async def test_turn_advancement_locking():
 
         return next_id, new_state
 
-    with patch('app.services.game_service.GameService.next_turn', side_effect=mock_next_turn):
+    with patch('app.services.combat_service.CombatService.next_turn', side_effect=mock_next_turn):
         # Fire two concurrent turn advancements
         task1 = asyncio.create_task(TurnManager.advance_turn("test_camp", mock_sio, db=mock_db, current_game_state=initial_state))
         task2 = asyncio.create_task(TurnManager.advance_turn("test_camp", mock_sio, db=mock_db, current_game_state=initial_state))
 
         await asyncio.gather(task1, task2)
 
-        # We expect GameService.next_turn to be called essentially sequentially due to the lock
+        # We expect CombatService.next_turn to be called essentially sequentially due to the lock
         # Verification is tricky with mocks since we mocked the implementation.
         # But we can check if the lock was used.
         # Actually, let's verified that we didn't get interleaved logs or errors.
         # And specifically, since we added a specific "Skipping concurrent request" log usage or similar logic.
         # If both ran, next_turn would be called twice.
 
-        assert GameService.next_turn.call_count >= 1
+        assert CombatService.next_turn.call_count >= 1
 
 @pytest.mark.asyncio
 async def test_combat_start_race_condition():
@@ -83,8 +84,8 @@ async def test_combat_start_race_condition():
         location={"name": "Test Loc", "description": "Test Desc"}
     )
 
-    with patch('app.services.game_service.GameService.get_game_state', return_value=active_state):
-        result = await GameService.start_combat("test_camp", mock_db)
+    with patch('app.services.state_service.StateService.get_game_state', return_value=active_state):
+        result = await CombatService.start_combat("test_camp", mock_db)
         assert result['success'] == False
         assert result['message'] == "Combat already in progress."
 
@@ -101,9 +102,9 @@ async def test_combat_start_race_condition():
         location={"name": "Test Loc", "description": "Test Desc"}
     )
 
-    with patch('app.services.game_service.GameService.get_game_state', return_value=peace_state):
-        with patch('app.services.game_service.GameService.save_game_state', new_callable=AsyncMock) as mock_save:
-             result = await GameService.start_combat("test_camp", mock_db)
+    with patch('app.services.state_service.StateService.get_game_state', return_value=peace_state):
+        with patch('app.services.state_service.StateService.save_game_state', new_callable=AsyncMock) as mock_save:
+             result = await CombatService.start_combat("test_camp", mock_db)
              assert result['success'] == True
              assert result['message'] == "Combat Started!"
              mock_save.assert_called_once()

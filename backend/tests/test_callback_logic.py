@@ -79,7 +79,8 @@ async def test_callback_logic():
             print("WARNING: No ai_stats event emitted.", flush=True)
 
     except Exception as e:
-        print(f"Detailed Error: {e}", flush=True)
+        print(f"Fatal Error: {e}")
+        import sys; sys.exit(1)
     finally:
         # Cleanup
         print("Cleaning up...", flush=True)

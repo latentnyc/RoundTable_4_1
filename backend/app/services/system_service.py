@@ -36,6 +36,8 @@ class SystemService:
 
             return models
 
+        except genai.errors.APIError as e:
+            raise ValueError(f"Gemini API Error: {str(e)}")
         except Exception as e:
-            # Re-raise with clear message
+            # Re-raise with clear message for unknown errors
             raise ValueError(f"Failed to validate API Key: {str(e)}")

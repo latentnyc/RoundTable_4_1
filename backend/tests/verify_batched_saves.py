@@ -88,7 +88,7 @@ async def run_test():
 
     original_save = GameService.save_game_state
 
-    with patch('app.services.game_service.GameService.save_game_state', side_effect=original_save) as mock_save:
+    with patch('app.services.state_service.StateService.save_game_state', side_effect=original_save) as mock_save:
          with patch('app.services.narrator_service.NarratorService.narrate', new_callable=AsyncMock): # Skip Narration
 
             print("Starting Turn Loop...")

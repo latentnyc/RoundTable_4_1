@@ -31,7 +31,7 @@ async def search_compendium(table_name: str, q: str, db: AsyncSession, limit_val
     for row in rows:
         try:
             data = json.loads(row['data'])
-        except Exception:
+        except json.JSONDecodeError:
             data = {}
 
         results.append(CompendiumItem(

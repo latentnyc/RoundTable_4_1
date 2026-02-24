@@ -41,7 +41,8 @@ async def main():
             config={"callbacks": [handler]}
         )
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Fatal Error: {e}")
+        import sys; sys.exit(1)
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import json
 from uuid import uuid4
 from typing import Optional
+import traceback
 
 class AIService:
     @staticmethod
@@ -161,7 +162,8 @@ class AIService:
                  return "".join([b.get("text", "") if isinstance(b, dict) else str(b) for b in msg_content])
              return str(msg_content)
         except Exception as e:
-             logger.error(f"DEBUG: dm_graph.ainvoke failed: {e}")
+             # This is a LangChain invocation so keeping it broad but logging tightly
+             logger.error("dm_graph.ainvoke failed during narration: %s\n%s", str(e), traceback.format_exc())
              return None
 
     @staticmethod
@@ -347,9 +349,13 @@ class AIService:
             )
             if response.generated_images:
                 return response.generated_images[0].image.image_bytes # bytes
+        except genai.errors.APIError as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error("GenAI API Error during image generation: %s", str(e))
         except Exception as e:
             import logging
             logger = logging.getLogger(__name__)
-            logger.error(f"Image Gen Error: {e}")
+            logger.error("Unexpected error during image generation: %s\n%s", str(e), traceback.format_exc())
 
         return None

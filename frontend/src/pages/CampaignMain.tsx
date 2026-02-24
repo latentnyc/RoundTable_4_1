@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useSocketStore } from '@/lib/socket';
-import { Settings, ChevronLeft, Loader2 } from 'lucide-react';
 import GameInterface from '@/components/GameInterface';
 import CampaignSettings from '@/components/CampaignSettings';
 import ErrorBoundary from '@/components/ErrorBoundary';
@@ -59,45 +58,16 @@ export default function CampaignMain() {
 
     return (
         <div className="h-screen w-screen bg-black text-white flex flex-col overflow-hidden">
-            {/* Header / Toolbar */}
-            <header className="h-14 border-b border-white/10 flex items-center justify-between px-4 bg-neutral-900/50 backdrop-blur shrink-0 z-40 relative">
-                <div className="flex items-center gap-4">
-                    <button
-                        onClick={() => navigate(`/campaign_dash/${id}`)}
-                        className="p-2 hover:bg-white/10 rounded-lg transition-colors text-neutral-400 hover:text-white"
-                    >
-                        <ChevronLeft className="w-5 h-5" />
-                    </button>
-                    <h1 className="font-bold text-lg max-w-[200px] truncate">
-                        {campaign?.name || 'Loading...'}
-                    </h1>
-                </div>
-
-                {/* DM Typing Indicator */}
-                {useSocketStore(state => state.isTyping) && (
-                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2 text-neutral-400 text-xs bg-black/60 px-3 py-1 rounded-full border border-white/5 backdrop-blur-md animate-in fade-in zoom-in-95 duration-300">
-                        <Loader2 className="w-3 h-3 animate-spin text-purple-400" />
-                        <span className="italic">DM is typing...</span>
-                    </div>
-                )}
-
-                <div className="flex items-center gap-2">
-                    {isAdmin && (
-                        <button
-                            onClick={() => setIsSettingsOpen(true)}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 border border-white/5 rounded-lg text-sm transition-colors text-neutral-300 hover:text-white"
-                        >
-                            <Settings className="w-4 h-4" />
-                            <span className="hidden sm:inline">Settings</span>
-                        </button>
-                    )}
-                </div>
-            </header>
-
             {/* Game Interface */}
             <div className="flex-1 overflow-hidden relative">
                 <ErrorBoundary>
-                    <GameInterface campaignId={id} />
+                    <GameInterface
+                        campaignId={id}
+                        campaignName={campaign?.name || 'Loading...'}
+                        isAdmin={isAdmin}
+                        onBack={() => navigate(`/campaign_dash/${id}`)}
+                        onOpenSettings={() => setIsSettingsOpen(true)}
+                    />
                 </ErrorBoundary>
             </div>
 

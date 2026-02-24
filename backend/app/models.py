@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional, Literal
+from typing import List, Dict, Optional, Literal, Any
 from uuid import UUID, uuid4
 
 # --- Fundamentals ---
@@ -22,11 +22,11 @@ class Entity(BaseModel):
     initiative: int = 0
     speed: int = 30
     position: Coordinates
-    inventory: List[str | Dict] = []
+    inventory: List[str] = []
     status_effects: List[str] = []
     barks: Optional[Dict[str, List[str]]] = None
-    knowledge: List[Dict] = []
-    loot: Optional[Dict] = None
+    knowledge: List[Dict[str, Any]] = []
+    loot: Optional[Dict[str, Any]] = None
     currency: Dict[str, int] = {"pp": 0, "gp": 0, "sp": 0, "cp": 0}
     identified: bool = True
 
@@ -46,17 +46,17 @@ class Player(Entity):
     xp: int = 0
     user_id: Optional[str] = None
     # dict for flexible storage of stats, skills, feats, etc.
-    sheet_data: Dict = {}
+    sheet_data: Dict[str, Any] = {}
 
 class Enemy(Entity):
     type: str # e.g. "Goblin"
     identified: bool = False
-    data: Dict = {}
+    data: Dict[str, Any] = {}
 
 # --- Game State ---
 class NPC(Entity):
     role: str # e.g. "Shopkeeper"
-    data: Dict = {} # Flexible storage for schedule, voice, etc.
+    data: Dict[str, Any] = {} # Flexible storage for schedule, voice, etc.
     identified: bool = False
 
 class DMSettings(BaseModel):
@@ -69,6 +69,9 @@ class Location(BaseModel):
     source_id: Optional[str] = None # The ID from the JSON (e.g. loc_tavern)
     name: str
     description: str
+    interactables: List[Dict[str, Any]] = []
+    walkable_hexes: List[Coordinates] = Field(default_factory=list)
+    party_locations: List[Dict[str, Any]] = Field(default_factory=list)
 
 class LogEntry(BaseModel):
     tick: int
@@ -84,6 +87,7 @@ class GameState(BaseModel):
     phase: Literal["combat", "exploration", "social"] = "exploration"
     active_entity_id: Optional[str] = None
     location: Location
+    discovered_locations: List[Location] = Field(default_factory=list)
     party: List[Player]
     enemies: List[Enemy] = []
     npcs: List[NPC] = []

@@ -83,6 +83,7 @@ async def clear_chat_history(
         )
         await db.commit()
         return {"status": "success", "message": "Chat history cleared"}
-    except Exception as e:
+    except SQLAlchemyError as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to clear chat: {e}")
+        logger.error("Database error clearing chat history for campaign %s: %s", campaign_id, str(e))
+        raise HTTPException(status_code=500, detail="Failed to clear chat history due to database error.")

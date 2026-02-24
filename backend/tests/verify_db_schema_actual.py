@@ -28,7 +28,8 @@ async def verify_schema():
                         # column_name, data_type
                         print(f"  - {col[0]} ({col[1]})")
             except Exception as e:
-                print(f"Error inspecting {t}: {e}")
+                print(f"Fatal Error: {e}")
+                import sys; sys.exit(1)
 
 if __name__ == "__main__":
     asyncio.run(verify_schema())

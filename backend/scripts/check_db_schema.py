@@ -40,7 +40,8 @@ async def check_schema():
                  print(f"VERIFICATION FAILED: Found {len(found_cols)}/3 columns: {found_cols}")
 
         except Exception as e:
-            print(f"Error inspecting table: {e}")
+            print(f"Fatal Error: {e}")
+            import sys; sys.exit(1)
 
 if __name__ == "__main__":
     asyncio.run(check_schema())

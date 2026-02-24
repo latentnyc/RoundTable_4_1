@@ -1,8 +1,9 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useSocketStore } from '@/lib/socket';
+import { useSocketContext } from '@/lib/SocketProvider';
 import { useAuthStore } from '@/store/authStore';
-import { Send, User, Bot, Sparkles } from 'lucide-react';
+import { Send, User, Bot, Sparkles, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Character } from '@/lib/api';
 import CommandSuggestions from './CommandSuggestions';
@@ -13,18 +14,41 @@ interface ChatInterfaceProps {
 }
 
 export default function ChatInterface({ characterId }: ChatInterfaceProps) {
-    const { profile } = useAuthStore();
-    const { messages, sendMessage, clearChat } = useSocketStore();
+    const { profile, user } = useAuthStore();
+    const messages = useSocketStore(state => state.messages);
+    const { socket } = useSocketContext();
     const [inputValue, setInputValue] = useState('');
     const [showClearConfirm, setShowClearConfirm] = useState(false);
     const bottomRef = useRef<HTMLDivElement>(null);
+    const [isDmTyping, setIsDmTyping] = useState(false);
+
+    useEffect(() => {
+        if (!socket) return;
+
+        const handleCommandRejected = (data: { content: string, reason: string }) => {
+            setInputValue(data.content);
+            console.warn("Command rejected:", data.reason);
+        };
+
+        const handleTyping = (data: { sender_id: string, is_typing: boolean }) => {
+            if (data.sender_id === 'dm') {
+                setIsDmTyping(data.is_typing);
+            }
+        };
+
+        socket.on('command_rejected', handleCommandRejected);
+        socket.on('typing_indicator', handleTyping);
+
+        return () => {
+            socket.off('command_rejected', handleCommandRejected);
+            socket.off('typing_indicator', handleTyping);
+        };
+    }, [socket]);
 
 
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
-
-    const { user } = useAuthStore();
 
     // ...
 
@@ -61,7 +85,19 @@ export default function ChatInterface({ characterId }: ChatInterfaceProps) {
             }
         }
 
-        sendMessage(inputValue, senderName, senderId);
+        if (socket && inputValue.trim()) {
+            const apiKey = localStorage.getItem('gemini_api_key');
+            const model = localStorage.getItem('selected_model');
+
+            socket.emit('chat_message', {
+                content: inputValue,
+                sender_name: senderName,
+                sender_id: senderId,
+                api_key: apiKey,
+                model_name: model
+            });
+        }
+
         setInputValue('');
     };
 
@@ -76,17 +112,25 @@ export default function ChatInterface({ characterId }: ChatInterfaceProps) {
         <div className="flex flex-col h-full bg-neutral-900/50 backdrop-blur rounded-xl border border-neutral-800 overflow-hidden">
             {/* Header */}
             <div className="p-3 border-b border-neutral-800 flex justify-between items-center bg-neutral-900/80">
-                <h3 className="font-semibold text-neutral-200 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-purple-400" />
-                    Party Chat
-                </h3>
+                <div className="flex items-center gap-3">
+                    <h3 className="font-semibold text-neutral-200 flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-purple-400" />
+                        Party Chat
+                    </h3>
+                    {isDmTyping && (
+                        <div className="flex items-center gap-1.5 text-amber-400 bg-amber-900/40 px-2 py-0.5 rounded-full shadow-inner border border-amber-500/30 overflow-hidden">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            <span className="text-[10px] font-bold tracking-wider uppercase text-amber-200">DM Narrating</span>
+                        </div>
+                    )}
+                </div>
 
                 {showClearConfirm ? (
                     <div className="flex items-center gap-2">
                         <span className="text-[10px] text-red-400 font-bold uppercase">Are you sure?</span>
                         <button
                             onClick={() => {
-                                clearChat();
+                                socket?.emit('clear_chat');
                                 setShowClearConfirm(false);
                             }}
                             className="text-[10px] bg-red-900/30 border border-red-900/50 text-red-400 px-2 py-0.5 rounded hover:bg-red-900/50 transition-colors"
@@ -109,7 +153,6 @@ export default function ChatInterface({ characterId }: ChatInterfaceProps) {
                     </button>
                 )}
             </div>
-
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {messages.length === 0 && (
@@ -162,19 +205,19 @@ export default function ChatInterface({ characterId }: ChatInterfaceProps) {
 
                             {/* Bubble */}
                             <div className={cn(
-                                "flex flex-col max-w-[80%]",
+                                "flex flex-col max-w-[95%]",
                                 isMe ? "items-end" : "items-start"
                             )}>
-                                <span className="text-sm text-neutral-500 mb-1 px-1">
-                                    {msg.sender_name} <span className="text-xs opacity-50">• {msg.timestamp}</span>
+                                <span className="text-base font-semibold text-neutral-300 mb-1 px-1 flex items-center gap-2">
+                                    {msg.sender_name} <span className="text-xs font-normal opacity-50">{msg.timestamp}</span>
                                 </span>
                                 <div className={cn(
-                                    "px-4 py-2 rounded-2xl text-sm leading-relaxed",
+                                    "px-5 py-3 rounded-2xl text-base leading-relaxed shadow-md",
                                     isMe
                                         ? "bg-purple-600 text-white rounded-tr-sm"
                                         : (isDM || isAI)
-                                            ? "bg-amber-900/30 border border-amber-800/50 text-amber-100 rounded-tl-sm italic"
-                                            : "bg-neutral-800 text-neutral-200 rounded-tl-sm"
+                                            ? "bg-amber-900/40 border border-amber-500/30 text-amber-50 rounded-tl-sm italic shadow-amber-900/20"
+                                            : "bg-neutral-800 text-neutral-100 rounded-tl-sm"
                                 )}>
                                     {renderMessageContent(msg.content)}
                                 </div>
@@ -191,9 +234,20 @@ export default function ChatInterface({ characterId }: ChatInterfaceProps) {
                 {/* Command Suggestions Popup */}
                 <CommandSuggestions
                     inputValue={inputValue}
-                    onSelect={(cmd) => {
-                        setInputValue(`@${cmd} `);
-                        // Optional: focus input ref
+                    onSelect={(selectedText, isArgument) => {
+                        if (isArgument) {
+                            // If user selected an argument (like "Goblin 1"), replace the partial argument
+                            const parts = inputValue.trimStart().split(' ');
+                            const baseCmd = parts[0]; // e.g., "@attack"
+                            // If baseCmd already had a space typed after it, keep it and append the selected text.
+                            // If they selected a multi-word target, best to wrap it in quotes? Only if your backend handles quotes.
+                            // The backend uses `target_name = action_params.get("raw_text")` basically.
+                            // Let's just append the exact name.
+                            setInputValue(`${baseCmd} ${selectedText} `);
+                        } else {
+                            // Selected a base command
+                            setInputValue(`@${selectedText} `);
+                        }
                     }}
                 />
 
@@ -203,12 +257,17 @@ export default function ChatInterface({ characterId }: ChatInterfaceProps) {
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder="What do you do? (Type @ for commands)"
-                        className="w-full bg-neutral-950/50 border border-neutral-700 rounded-xl pl-4 pr-12 py-3 text-white focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all placeholder:text-neutral-600"
+                        placeholder={isDmTyping ? "The DM is busy narrating..." : "What do you do? (Type @ for commands)"}
+                        className={cn(
+                            "w-full bg-neutral-950/50 border rounded-xl pl-4 pr-12 py-3 text-white transition-all focus:outline-none focus:ring-1",
+                            (isDmTyping && inputValue.startsWith('@'))
+                                ? "border-amber-500/50 focus:border-amber-500 focus:ring-amber-500/50 placeholder:text-amber-700/50"
+                                : "border-neutral-700 focus:border-purple-500 focus:ring-purple-500/50 placeholder:text-neutral-600"
+                        )}
                     />
                     <button
                         onClick={handleSend}
-                        disabled={!inputValue.trim()}
+                        disabled={!inputValue.trim() || (isDmTyping && inputValue.startsWith('@'))}
                         className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:bg-transparent disabled:text-neutral-600"
                     >
                         <Send className="w-4 h-4" />
@@ -219,7 +278,6 @@ export default function ChatInterface({ characterId }: ChatInterfaceProps) {
     );
 }
 
-// Helper to render complex message content
 // Helper to render complex message content
 const renderMessageContent = (content: any) => {
     try {

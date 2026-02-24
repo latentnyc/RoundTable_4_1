@@ -60,7 +60,8 @@ class NarratorService:
                 await db.commit()
 
         except Exception as e:
-            logger.error(f"Narrator Service Error: {e}")
+            logger.error(f"Service Error: {e}", exc_info=True)
+            raise e
             await sio.emit('system_message', {'content': f"(DM Narrator Error: {e})"}, room=campaign_id)
 
         finally:

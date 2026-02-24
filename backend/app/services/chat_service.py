@@ -20,7 +20,8 @@ class ChatService:
             try:
                 content = json.dumps(content)
             except Exception as e:
-                logger.error(f"Failed to serialize message content: {e}")
+                logger.error(f"Service Error: {e}", exc_info=True)
+                raise e
                 content = str(content)
 
         if db:

@@ -142,12 +142,25 @@ export const useCreateCharacterStore = create<CreateCharacterState>((set, get) =
         if (field === 'role') {
             const loadout = CLASS_LOADOUTS[value as string];
             if (loadout) {
+                const spellsPlaceholder = (loadout.spells || []).map(spl => {
+                    if (typeof spl === 'string') {
+                        return {
+                            id: spl,
+                            name: spl.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+                            type: 'Spell',
+                            data: { desc: 'Details loading or unavailable.' }
+                        } as Item;
+                    }
+                    return spl;
+                });
+
                 return {
                     ...state,
                     role: value as string,
                     stats: { ...loadout.stats },
                     equipment: [...loadout.equipment],
                     inventory: [...loadout.inventory],
+                    spells: spellsPlaceholder,
                     isDirty: true
                 };
             }
@@ -242,12 +255,25 @@ export const useCreateCharacterStore = create<CreateCharacterState>((set, get) =
         const speed = RACES[randomRace]?.speed || 30;
         const loadout = CLASS_LOADOUTS[randomClass];
 
+        const spellsPlaceholder = loadout ? (loadout.spells || []).map(spl => {
+            if (typeof spl === 'string') {
+                return {
+                    id: spl,
+                    name: spl.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+                    type: 'Spell',
+                    data: { desc: 'Details loading or unavailable.' }
+                } as Item;
+            }
+            return spl as Item;
+        }) : [];
+
         set({
             race: randomRace,
             role: randomClass,
             stats: loadout ? { ...loadout.stats } : { Strength: 10, Dexterity: 10, Constitution: 10, Intelligence: 10, Wisdom: 10, Charisma: 10 },
             equipment: loadout ? [...loadout.equipment] : [],
             inventory: loadout ? [...loadout.inventory] : [],
+            spells: spellsPlaceholder,
             pointBuyMode: true,
             speed,
             isDirty: true

@@ -3,6 +3,7 @@ import traceback
 from db.session import AsyncSessionLocal
 from app.socket.decorators import socket_event_handler
 from app.services.game_service import GameService
+from app.services.loot_service import LootService
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +22,10 @@ async def handle_take_items(sid, data, sio, connected_users):
 
     try:
         async with AsyncSessionLocal() as db:
-            result = await GameService.take_items(campaign_id, actor_id, vessel_id, item_ids, take_currency, db)
+            result = await LootService.take_items(campaign_id, actor_id, vessel_id, item_ids, take_currency, db)
 
             if result["success"]:
-                # Notify everyone of the game state change if needed, but GameService.take_items
+                # Notify everyone of the game state change if needed, but LootService.take_items
                 # didn't explicitly emit the event. We'll emit it here.
                 # Actually, `GameService.save_game_state` just saves to DB. We need to emit.
                 game_state = await GameService.get_game_state(campaign_id, db)
@@ -52,10 +53,11 @@ async def handle_equip_item(sid, data, sio, connected_users):
     actor_id = data.get("actor_id")
     item_id = data.get("item_id")
     is_equip = data.get("is_equip", True) # True to equip, False to unequip
+    target_slot = data.get("target_slot")
 
     try:
         async with AsyncSessionLocal() as db:
-            result = await GameService.equip_item(campaign_id, actor_id, item_id, is_equip, db)
+            result = await LootService.equip_item(campaign_id, actor_id, item_id, is_equip, db, target_slot=target_slot)
 
             if result["success"]:
                 game_state = await GameService.get_game_state(campaign_id, db)

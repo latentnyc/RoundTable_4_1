@@ -17,10 +17,12 @@ async def verify_columns():
             result = await conn.execute(text("SELECT total_input_tokens, total_output_tokens, query_count FROM campaigns LIMIT 1"))
             print("SUCCESS: Columns total_input_tokens, total_output_tokens, query_count exist.", flush=True)
         except Exception as e:
-            print(f"FAILURE: Columns missing. Error: {e}", flush=True)
+            print(f"Fatal Error: {e}")
+            import sys; sys.exit(1)
 
 if __name__ == "__main__":
     try:
         asyncio.run(verify_columns())
     except Exception as e:
-        print(f"Error running verification: {e}")
+        print(f"Fatal Error: {e}")
+        import sys; sys.exit(1)

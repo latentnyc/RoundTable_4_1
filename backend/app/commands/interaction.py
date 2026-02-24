@@ -1,6 +1,7 @@
 from typing import List
 from .base import Command, CommandContext
 from app.services.game_service import GameService
+from app.services.loot_service import LootService
 from app.services.chat_service import ChatService
 from app.services.narrator_service import NarratorService
 from app.services.turn_manager import TurnManager
@@ -18,7 +19,7 @@ class OpenCommand(Command):
 
         target_name = " ".join(args)
 
-        result = await GameService.open_vessel(ctx.campaign_id, ctx.sender_name, target_name, ctx.db)
+        result = await LootService.open_vessel(ctx.campaign_id, ctx.sender_name, target_name, ctx.db)
 
         if result['success']:
             # Message to Chat

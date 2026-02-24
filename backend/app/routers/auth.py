@@ -42,8 +42,8 @@ async def login(token_data: dict = Depends(verify_token), db: AsyncSession = Dep
                         await db.execute(text("UPDATE profiles SET username = :username WHERE id = :uid"), {"username": token_username, "uid": uid})
                         # Commit happens at end of block or explicit
                         return Profile(id=uid, username=token_username, is_admin=is_admin, status=status)
-                    except Exception as e:
-                        logger.warning(f"Failed to update username (likely duplicate): {e}")
+                    except SQLAlchemyError as e:
+                        logger.warning("Failed to update username (likely duplicate): %s", str(e))
                         # Fallback to existing name
                         return Profile(id=row["id"], username=current_username, is_admin=is_admin, status=status)
 
@@ -63,17 +63,18 @@ async def login(token_data: dict = Depends(verify_token), db: AsyncSession = Dep
 
                 await db.execute(text("INSERT INTO profiles (id, username, is_admin, status) VALUES (:id, :username, :is_admin, :status)"),
                                  {"id": uid, "username": token_username, "is_admin": is_admin, "status": status})
-            except Exception as e:
-                logger.error(f"Failed to create profile: {e}")
-                import traceback
-                logger.error(traceback.format_exc())
+            except SQLAlchemyError as e:
+                logger.error("Database error creating profile: %s", str(e))
                 # Identify if error is due to missing columns or constraints
-                raise HTTPException(status_code=500, detail=f"Profile creation failed: {e}")
+                raise HTTPException(status_code=500, detail="Database exception during profile creation.")
 
             return Profile(id=uid, username=token_username, is_admin=is_admin, status=status)
     except HTTPException as he:
         raise he
+    except SQLAlchemyError as e:
+        logger.error("Database error in login: %s", str(e))
+        raise HTTPException(status_code=500, detail="Login failed due to database error.")
     except Exception as e:
-        import traceback
-        logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"Login failed: {e}")
+        import logging
+        logging.error(f"Unhandled Error: {e}", exc_info=True)
+        raise e

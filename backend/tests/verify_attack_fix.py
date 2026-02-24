@@ -65,7 +65,8 @@ async def verify_fix():
             print("✅ SUCCESS: DM did not advise to use @attack on MISS.")
 
     except Exception as e:
-        print(f"Error during MISS invocation: {e}")
+        print(f"Fatal Error: {e}")
+        import sys; sys.exit(1)
 
     # Scenario 2: HIT (The regression case)
     print("\n--- Testing Scenario 2: HIT ---")
@@ -95,7 +96,8 @@ async def verify_fix():
             print("✅ SUCCESS: DM did not advise to use @attack on HIT.")
 
     except Exception as e:
-        print(f"Error during HIT invocation: {e}")
+        print(f"Fatal Error: {e}")
+        import sys; sys.exit(1)
 
 
 if __name__ == "__main__":

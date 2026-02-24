@@ -2,12 +2,12 @@ import { useSocketStore } from '@/lib/socket';
 import { Sparkles, Zap, Activity } from 'lucide-react';
 
 export default function AIStatsPanel() {
-    const { aiStats } = useSocketStore();
+    const aiStats = useSocketStore((state) => state.aiStats);
 
     if (!aiStats) return null;
 
     return (
-        <div className="flex flex-col h-full bg-neutral-900/10 backdrop-blur-sm rounded-xl border border-white/5 overflow-y-auto overflow-x-hidden">
+        <div className="flex flex-col shrink-0 bg-neutral-900/10 backdrop-blur-sm rounded-xl border border-white/5 overflow-hidden">
             <div className="flex items-center justify-between px-2 py-1.5 border-b border-white/5 bg-transparent">
                 <h3 className="text-[10px] font-medium text-neutral-500 uppercase tracking-widest flex items-center gap-1.5">
                     <Sparkles className="w-2.5 h-2.5 text-amber-500/50" />

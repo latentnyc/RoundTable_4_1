@@ -41,7 +41,8 @@ async def test_db():
 
             print("SUCCESS: Database abstraction works for PostgreSQL.")
         except Exception as e:
-            print(f"FAILURE: {e}")
+            print(f"Fatal Error: {e}")
+            import sys; sys.exit(1)
             raise
         finally:
             await db.execute(text("DELETE FROM profiles WHERE id = 'user123'"))

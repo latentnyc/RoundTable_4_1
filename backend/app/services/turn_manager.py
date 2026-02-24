@@ -2,10 +2,12 @@ import asyncio
 import logging
 import traceback
 from app.services.game_service import GameService
+from app.services.combat_service import CombatService
 from app.services.ai_service import AIService
 from app.services.chat_service import ChatService
 from app.services.narrator_service import NarratorService
 from db.session import AsyncSessionLocal
+from sqlalchemy.exc import SQLAlchemyError
 
 logger = logging.getLogger(__name__)
 
@@ -70,10 +72,10 @@ class TurnManager:
     @staticmethod
     async def _advance_game_state(campaign_id: str, db, game_state):
         if db:
-            active_id, next_state = await GameService.next_turn(campaign_id, db, current_game_state=game_state, commit=False)
+            active_id, next_state = await CombatService.next_turn(campaign_id, db, current_game_state=game_state, commit=False)
         else:
             async with AsyncSessionLocal() as session:
-                active_id, next_state = await GameService.next_turn(campaign_id, session, current_game_state=game_state, commit=False)
+                active_id, next_state = await CombatService.next_turn(campaign_id, session, current_game_state=game_state, commit=False)
         return active_id, next_state
 
     @staticmethod
@@ -166,8 +168,11 @@ class TurnManager:
                             if new_state:
                                  game_state = new_state
                                  pending_changes = True
+                except SQLAlchemyError as e:
+                    logger.error("Database error executing AI turn: %s\n%s", str(e), traceback.format_exc())
+                    await sio.emit('system_message', {'content': f"AI DB Error for {active_char.name}: {e}"}, room=campaign_id)
                 except Exception as e:
-                    logger.error(f"Error executing AI turn: {e}\n{traceback.format_exc()}")
+                    logger.error(f"Service Error: {e}", exc_info=True)
                     await sio.emit('system_message', {'content': f"AI Error for {active_char.name}: {e}"}, room=campaign_id)
                     # If AI fails, we still want to loop to next turn
                     pass
@@ -264,7 +269,7 @@ class TurnManager:
             return game_state
 
         # Resolve Attack
-        result = await GameService.resolution_attack(campaign_id, actor.id, actor.name, target.name, db, current_state=game_state, commit=commit)
+        result = await CombatService.resolution_attack(campaign_id, actor.id, actor.name, target.name, db, current_state=game_state, commit=commit)
 
         # Mechanics Log
         mech_msg = TurnManager._format_combat_log(actor, target, result)

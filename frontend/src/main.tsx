@@ -4,6 +4,7 @@ import App from './App'
 import './index.css'
 import { useAuthStore } from './store/authStore';
 import { setTokenGetter } from './lib/api';
+import { SocketProvider } from './lib/SocketProvider';
 
 // Initialize API token getter to break circular dependency
 setTokenGetter(() => useAuthStore.getState().token);
@@ -16,7 +17,9 @@ if (root) {
   try {
     ReactDOM.createRoot(root).render(
       <React.StrictMode>
-        <App />
+        <SocketProvider>
+          <App />
+        </SocketProvider>
       </React.StrictMode>,
     )
   } catch (e) {

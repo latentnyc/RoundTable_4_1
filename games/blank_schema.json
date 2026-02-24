@@ -77,10 +77,12 @@
                     "locked": false,
                     "key_id": "",
                     "contents": [],
-                    "secrets": []
+                    "secrets": [],
+                    "target_location_id": ""
                 }
             ],
-            "secrets": []
+            "secrets": [],
+            "walkable_hexes": []
         }
     ],
     "npcs": [

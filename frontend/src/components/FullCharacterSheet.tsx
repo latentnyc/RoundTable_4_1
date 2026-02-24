@@ -1,7 +1,7 @@
 import { Character, Item } from '@/lib/api';
 import { Shield, Sword, Brain, Heart, Zap, Eye, User, X, Backpack, Activity, Scroll, Component } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useSocketStore } from '@/lib/socket';
+import { useSocketContext } from '@/lib/SocketProvider';
 
 interface FullCharacterSheetProps {
     character: Character;
@@ -9,7 +9,7 @@ interface FullCharacterSheetProps {
 }
 
 export default function FullCharacterSheet({ character, onClose }: FullCharacterSheetProps) {
-    const { socket } = useSocketStore();
+    const { socket } = useSocketContext();
     const sheet = character.sheet_data || {};
     const stats = sheet.stats || {};
     const equipment = (sheet.equipment || []) as Item[];
@@ -24,6 +24,39 @@ export default function FullCharacterSheet({ character, onClose }: FullCharacter
             item_id: itemId,
             is_equip: isEquip
         });
+    };
+
+    const handleDragStart = (e: React.DragEvent, itemId: string) => {
+        e.dataTransfer.setData('itemId', itemId);
+        e.dataTransfer.effectAllowed = 'move';
+    };
+
+    const handleDropOnSlot = (e: React.DragEvent, targetSlot?: string) => {
+        e.preventDefault();
+        const itemId = e.dataTransfer.getData('itemId');
+        if (!itemId) return;
+
+        // Emitting the equip_item. The backend logic enforces limits.
+        if (!socket) return;
+        socket.emit('equip_item', {
+            actor_id: character.id,
+            item_id: itemId,
+            is_equip: true,
+            target_slot: targetSlot // Send intended slot just in case
+        });
+    };
+
+    const handleDropOnBackpack = (e: React.DragEvent) => {
+        e.preventDefault();
+        const itemId = e.dataTransfer.getData('itemId');
+        if (!itemId) return;
+
+        // Unequip it
+        handleEquipToggle(itemId, false);
+    };
+
+    const allowDrop = (e: React.DragEvent) => {
+        e.preventDefault();
     };
 
     // Vitals with fallbacks
@@ -201,49 +234,96 @@ export default function FullCharacterSheet({ character, onClose }: FullCharacter
                 {/* Right Column: Inventory & Spells (4 cols) */}
                 <div className="lg:col-span-4 space-y-6">
                     {/* Equipment & Backpack Container */}
-                    <div className="flex flex-col gap-4 max-h-[800px]">
-                        {/* Equipment */}
-                        <div className="bg-neutral-950/50 p-4 rounded-xl border border-neutral-800 flex flex-col max-h-[300px]">
+                    <div className="flex flex-col gap-4">
+                        {/* Equipment - Paper Doll */}
+                        <div className="bg-neutral-950/50 p-4 rounded-xl border border-neutral-800 flex flex-col">
                             <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-3 pb-1 border-b border-neutral-800 flex items-center justify-between flex-shrink-0">
                                 <span className="flex items-center gap-2"><Component className="w-4 h-4" /> Equipped</span>
                                 <span className="bg-neutral-900 px-2 py-0.5 rounded-full text-neutral-600">{equipment.length}</span>
                             </h3>
-                            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1">
-                                {equipment.length === 0 ? (
-                                    <p className="text-sm text-neutral-600 italic text-center py-4">Nothing equipped.</p>
-                                ) : (
-                                    equipment.map((item, idx) => (
-                                        <div key={idx} className="bg-neutral-900 border border-neutral-800 rounded p-2 flex justify-between items-start group">
-                                            <div>
-                                                <div className="font-bold text-sm text-neutral-300 group-hover:text-white transition-colors">{item.name}</div>
-                                                <div className="text-[10px] text-neutral-500 uppercase">{item.type}</div>
-                                                <div className="flex gap-2 mt-1">
-                                                    {item.data?.armor_class && (
-                                                        <span className="text-xs font-mono text-blue-400 bg-blue-950/30 px-1.5 py-0.5 rounded">
-                                                            AC {item.data.armor_class.base}
-                                                        </span>
-                                                    )}
-                                                    {item.data?.damage && (
-                                                        <span className="text-xs font-mono text-red-400 bg-red-950/30 px-1.5 py-0.5 rounded">
-                                                            {item.data.damage.damage_dice}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <button
-                                                onClick={() => handleEquipToggle(item.id, false)}
-                                                className="text-[10px] bg-neutral-800 hover:bg-neutral-700 text-neutral-400 px-2 py-1 rounded transition-colors opacity-0 group-hover:opacity-100"
+
+                            <div className="grid grid-cols-2 gap-3 mt-2">
+                                {/* Slots helper */}
+                                {(() => {
+                                    // Map to Slots (temporary naive mapping until slotted backend)
+                                    const slots = [
+                                        { id: 'armor', label: 'Armor', accept: 'Armor', icon: <Shield className="w-4 h-4" /> },
+                                        { id: 'main_hand', label: 'Main Hand', accept: 'Weapon', icon: <Sword className="w-4 h-4" /> },
+                                        { id: 'off_hand', label: 'Off Hand', accept: 'Shield', icon: <Shield className="w-4 h-4" /> },
+                                        { id: 'accessory', label: 'Accessory', accept: 'Item', icon: <Component className="w-4 h-4" /> }
+                                    ];
+
+                                    // Pre-populate slotted items from equipment
+                                    const slotted: Record<string, Item> = {};
+                                    for (const e of equipment) {
+                                        if (e.data?.type === 'Shield') slotted['off_hand'] = e;
+                                        else if (e.type === 'Armor') slotted['armor'] = e;
+                                        else if (e.type === 'Weapon') {
+                                            if (!slotted['main_hand']) slotted['main_hand'] = e;
+                                            else if (!slotted['off_hand']) slotted['off_hand'] = e; // Dual Wielding!
+                                            else if (!slotted['accessory']) slotted['accessory'] = e;
+                                        }
+                                        else if (!slotted['accessory']) slotted['accessory'] = e;
+                                    }
+
+                                    return slots.map(slot => {
+                                        const item = slotted[slot.id];
+                                        return (
+                                            <div
+                                                key={slot.id}
+                                                className={cn(
+                                                    "border-2 border-dashed rounded-lg p-3 min-h-[70px] flex flex-col items-center justify-center relative group transition-colors",
+                                                    item ? "border-purple-600/50 bg-neutral-900" : "border-neutral-800 bg-neutral-950/30",
+                                                )}
+                                                onDragOver={allowDrop}
+                                                onDrop={(e) => handleDropOnSlot(e, slot.id)}
                                             >
-                                                Unequip
-                                            </button>
-                                        </div>
-                                    ))
-                                )}
+                                                {!item ? (
+                                                    <div className="flex flex-col items-center justify-center text-neutral-600">
+                                                        {slot.icon}
+                                                        <span className="text-[10px] mt-1 font-medium">{slot.label}</span>
+                                                    </div>
+                                                ) : (
+                                                    <div
+                                                        className="w-full h-full flex flex-col cursor-grab active:cursor-grabbing"
+                                                        draggable
+                                                        onDragStart={(e) => handleDragStart(e, item.id)}
+                                                    >
+                                                        <div className="font-bold text-xs text-neutral-300 group-hover:text-white transition-colors truncate w-full text-center" title={item.name}>{item.name}</div>
+                                                        <div className="flex justify-center gap-1 mt-1">
+                                                            {item.data?.armor_class && (
+                                                                <span className="text-[9px] font-mono text-blue-400 bg-blue-950/30 px-1.5 py-0.5 rounded">
+                                                                    AC {item.data.armor_class.base}
+                                                                </span>
+                                                            )}
+                                                            {item.data?.damage && (
+                                                                <span className="text-[9px] font-mono text-red-400 bg-red-950/30 px-1.5 py-0.5 rounded">
+                                                                    {item.data.damage.damage_dice}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <button
+                                                            onClick={() => handleEquipToggle(item.id, false)}
+                                                            className="absolute -top-1.5 -right-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 p-0.5 rounded-full transition-colors opacity-0 group-hover:opacity-100 shadow-md border border-neutral-700"
+                                                            title="Unequip"
+                                                        >
+                                                            <X className="w-3 h-3" />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    });
+                                })()}
                             </div>
                         </div>
 
                         {/* Backpack */}
-                        <div className="bg-neutral-950/50 p-4 rounded-xl border border-neutral-800 flex flex-col max-h-[300px]">
+                        <div
+                            className="bg-neutral-950/50 p-4 rounded-xl border border-neutral-800 flex flex-col max-h-[300px]"
+                            onDragOver={allowDrop}
+                            onDrop={handleDropOnBackpack}
+                        >
                             <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-3 pb-1 border-b border-neutral-800 flex items-center justify-between flex-shrink-0">
                                 <span className="flex items-center gap-2"><Backpack className="w-4 h-4" /> Backpack</span>
                                 <span className="bg-neutral-900 px-2 py-0.5 rounded-full text-neutral-600">{inventory.length}</span>
@@ -272,7 +352,12 @@ export default function FullCharacterSheet({ character, onClose }: FullCharacter
                                                 : (item as Item).name;
 
                                             return (
-                                                <div key={idx} className="bg-neutral-900 border border-neutral-800 rounded p-2 flex justify-between items-center group">
+                                                <div
+                                                    key={idx}
+                                                    className="bg-neutral-900 border border-neutral-800 rounded p-2 flex justify-between items-center group cursor-grab active:cursor-grabbing hover:border-purple-600/50 transition-colors"
+                                                    draggable
+                                                    onDragStart={(e) => handleDragStart(e, itemId)}
+                                                >
                                                     <span className="text-sm text-neutral-300 font-medium capitalize group-hover:text-white transition-colors flex items-center gap-2">
                                                         {itemName}
                                                         {count > 1 && (
@@ -281,7 +366,7 @@ export default function FullCharacterSheet({ character, onClose }: FullCharacter
                                                     </span>
                                                     <button
                                                         onClick={() => handleEquipToggle(itemId, true)}
-                                                        className="text-[10px] bg-purple-900/40 hover:bg-purple-800/60 text-purple-300 px-2 py-1 rounded transition-colors opacity-0 group-hover:opacity-100"
+                                                        className="text-[10px] bg-purple-900/40 hover:bg-purple-800/60 text-purple-300 px-2 py-1 rounded transition-colors opacity-0 md:group-hover:opacity-100"
                                                     >
                                                         Equip
                                                     </button>

@@ -1,37 +1,32 @@
-# RoundTable_4_1 - Waiting for the Blizzard Release ❄️🌨️
+# RoundTable_4_1 - Survived the Blizzard Code-Marathon 🧊🔥
 
 A TTRPG application with an AI-powered Game Master and 5e rules integration.
 
-## 🌨️ The "Waiting for the Blizzard" Changelog
+## 🏔️ The "Survived the Blizzard Code-Marathon" Changelog
 
-This release brings a blizzard of architectural overhauls, sub-zero bugs fixed, immersive new UI flows, and freezing-cool improvements:
+We made it through! After a grueling blizzard code-marathon, we've melted away critical bugs, significantly tightened the architecture, and introduced a ton of improvements. Here is what survived the storm:
 
-### 🦸 Character Creation Flow (NEW!)
-*   **Create Character Interface**: A massive new robust flow (`CreateCharacter.tsx`) for generating player characters, featuring race/class selection, stat point-buy systems, and auto-populated racial bonuses.
-*   **Rules & Loadouts**: Deeply integrated 5e `characterRules.ts` and `classLoadouts.ts` to instantly calculate derived AC, HP thresholds, and starting equipment based on SRD rules.
-*   **Compendium Search**: Native ability to search and add Feats, Spells, and Equipment natively during the creation workflow.
+### 🗺️ Battlemap & Movement Polish
+*   **Spawn Hex Logic**: Refined map rendering to correctly display southern spawn hexes, expanding the map's bounding box automatically to prevent clipping, and flawlessly centering tokens within their designated hex.
+*   **Movement Fixes**: Fixed a critical movement bug where closed doors in unrelated rooms would incorrectly block all traversal in `resolution_move`.
 
-### 🏰 Fortified Architecture (Command Processing)
-*   **Command Registry System**: The monolithic `CommandService` has been decomposed into a modular registry structure (`backend/app/commands/`), allowing clear separation for `combat`, `exploration`, `interaction`, and `system` commands.
-*   **Service Refactor**: A massive overhaul to the `GameService` ensures `GameState`, `Player`, and `Enemy` objects are accurately tracked, saved, and loaded with proper `session_id`s.
-*   **Turn Manager Fixes**: Addressed crashes when enemies are defeated, ensuring smooth turn progression even in the coldest encounters.
+### 🛡️ Core Rules & Stats Integrity
+*   **Armor Class (AC) Hydration**: Characters no longer default to 10 AC! The engine now dynamically calculates and displays the correct AC in the sidebar based on character stats and equipment.
+*   **Class Loadouts**: Implemented D&D 5E base class loadouts. Swapping classes during creation now immediately clears and accurately replaces starting equipment and stats.
+*   **Goblin Enhancements**: Identified enemy stats (like those pesky goblins) now correctly appear on mouseover in the entity list panel. Oh, and we added a new Goblin Room to the north!
 
-### 🎒 Winter Supplies (UI Improvements)
-*   **Loot Modal**: A new `LootModal.tsx` handles item dropping and generation natively via `inventory.py` sockets after successful encounters.
-*   **Command Suggestions**: Added `CommandSuggestions.tsx` to intuitively suggest slash/at-commands as you type.
-*   **Entity List & Scene Viz**: Immersive real-time tracking of combatants (`EntityListPanel`) and DM narrative visualizations (`SceneVisPanel`), now completely aware of bounding-boxes to prevent cutoffs.
+### 🎒 Immersive Looting & Chests
+*   **Rich Loot Metadata**: Drops are no longer just raw item IDs. The backend now fetches rich metadata (names, descriptions, types) from the database to display beautifully in the new `LootModal`.
+*   **Interactable Chests**: Chests now function as `Vessel` entities—clicking them opens a dedicated dialogue window instead of auto-looting immediately.
 
-### 🤖 AI Game Master Upgrades
-*   **Dynamic Combat Narration**: Opportunity attacks now trigger custom DM narrations.
-*   **Identify Command Overhaul**: The `@identify` command's mechanical success now perfectly dictates the narrative outcome.
-*   **AI Token Counter Fixed**: Spectral economy restored! The UI now accurately bills token usage from LangGraph and Gemini models after intense combat turns.
+### ⚙️ Deep Architectural Refactoring
+*   **Exception Handling**: Conducted a massive refactoring to replace lazy, broad `except Exception` blocks with granular, specific exception types. Errors are no longer swallowed silently!
+*   **AI Turn Manager**: Debugged the `TurnManager` to correctly identify AI party members via their `control_mode`, preventing the game from hanging indefinitely during AI turns.
+*   **Performance Audits**: Audited the entire codebase for inefficiencies, resolving data loss risks, streamlining UI performance, and completely cleaning up dead code and throwaway test scripts.
 
-### 🗄️ Frosty Infrastructure & Testing
-*   **Expanded Verification Suite**: Added robust testing for monster attacks (`test_monster_attack.py`), equipment stats verification, and batched save testing.
-*   **Database Migration**: Migrated from SQLite to robust PostgreSQL structure.
-*   **Docker-Compose**: Included local `docker-compose.yml` for standing up the connected Postgres instances easily.
-*   **Logging Refactor**: Cleansed the terminal of `print` clutter—everything is tracked via proper standard `logging`.
-*   **Cloud Ready**: A robust deployment script (`deploy_cloud.ps1`) makes Cloud Run deployment a breeze.
+### 🎨 UI & Quality of Life
+*   **DM Status Indicator**: Repositioned the DM busy indicator to sit cleanly inline with the "Party Chat" header.
+*   **Image Generation Control**: Disabled the unpredictable AI redraw triggers upon enemy death to prevent hallucinations of living enemies appearing.
 
 ---
 

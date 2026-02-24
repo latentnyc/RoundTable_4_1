@@ -1,11 +1,12 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useSocketStore, Enemy, NPC, Player } from '@/lib/socket';
 import { campaignApi, CampaignParticipant } from '@/lib/api';
-import { Users, Skull, User, ExternalLink, ScrollText, RefreshCw, Swords } from 'lucide-react';
+import { Users, Skull, User, ExternalLink, ScrollText, RefreshCw, Swords, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 
-export default function EntityListPanel() {
+export default function EntityListPanel({ onCharacterClick }: { onCharacterClick?: (char: any) => void }) {
     const { gameState } = useSocketStore();
     const { user } = useAuthStore();
     const [participants, setParticipants] = useState<CampaignParticipant[]>([]);
@@ -88,14 +89,18 @@ export default function EntityListPanel() {
     );
 
     const SectionHeader = ({ icon: Icon, title, count }: { icon: any, title: string, count: number }) => (
-        <div className="flex items-center gap-2 px-3 py-2 bg-white/5 text-[10px] font-bold uppercase tracking-wider text-neutral-400 mt-2 first:mt-0 rounded-md mx-2">
-            <Icon className="w-3 h-3" />
+        <div className="flex items-center gap-2 px-3 py-2 bg-white/5 text-xs font-bold uppercase tracking-widest text-neutral-300 mt-2 first:mt-0 rounded-md mx-2">
+            <Icon className="w-4 h-4" />
             <span>{title}</span>
-            <span className="ml-auto bg-black/40 px-1.5 py-0.5 rounded text-neutral-500">{count}</span>
+            <span className="ml-auto bg-black/40 px-2 py-0.5 rounded text-neutral-400">{count}</span>
         </div>
     );
 
     const EntityRow = ({ entity, type, isActive }: { entity: Player | Enemy | NPC, type: 'party' | 'enemy' | 'npc', isActive?: boolean }) => {
+        const [isHovered, setIsHovered] = useState(false);
+        const [tooltipPos, setTooltipPos] = useState({ top: 0, right: 0, width: 0 });
+        const rowRef = useRef<HTMLDivElement>(null);
+
         const hpCurrent = entity.hp_current ?? 0;
         const hpMax = entity.hp_max ?? 1;
         const hpPercent = Math.max(0, Math.min(100, (hpCurrent / hpMax) * 100));
@@ -105,51 +110,173 @@ export default function EntityListPanel() {
         else if (hpPercent < 60) hpColor = "bg-yellow-500";
 
         const isDead = hpCurrent <= 0;
+        const isInteractive = type === 'party' && onCharacterClick;
+
+        const handleMouseEnter = () => {
+            if (rowRef.current) {
+                const rect = rowRef.current.getBoundingClientRect();
+                setTooltipPos({
+                    top: rect.top + (rect.height / 2),
+                    right: window.innerWidth - rect.left + 10, // 10px padding from the row
+                    width: rect.width
+                });
+            }
+            setIsHovered(true);
+        };
 
         return (
-            <div className={cn(
-                "group px-3 py-2 mx-2 rounded-lg border border-transparent transition-all relative overflow-hidden",
-                isActive ? "bg-white/[0.08] border-white/20 shadow-lg shadow-black/20" : "hover:border-white/5 hover:bg-white/[0.02]",
-                isDead && "opacity-50 grayscale"
-            )}>
+            <div
+                ref={rowRef}
+                className={cn(
+                    "group px-3 py-2 mx-2 rounded-lg border border-transparent transition-all relative overflow-hidden",
+                    isActive ? "bg-white/[0.08] border-white/20 shadow-lg shadow-black/20" : "hover:border-white/5 hover:bg-white/[0.02]",
+                    isDead && "opacity-50 grayscale",
+                    isInteractive && "cursor-pointer active:scale-[0.98]"
+                )}
+                onMouseEnter={handleMouseEnter}
+                onMouseLeave={() => setIsHovered(false)}
+                onClick={() => isInteractive && onCharacterClick(entity)}
+            >
                 {/* Active Indicator Strip */}
-                {isActive && <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500" />}
+                {isActive && <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500 rounded-l-lg overflow-hidden" />}
 
-                <div className="flex items-center justify-between mb-1 pl-1">
+                <div className="flex items-center justify-between mb-1 pl-1 relative z-10">
                     <div className="flex items-center gap-2 min-w-0">
                         <div className={cn(
-                            "w-1.5 h-1.5 rounded-full shrink-0",
+                            "w-2 h-2 rounded-full shrink-0",
                             type === 'party' ? "bg-purple-500" : type === 'enemy' ? "bg-red-500" : "bg-amber-500"
                         )} />
                         <span className={cn(
-                            "text-xs font-medium truncate transition-colors",
-                            isActive ? "text-amber-200" : "text-neutral-200 group-hover:text-white"
+                            "text-sm font-semibold truncate transition-colors",
+                            isActive ? "text-amber-200" : "text-neutral-100 group-hover:text-white"
                         )}>
                             {entity.name}
                         </span>
                     </div>
                     <div className="flex gap-2">
                         {isCombat && (
-                            <span className={cn("text-[9px] font-bold font-mono", isActive ? "text-amber-400" : "text-neutral-600")}>
+                            <span className={cn("text-[10px] font-bold font-mono", isActive ? "text-amber-400" : "text-neutral-400")}>
                                 Init: {entity.initiative ?? '?'}
                             </span>
                         )}
-                        <span className="text-[9px] font-mono text-neutral-500">AC {entity.ac}</span>
+                        <span className="text-[10px] font-mono text-neutral-400">AC {entity.ac}</span>
                     </div>
                 </div>
 
                 {/* HP Bar */}
-                <div className="w-full h-1 bg-neutral-800 rounded-full overflow-hidden flex items-center ml-1">
+                <div className="w-full h-1.5 bg-neutral-800 rounded-full overflow-hidden flex items-center ml-1 relative z-10 my-1.5">
                     <div
-                        className={cn("h-full transition-all duration-500", hpColor)}
+                        className={cn("h-full transition-all duration-500", hpColor, "shadow-[0_0_8px_rgba(0,0,0,0.5)]")}
                         style={{ width: `${hpPercent}%` }}
                     />
                 </div>
+
+                {/* Custom Graphical Tooltip via Portal */}
+                {isHovered && createPortal(
+                    <div
+                        className="fixed w-48 bg-neutral-900 border border-neutral-700 shadow-xl shadow-black/50 rounded-xl p-3 z-50 animate-in fade-in zoom-in-95 pointer-events-none"
+                        style={{ top: tooltipPos.top, right: tooltipPos.right, transform: 'translateY(-50%)' }}
+                    >
+
+                        {/* Header Area */}
+                        <div className="flex items-start justify-between mb-2 pb-2 border-b border-white/10">
+                            <div>
+                                <h4 className="text-sm font-bold text-white leading-tight">{entity.name}</h4>
+                                <div className="text-[10px] text-neutral-400 font-medium uppercase tracking-wider mt-0.5">
+                                    {type === 'party' ? (entity as Player).race || 'Unknown' : type === 'enemy' ? (entity as Enemy).type || 'Monster' : (entity as NPC).role || 'NPC'}
+                                </div>
+                            </div>
+                            {type === 'party' && <User className="w-4 h-4 text-purple-400 opacity-50" />}
+                            {type === 'enemy' && <Skull className="w-4 h-4 text-red-500 opacity-50" />}
+                            {type === 'npc' && <Users className="w-4 h-4 text-amber-500 opacity-50" />}
+                        </div>
+
+                        {/* Stats Grid */}
+                        <div className="grid grid-cols-2 gap-2 mb-2">
+                            <div className="bg-black/30 rounded p-1.5 flex flex-col items-center justify-center border border-white/5">
+                                <span className="text-[9px] text-neutral-500 uppercase font-bold tracking-wider mb-0.5">HP</span>
+                                <span className={cn("text-xs font-mono font-bold", isDead ? "text-red-500" : "text-emerald-400")}>
+                                    {hpCurrent}/{hpMax}
+                                </span>
+                            </div>
+                            <div className="bg-black/30 rounded p-1.5 flex flex-col items-center justify-center border border-white/5">
+                                <span className="text-[9px] text-neutral-500 uppercase font-bold tracking-wider mb-0.5">AC</span>
+                                <span className="text-xs font-mono font-bold text-blue-400">{entity.ac}</span>
+                            </div>
+                        </div>
+
+                        {/* Extra Details */}
+                        {type === 'party' && (
+                            <div className="text-xs text-neutral-300 mt-2 flex justify-between items-center bg-white/5 px-2 py-1 rounded">
+                                <span className="text-neutral-500 text-[10px] uppercase">Class</span>
+                                <span className="font-medium text-purple-200">{(entity as Player).role || '?'}</span>
+                            </div>
+                        )}
+                        {type === 'party' && (
+                            <div className="text-xs text-neutral-300 mt-1 flex justify-between items-center bg-white/5 px-2 py-1 rounded">
+                                <span className="text-neutral-500 text-[10px] uppercase">Level</span>
+                                <span className="font-medium">{(entity as Player).level || '?'}</span>
+                            </div>
+                        )}
+
+                        {/* Contextual Footer / Identified Stats */}
+                        {type === 'enemy' && !(entity as Enemy).identified && (
+                            <div className="mt-2 pt-2 border-t border-white/5 flex items-start gap-1.5">
+                                <Info className="w-3 h-3 text-blue-400/70 shrink-0 mt-0.5" />
+                                <span className="text-[9px] leading-tight text-neutral-500 font-medium italic">
+                                    Use <span className="text-neutral-300">@identify {entity.name}</span> to learn more about this creature's stats and vulnerabilities.
+                                </span>
+                            </div>
+                        )}
+                        {type === 'enemy' && (entity as Enemy).identified && (
+                            <div className="mt-2 pt-2 border-t border-white/5">
+                                <div className="text-[10px] font-bold text-emerald-400 mb-1 uppercase tracking-wider flex items-center gap-1">
+                                    <Info className="w-3 h-3" /> Identified
+                                </div>
+                                <div className="grid grid-cols-3 gap-1 text-[9px] text-neutral-300 mb-1">
+                                    {Object.entries((entity as Enemy).data?.stats || {}).map(([stat, val]) => (
+                                        <div key={stat} className="flex justify-between items-center bg-black/20 px-1 py-0.5 rounded border border-white/5">
+                                            <span className="uppercase text-neutral-500 font-bold">{stat.substring(0, 3)}</span>
+                                            <span className="font-mono font-bold text-neutral-200">{String(val)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                {((entity as Enemy).data?.vulnerabilities?.length > 0) && (
+                                    <div className="mt-1 text-[9px] leading-tight flex gap-1">
+                                        <span className="text-red-400 uppercase font-bold shrink-0">Vuln:</span>
+                                        <span className="text-neutral-300">{(entity as Enemy).data?.vulnerabilities.join(', ')}</span>
+                                    </div>
+                                )}
+                                {((entity as Enemy).data?.resistances?.length > 0) && (
+                                    <div className="mt-0.5 text-[9px] leading-tight flex gap-1">
+                                        <span className="text-blue-400 uppercase font-bold shrink-0">Resist:</span>
+                                        <span className="text-neutral-300">{(entity as Enemy).data?.resistances.join(', ')}</span>
+                                    </div>
+                                )}
+                                {((entity as Enemy).data?.immunities?.length > 0) && (
+                                    <div className="mt-0.5 text-[9px] leading-tight flex gap-1">
+                                        <span className="text-yellow-400 uppercase font-bold shrink-0">Immune:</span>
+                                        <span className="text-neutral-300">{(entity as Enemy).data?.immunities.join(', ')}</span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {isInteractive && (
+                            <div className="mt-2 pt-2 border-t border-white/5 text-center">
+                                <span className="text-[9px] text-purple-400/70 font-bold uppercase tracking-widest flex items-center justify-center gap-1">
+                                    Click to View Sheet <ExternalLink className="w-2.5 h-2.5" />
+                                </span>
+                            </div>
+                        )}
+                    </div>,
+                    document.body
+                )}
                 <div className="flex justify-between mt-1 pl-1">
-                    <span className="text-[8px] text-neutral-600 uppercase tracking-wider">
+                    <span className="text-[10px] text-neutral-500 uppercase tracking-widest font-semibold">
                         {type === 'enemy' ? (entity as Enemy).type : type === 'npc' ? (entity as NPC).role : (entity as Player).race}
                     </span>
-                    <span className="text-[8px] font-mono text-neutral-500">
+                    <span className="text-[10px] font-mono font-bold text-neutral-400">
                         {hpCurrent}/{hpMax} HP
                     </span>
                 </div>
@@ -181,9 +308,9 @@ export default function EntityListPanel() {
             {/* Combat Notification Overlay - REMOVED */}
 
             {/* Header */}
-            <div className="w-full px-3 py-2 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
-                <h3 className="text-[10px] font-semibold text-neutral-500 uppercase tracking-widest flex items-center gap-2">
-                    {isCombat ? <Swords className="w-3 h-3 text-red-500" /> : <Users className="w-3 h-3" />}
+            <div className="w-full px-3 py-3 border-b border-white/10 flex items-center justify-between bg-white/[0.05]">
+                <h3 className="text-xs font-bold text-neutral-300 uppercase tracking-widest flex items-center gap-2">
+                    {isCombat ? <Swords className="w-4 h-4 text-red-400" /> : <Users className="w-4 h-4" />}
                     {isCombat ? "Combat Order" : "Scene Entities"}
                 </h3>
 

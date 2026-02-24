@@ -51,6 +51,11 @@
                         "direction": "west",
                         "target_id": "loc_treasury",
                         "description": "A heavy wooden door leading west. It is currently closed."
+                    },
+                    {
+                        "direction": "north",
+                        "target_id": "loc_north_room",
+                        "description": "A reinforced wooden door leading north."
                     }
                 ],
                 "secrets": []
@@ -68,11 +73,212 @@
                     "state": "closed",
                     "locked": false,
                     "key_id": "",
+                    "position": {
+                        "q": -3,
+                        "r": 1,
+                        "s": 2
+                    },
                     "contents": [],
-                    "secrets": []
+                    "secrets": [],
+                    "target_location_id": "loc_treasury"
+                },
+                {
+                    "id": "door_north",
+                    "name": "Reinforced Wooden Door",
+                    "type": "door",
+                    "state": "closed",
+                    "locked": false,
+                    "key_id": "",
+                    "position": {
+                        "q": 0,
+                        "r": -4,
+                        "s": 4
+                    },
+                    "contents": [],
+                    "secrets": [],
+                    "target_location_id": "loc_north_room"
                 }
             ],
-            "secrets": []
+            "secrets": [],
+            "walkable_hexes": [
+                {
+                    "q": -2,
+                    "r": -2,
+                    "s": 4
+                },
+                {
+                    "q": -2,
+                    "r": -1,
+                    "s": 3
+                },
+                {
+                    "q": -2,
+                    "r": 0,
+                    "s": 2
+                },
+                {
+                    "q": -2,
+                    "r": 1,
+                    "s": 1
+                },
+                {
+                    "q": -2,
+                    "r": 2,
+                    "s": 0
+                },
+                {
+                    "q": -1,
+                    "r": -2,
+                    "s": 3
+                },
+                {
+                    "q": -1,
+                    "r": -1,
+                    "s": 2
+                },
+                {
+                    "q": -1,
+                    "r": 0,
+                    "s": 1
+                },
+                {
+                    "q": -1,
+                    "r": 1,
+                    "s": 0
+                },
+                {
+                    "q": -1,
+                    "r": 2,
+                    "s": -1
+                },
+                {
+                    "q": 0,
+                    "r": -3,
+                    "s": 3
+                },
+                {
+                    "q": 0,
+                    "r": -2,
+                    "s": 2
+                },
+                {
+                    "q": 0,
+                    "r": -1,
+                    "s": 1
+                },
+                {
+                    "q": 0,
+                    "r": 0,
+                    "s": 0
+                },
+                {
+                    "q": 0,
+                    "r": 1,
+                    "s": -1
+                },
+                {
+                    "q": 1,
+                    "r": -3,
+                    "s": 2
+                },
+                {
+                    "q": 1,
+                    "r": -2,
+                    "s": 1
+                },
+                {
+                    "q": 1,
+                    "r": -1,
+                    "s": 0
+                },
+                {
+                    "q": 1,
+                    "r": 0,
+                    "s": -1
+                },
+                {
+                    "q": 1,
+                    "r": 1,
+                    "s": -2
+                },
+                {
+                    "q": 2,
+                    "r": -4,
+                    "s": 2
+                },
+                {
+                    "q": 2,
+                    "r": -3,
+                    "s": 1
+                },
+                {
+                    "q": 2,
+                    "r": -2,
+                    "s": 0
+                },
+                {
+                    "q": 2,
+                    "r": -1,
+                    "s": -1
+                },
+                {
+                    "q": 2,
+                    "r": 0,
+                    "s": -2
+                },
+                {
+                    "q": -3,
+                    "r": 1,
+                    "s": 2
+                },
+                {
+                    "q": 0,
+                    "r": -4,
+                    "s": 4
+                }
+            ],
+            "party_locations": [
+                {
+                    "party_id": "default",
+                    "position": {
+                        "q": -2,
+                        "r": 2,
+                        "s": 0
+                    }
+                },
+                {
+                    "party_id": "default",
+                    "position": {
+                        "q": -1,
+                        "r": 2,
+                        "s": -1
+                    }
+                },
+                {
+                    "party_id": "default",
+                    "position": {
+                        "q": 0,
+                        "r": 2,
+                        "s": -2
+                    }
+                },
+                {
+                    "party_id": "default",
+                    "position": {
+                        "q": 1,
+                        "r": 1,
+                        "s": -2
+                    }
+                },
+                {
+                    "party_id": "default",
+                    "position": {
+                        "q": 2,
+                        "r": 0,
+                        "s": -2
+                    }
+                }
+            ]
         },
         {
             "id": "loc_treasury",
@@ -121,7 +327,216 @@
                     "secrets": []
                 }
             ],
-            "secrets": []
+            "secrets": [],
+            "walkable_hexes": [
+                {
+                    "q": -6,
+                    "r": 1,
+                    "s": 5
+                },
+                {
+                    "q": -6,
+                    "r": 2,
+                    "s": 4
+                },
+                {
+                    "q": -6,
+                    "r": 3,
+                    "s": 3
+                },
+                {
+                    "q": -5,
+                    "r": 1,
+                    "s": 4
+                },
+                {
+                    "q": -5,
+                    "r": 2,
+                    "s": 3
+                },
+                {
+                    "q": -5,
+                    "r": 3,
+                    "s": 2
+                },
+                {
+                    "q": -4,
+                    "r": 0,
+                    "s": 4
+                },
+                {
+                    "q": -4,
+                    "r": 1,
+                    "s": 3
+                },
+                {
+                    "q": -4,
+                    "r": 2,
+                    "s": 2
+                },
+                {
+                    "q": -3,
+                    "r": 1,
+                    "s": 2
+                }
+            ]
+        },
+        {
+            "id": "loc_north_room",
+            "name": "The Guard Room",
+            "active_hours": "always",
+            "description": {
+                "visual": "A wide rectangular chamber with slightly colder air. Scuff marks on the floor suggest frequent activity.",
+                "auditory": "Low guttural whispering.",
+                "olfactory": "Stale sweat and wet dog.",
+                "anchors": [
+                    "scuffed floor",
+                    "colder air"
+                ],
+                "anti_drift": "A room to fight the guards in.",
+                "connections": [
+                    {
+                        "direction": "south",
+                        "target_id": "loc_room",
+                        "description": "A reinforced wooden door leading back south."
+                    }
+                ],
+                "secrets": []
+            },
+            "environmental_state": {
+                "light_level": "dim",
+                "light_required": false,
+                "hazards": []
+            },
+            "interactables": [],
+            "secrets": [],
+            "walkable_hexes": [
+                {
+                    "q": -3,
+                    "r": -8,
+                    "s": 11
+                },
+                {
+                    "q": -3,
+                    "r": -7,
+                    "s": 10
+                },
+                {
+                    "q": -3,
+                    "r": -6,
+                    "s": 9
+                },
+                {
+                    "q": -3,
+                    "r": -5,
+                    "s": 8
+                },
+                {
+                    "q": -2,
+                    "r": -8,
+                    "s": 10
+                },
+                {
+                    "q": -2,
+                    "r": -7,
+                    "s": 9
+                },
+                {
+                    "q": -2,
+                    "r": -6,
+                    "s": 8
+                },
+                {
+                    "q": -2,
+                    "r": -5,
+                    "s": 7
+                },
+                {
+                    "q": -1,
+                    "r": -9,
+                    "s": 10
+                },
+                {
+                    "q": -1,
+                    "r": -8,
+                    "s": 9
+                },
+                {
+                    "q": -1,
+                    "r": -7,
+                    "s": 8
+                },
+                {
+                    "q": -1,
+                    "r": -6,
+                    "s": 7
+                },
+                {
+                    "q": 0,
+                    "r": -9,
+                    "s": 9
+                },
+                {
+                    "q": 0,
+                    "r": -8,
+                    "s": 8
+                },
+                {
+                    "q": 0,
+                    "r": -7,
+                    "s": 7
+                },
+                {
+                    "q": 0,
+                    "r": -6,
+                    "s": 6
+                },
+                {
+                    "q": 1,
+                    "r": -10,
+                    "s": 9
+                },
+                {
+                    "q": 1,
+                    "r": -9,
+                    "s": 8
+                },
+                {
+                    "q": 1,
+                    "r": -8,
+                    "s": 7
+                },
+                {
+                    "q": 1,
+                    "r": -7,
+                    "s": 6
+                },
+                {
+                    "q": 2,
+                    "r": -10,
+                    "s": 8
+                },
+                {
+                    "q": 2,
+                    "r": -9,
+                    "s": 7
+                },
+                {
+                    "q": 2,
+                    "r": -8,
+                    "s": 6
+                },
+                {
+                    "q": 2,
+                    "r": -7,
+                    "s": 5
+                },
+                {
+                    "q": 0,
+                    "r": -4,
+                    "s": 4
+                }
+            ]
         }
     ],
     "npcs": [
@@ -195,6 +610,175 @@
                 {
                     "time": "00:00-24:00",
                     "location": "loc_room",
+                    "activity": "waiting to ambush"
+                }
+            ],
+            "disposition": {
+                "base": "aggressive",
+                "attitude": "Hostile",
+                "triggers": {},
+                "romance_eligible": false,
+                "player_affinity": -10
+            },
+            "position": {
+                "q": 0,
+                "r": -3,
+                "s": 3
+            },
+            "secrets": []
+        },
+        {
+            "id": "npc_goblin_north_1",
+            "name": "Snarg",
+            "target_id": "snarg",
+            "unidentified_name": "Goblin Skirmisher",
+            "unidentified_description": "A small, green-skinned humanoid crouching in the shadows.",
+            "llm_description": "A small, wirey goblin with sickly green skin. He wears patchwork, stained leather armor. His most defining feature is a single, massively oversized jagged lower canine protruding past his upper lip. He crouches aggressively in the torchlight, gripping a rusted scimitar.",
+            "description": "A small, scowling goblin with a jagged tooth.",
+            "role": "Enemy",
+            "race": "Goblin",
+            "stats": {
+                "str": 8,
+                "dex": 14,
+                "con": 10,
+                "int": 10,
+                "wis": 8,
+                "cha": 8
+            },
+            "voice": {
+                "tone": "Scratchy, aggressive, menacing.",
+                "samples": [
+                    "Shiny things! Mine!",
+                    "You die now!"
+                ],
+                "barks": {
+                    "aggro": [
+                        "You pay for that!",
+                        "Gah! Sharp!"
+                    ],
+                    "death": [
+                        "My shinies...",
+                        "Darkness..."
+                    ],
+                    "victory": [
+                        "Hehe! Loot time!",
+                        "Stupid longshanks."
+                    ]
+                }
+            },
+            "knowledge": [
+                {
+                    "id": "fact_goblin_ambush",
+                    "description": "Grimtooth was waiting for a caravan, not an adventurer.",
+                    "revealed": false,
+                    "dc": 10
+                }
+            ],
+            "loot": {
+                "guaranteed": [
+                    "item_scimitar"
+                ],
+                "random": [
+                    {
+                        "item_id": "item_leather_armor",
+                        "chance": 0.5
+                    },
+                    {
+                        "item_id": "item_gold_coin",
+                        "chance": 0.8
+                    }
+                ]
+            },
+            "equipment": [
+                "item_scimitar",
+                "item_leather_armor"
+            ],
+            "schedule": [
+                {
+                    "time": "00:00-24:00",
+                    "location": "loc_north_room",
+                    "activity": "waiting to ambush"
+                }
+            ],
+            "disposition": {
+                "base": "aggressive",
+                "attitude": "Hostile",
+                "triggers": {},
+                "romance_eligible": false,
+                "player_affinity": -10
+            },
+            "secrets": []
+        },
+        {
+            "id": "npc_goblin_north_2",
+            "name": "Grib",
+            "target_id": "grib",
+            "unidentified_name": "Goblin Skirmisher",
+            "unidentified_description": "A small, green-skinned humanoid crouching in the shadows.",
+            "llm_description": "A small, wirey goblin with sickly green skin. He wears patchwork, stained leather armor. His most defining feature is a single, massively oversized jagged lower canine protruding past his upper lip. He crouches aggressively in the torchlight, gripping a rusted scimitar.",
+            "description": "A small, scowling goblin with a jagged tooth.",
+            "role": "Enemy",
+            "race": "Goblin",
+            "stats": {
+                "str": 8,
+                "dex": 14,
+                "con": 10,
+                "int": 10,
+                "wis": 8,
+                "cha": 8
+            },
+            "voice": {
+                "tone": "Scratchy, aggressive, menacing.",
+                "samples": [
+                    "Shiny things! Mine!",
+                    "You die now!"
+                ],
+                "barks": {
+                    "aggro": [
+                        "You pay for that!",
+                        "Gah! Sharp!"
+                    ],
+                    "death": [
+                        "My shinies...",
+                        "Darkness..."
+                    ],
+                    "victory": [
+                        "Hehe! Loot time!",
+                        "Stupid longshanks."
+                    ]
+                }
+            },
+            "knowledge": [
+                {
+                    "id": "fact_goblin_ambush",
+                    "description": "Grimtooth was waiting for a caravan, not an adventurer.",
+                    "revealed": false,
+                    "dc": 10
+                }
+            ],
+            "loot": {
+                "guaranteed": [
+                    "item_scimitar"
+                ],
+                "random": [
+                    {
+                        "item_id": "item_leather_armor",
+                        "chance": 0.5
+                    },
+                    {
+                        "item_id": "item_gold_coin",
+                        "chance": 0.8
+                    }
+                ]
+            },
+            "equipment": [
+                "item_scimitar",
+                "item_leather_armor"
+            ],
+            "schedule": [
+                {
+                    "time": "00:00-24:00",
+                    "location": "loc_north_room",
                     "activity": "waiting to ambush"
                 }
             ],

@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from 'react';
 import { useSocketStore, DebugLogItem } from '@/lib/socket';
+import { useSocketContext } from '@/lib/SocketProvider';
 import { useAuthStore } from '@/store/authStore';
 
 interface DebugPanelProps {
@@ -7,16 +8,33 @@ interface DebugPanelProps {
 }
 
 export default function DebugPanel({ campaignId }: DebugPanelProps) {
-    const { debugLogs, clearLogs, isConnected, socket, lastPing, measurePing, fetchLogs } = useSocketStore();
-    const { user } = useAuthStore();
+    const { socket, isConnected } = useSocketContext();
+    const debugLogs = useSocketStore(state => state.debugLogs);
+    const lastPing = useSocketStore(state => state.lastPing);
+    const { user, token } = useAuthStore();
     const scrollRef = useRef<HTMLDivElement>(null);
 
     // Initial Fetch
     useEffect(() => {
-        if (campaignId && isConnected) {
-            fetchLogs(campaignId);
-        }
-    }, [campaignId, isConnected, fetchLogs]);
+        if (!campaignId || !isConnected || !token) return;
+
+        const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        fetch(`${SOCKET_URL}/campaigns/${campaignId}/logs?limit=50`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+            .then(res => res.json())
+            .then(logs => {
+                const formattedLogs = logs.map((l: any) => ({
+                    type: l.type,
+                    content: l.content,
+                    full_content: l.full_content,
+                    timestamp: new Date(l.created_at).toLocaleTimeString(),
+                    agent_name: l.content.startsWith('[') ? l.content.match(/\[(.*?)\]/)?.[1] : undefined
+                })).reverse();
+                useSocketStore.getState().setDebugLogs(formattedLogs);
+            })
+            .catch(e => console.error("Failed to fetch logs:", e));
+    }, [campaignId, isConnected, token]);
 
     // Health Check State
     // const [healthStatus, setHealthStatus] = useState<'idle' | 'checking' | 'online' | 'offline' | 'error'>('idle'); // Removed in favor of direct prop usage
@@ -30,17 +48,20 @@ export default function DebugPanel({ campaignId }: DebugPanelProps) {
 
     // Auto-ping every 5 seconds
     useEffect(() => {
-        if (!isConnected) return;
+        if (!isConnected || !socket) return;
 
-        const interval = setInterval(() => {
-            measurePing();
-        }, 5000);
+        const measurePing = () => {
+            const start = Date.now();
+            socket.emit('test_connection', {}, () => {
+                useSocketStore.getState().setPing(Date.now() - start);
+            });
+        };
 
-        // Initial measurement
+        const interval = setInterval(measurePing, 5000);
         measurePing();
 
         return () => clearInterval(interval);
-    }, [isConnected, measurePing]);
+    }, [isConnected, socket]);
 
     // Derived status message
     const getStatusMessage = () => {
@@ -123,7 +144,7 @@ export default function DebugPanel({ campaignId }: DebugPanelProps) {
                             <span className="text-[9px] text-red-400/80 font-medium">Reset?</span>
                             <button
                                 onClick={() => {
-                                    clearLogs();
+                                    socket?.emit('clear_debug_logs');
                                     setShowClearConfirm(false);
                                 }}
                                 className="text-[9px] text-red-400 hover:text-red-300 transition-colors"

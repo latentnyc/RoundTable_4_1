@@ -41,10 +41,12 @@ async def verify_postgres_schema():
                             print(f"⚠️ Critical column missing in {t}!")
 
                 except Exception as e:
-                    print(f"Error inspecting {t}: {e}")
+                    print(f"Fatal Error: {e}")
+                    import sys; sys.exit(1)
 
     except Exception as e:
-        print(f"Connection Failed: {e}")
+        print(f"Fatal Error: {e}")
+        import sys; sys.exit(1)
         print("Note: Ensure Postgres (or Cloud SQL Proxy) is running on port 5432.")
 
 if __name__ == "__main__":

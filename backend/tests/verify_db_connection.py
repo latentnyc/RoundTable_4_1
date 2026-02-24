@@ -15,7 +15,8 @@ async def test_connection():
             print(f"Connection Successful! Result: {result.scalar()}", flush=True)
             return True
     except Exception as e:
-        print(f"Connection Failed: {e}", flush=True)
+        print(f"Fatal Error: {e}")
+        import sys; sys.exit(1)
         return False
 
 if __name__ == "__main__":
@@ -24,5 +25,6 @@ if __name__ == "__main__":
         if not success:
             sys.exit(1)
     except Exception as e:
-        print(f"Script Error: {e}", flush=True)
+        print(f"Fatal Error: {e}")
+        import sys; sys.exit(1)
         sys.exit(1)

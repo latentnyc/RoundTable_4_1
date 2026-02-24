@@ -38,9 +38,9 @@ async def create_character(req: CreateCharacterRequest, db: AsyncSession = Depen
             }
         )
         await db.commit()
-    except Exception as e:
-        logger.error(f"Error creating character: {e}")
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    except SQLAlchemyError as e:
+        logger.error("Database error creating character: %s", str(e))
+        raise HTTPException(status_code=500, detail="Database exception occurred during character creation.")
 
     return CharacterResponse(
         id=new_id,

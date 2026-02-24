@@ -5,6 +5,7 @@ export interface ClassLoadout {
     stats: Record<Stat, number>;
     equipment: Item[];
     inventory: (string | Item)[];
+    spells?: (string | Item)[];
 }
 
 const createWeapon = (name: string, type: string, damage_dice: string, damage_type: string, props: string[] = []): Item => ({
@@ -91,17 +92,20 @@ export const CLASS_LOADOUTS: Record<string, ClassLoadout> = {
     "Bard": {
         stats: { Strength: 8, Dexterity: 14, Constitution: 14, Intelligence: 10, Wisdom: 12, Charisma: 14 },
         equipment: [leatherArmor, rapier],
-        inventory: [entPack, dagger, lute]
+        inventory: [entPack, dagger, lute],
+        spells: ["vicious-mockery", "cure-wounds", "charm-person"]
     },
     "Cleric": {
         stats: { Strength: 14, Dexterity: 12, Constitution: 14, Intelligence: 8, Wisdom: 14, Charisma: 10 },
         equipment: [scaleMail, mace],
-        inventory: [priestPack, shield, lightCrossbow, "itm-20x-crossbow-bolts", amulet]
+        inventory: [priestPack, shield, lightCrossbow, "itm-20x-crossbow-bolts", amulet],
+        spells: ["sacred-flame", "cure-wounds", "guiding-bolt"]
     },
     "Druid": {
         stats: { Strength: 8, Dexterity: 14, Constitution: 14, Intelligence: 10, Wisdom: 14, Charisma: 12 },
         equipment: [leatherArmor, scimitar],
-        inventory: [explPack, shield, mistletoe]
+        inventory: [explPack, shield, mistletoe],
+        spells: ["produce-flame", "entangle", "cure-wounds"]
     },
     "Fighter": {
         stats: { Strength: 14, Dexterity: 14, Constitution: 14, Intelligence: 8, Wisdom: 12, Charisma: 10 },
@@ -117,30 +121,35 @@ export const CLASS_LOADOUTS: Record<string, ClassLoadout> = {
         stats: { Strength: 14, Dexterity: 10, Constitution: 14, Intelligence: 8, Wisdom: 12, Charisma: 14 },
         equipment: [chainMail, longsword],
         inventory: [priestPack, shield, "wpn-5x-javelin", emblem]
+        // Paladins usually prepare spells at 2nd level, but we could omit for now.
     },
     "Ranger": {
         stats: { Strength: 10, Dexterity: 14, Constitution: 14, Intelligence: 8, Wisdom: 14, Charisma: 12 },
         equipment: [scaleMail, longbow],
         inventory: [explPack, shortsword, shortsword2, "itm-20x-arrows"]
+        // Rangers usually prepare spells at 2nd level
     },
     "Rogue": {
         stats: { Strength: 8, Dexterity: 14, Constitution: 14, Intelligence: 12, Wisdom: 14, Charisma: 10 },
-        equipment: [leatherArmor, rapier],
-        inventory: [burgPack, dagger, dagger2, shortbow, "itm-20x-arrows", thievesTools]
+        equipment: [leatherArmor, shortsword, shortsword2],
+        inventory: [burgPack, rapier, dagger, dagger2, shortbow, "itm-20x-arrows", thievesTools]
     },
     "Sorcerer": {
         stats: { Strength: 8, Dexterity: 14, Constitution: 14, Intelligence: 10, Wisdom: 12, Charisma: 14 },
         equipment: [lightCrossbow],
-        inventory: [explPack, "itm-20x-crossbow-bolts", dagger, dagger2, crystal]
+        inventory: [explPack, "itm-20x-crossbow-bolts", dagger, dagger2, crystal],
+        spells: ["fire-bolt", "magic-missile", "shield"]
     },
     "Warlock": {
         stats: { Strength: 8, Dexterity: 14, Constitution: 14, Intelligence: 10, Wisdom: 12, Charisma: 14 },
         equipment: [leatherArmor, lightCrossbow],
-        inventory: [scholPack, "itm-20x-crossbow-bolts", dagger, dagger2, orb]
+        inventory: [scholPack, "itm-20x-crossbow-bolts", dagger, dagger2, orb],
+        spells: ["eldritch-blast", "hex", "armor-of-agathys"]
     },
     "Wizard": {
         stats: { Strength: 8, Dexterity: 14, Constitution: 14, Intelligence: 14, Wisdom: 12, Charisma: 10 },
         equipment: [quarterstaff],
-        inventory: [scholPack, wand, spellbook]
+        inventory: [scholPack, wand, spellbook],
+        spells: ["ray-of-frost", "mage-armor", "magic-missile"]
     }
 };

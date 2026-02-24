@@ -15,7 +15,8 @@ async def main():
             for p in profiles:
                 print(p)
         except Exception as e:
-            print(f"Error querying profiles: {e}")
+            print(f"Fatal Error: {e}")
+            import sys; sys.exit(1)
 
         print("\n--- CAMPAIGNS ---")
         try:

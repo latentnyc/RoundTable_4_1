@@ -5,6 +5,7 @@ import traceback
 from datetime import datetime
 from uuid import uuid4
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from db.session import AsyncSessionLocal
 from app.models import Player, Coordinates, GameState, Location
 from app.socket.decorators import socket_event_handler
@@ -66,7 +67,7 @@ async def handle_join_campaign(sid, data, sio, connected_users):
             for char_row in char_rows:
                 try:
                     sheet_data = json.loads(char_row['sheet_data']) if char_row['sheet_data'] else {}
-                except Exception as e:
+                except json.JSONDecodeError as e:
                     logger.warning(f"[DEBUG] Error parsing sheet_data for char {char_row['id']}: {e}")
                     sheet_data = {}
 
@@ -83,8 +84,8 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                 xp = _safe_int(char_row['xp'], 0)
 
                 # Check control mode
-                control_mode = char_row['control_mode'] if 'control_mode' in char_row and char_row['control_mode'] else 'human'
-                is_ai = (control_mode == 'ai')
+                control_mode = str(char_row['control_mode']) if char_row.get('control_mode') else 'human'
+                is_ai = bool(control_mode == 'ai')
 
                 player_char = Player(
                     id=char_row['id'],
@@ -127,7 +128,7 @@ async def handle_join_campaign(sid, data, sio, connected_users):
             # 4. Sync Characters
 
             # Map existing chars by ID
-            existing_chars = {p.id: p for p in game_state.party if str(p.user_id) == str(user_id)}
+            existing_chars = {p.id: p for p in game_state.party}
 
             # Clear user's chars from party list
             game_state.party = [p for p in game_state.party if str(p.user_id) != str(user_id)]
@@ -140,6 +141,18 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                     new_p.position = old_p.position
                     new_p.status_effects = old_p.status_effects
                     new_p.initiative = old_p.initiative
+                else:
+                    # New character joining. Assign a spawn hex if available.
+                    spawn_hexes = getattr(game_state.location, 'party_locations', [])
+                    if spawn_hexes:
+                        idx = len(game_state.party) % len(spawn_hexes)
+                        spawn_data = spawn_hexes[idx].get('position', {})
+                        if spawn_data:
+                            new_p.position = Coordinates(
+                                q=spawn_data.get('q', 0),
+                                r=spawn_data.get('r', 0),
+                                s=spawn_data.get('s', 0)
+                            )
 
                 game_state.party.append(new_p)
 
@@ -156,6 +169,10 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                 game_state.location.description = ""
 
             # 5. Save Updated State
+            # Ensure character JSON sheets capture the new spawn coordinates
+            from app.services.state_service import StateService
+            await StateService._save_party(game_state.party, campaign_id, db)
+
             await db.execute(
                 text("INSERT INTO game_states (id, campaign_id, turn_index, phase, state_data) VALUES (:id, :campaign_id, :turn_index, :phase, :state_data)"),
                 {"id": str(uuid4()), "campaign_id": campaign_id, "turn_index": game_state.turn_index, "phase": game_state.phase, "state_data": game_state.model_dump_json()}
@@ -180,14 +197,11 @@ async def handle_join_campaign(sid, data, sio, connected_users):
 
             await sio.emit('game_state_update', game_state.model_dump(), room=campaign_id)
 
-    except Exception as e:
+    except SQLAlchemyError as e:
         import traceback
         if 'db' in locals() and db is not None:
-            try:
-                await db.rollback()
-            except Exception:
-                pass # Session might not be initialized or active
-        logger.error(f"Error in join_campaign logic: {e}")
+             await db.rollback()
+        logger.error(f"Database error in join_campaign logic: {e}")
         logger.error(traceback.format_exc())
 
     joined_names = ", ".join(character_names) if character_names else "Spectator"
@@ -252,11 +266,17 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                 camp_description = camp_row['description'] or "A fantasy adventure."
                 template_id = camp_row['template_id']
 
-                await db.execute(
-                    text("INSERT INTO debug_logs (id, campaign_id, type, content, created_at) VALUES (:id, :cid, 'intro_start', :msg, :now)"),
-                    {"id": str(uuid4()), "cid": campaign_id, "msg": f"Starting generation with model: {model_name}", "now": datetime.utcnow()}
-                )
-                await db.commit()
+                # Try to claim the intro lock
+                try:
+                    await db.execute(
+                        text("INSERT INTO debug_logs (id, campaign_id, type, content, created_at) VALUES (:id, :cid, 'intro_start', :msg, :now)"),
+                        {"id": str(uuid4()), "cid": campaign_id, "msg": f"Starting generation with model: {model_name}", "now": datetime.utcnow()}
+                    )
+                    await db.commit()
+                except SQLAlchemyError as e:
+                    logger.warning(f"Intro start lock failed (likely race condition handled). Bailing out: {e}")
+                    await db.rollback()
+                    return
 
                 # Try to get Starting NPC from Template
                 starting_npc_info = ""
@@ -273,7 +293,7 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                                 n_row = n_res.mappings().fetchone()
                                 if n_row:
                                     starting_npc_info = f"\nStarting NPC nearby: {n_row['name']} ({n_row['role']})."
-                    except Exception as ex:
+                    except SQLAlchemyError as ex:
                         logger.error(f"Error fetching starting NPC: {ex}")
 
                 # Notify Users
@@ -416,7 +436,7 @@ async def handle_join_campaign(sid, data, sio, connected_users):
         for row in rows:
             try:
                 full_content = json.loads(row['full_content']) if row['full_content'] else None
-            except:
+            except json.JSONDecodeError:
                 full_content = str(row['full_content'])
 
             log_item = {

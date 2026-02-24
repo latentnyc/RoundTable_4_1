@@ -14,8 +14,9 @@ from ..models import GameState, Location, NPC, Coordinates
 from uuid import uuid4
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, insert, update, delete, desc, text
-from db.schema import campaigns, campaign_templates, campaign_participants, game_states, characters, chat_messages, npcs, locations, debug_logs, profiles
+from db.schema import campaigns, campaign_templates, campaign_participants, game_states, characters, chat_messages, npcs, locations, debug_logs, profiles, campaign_memories, quests, spells, monsters, items
 from ..services.campaign_loader import instantiate_campaign
+from sqlalchemy.exc import SQLAlchemyError
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -43,8 +44,8 @@ async def test_api_key(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"API Key Validation Error: {e}")
-        raise HTTPException(status_code=400, detail=f"Failed to validate API Key: {str(e)}")
+        logger.error("API Key Validation Error: %s", str(e))
+        raise HTTPException(status_code=400, detail="Failed to validate API Key due to an exception.")
 
 @router.get("/templates", response_model=List[CampaignTemplateResponse])
 async def list_templates(
@@ -64,8 +65,9 @@ async def list_templates(
             )
             for row in rows
         ]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to list templates: {e}")
+    except SQLAlchemyError as e:
+        logger.error("Database error listing templates: %s", str(e))
+        raise HTTPException(status_code=500, detail="Database exception occurred listing templates.")
 
 @router.get("/", response_model=List[CampaignResponse])
 async def list_campaigns(
@@ -94,8 +96,9 @@ async def list_campaigns(
             )
             for row in rows
         ]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to list campaigns: {e}")
+    except SQLAlchemyError as e:
+        logger.error("Database error listing campaigns: %s", str(e))
+        raise HTTPException(status_code=500, detail="Database exception occurred listing campaigns.")
 
 @router.post("/", response_model=CampaignResponse)
 async def create_campaign(
@@ -165,14 +168,18 @@ async def create_campaign(
         await db.execute(stmt_part)
 
         await db.commit()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create campaign: {e}")
+    except SQLAlchemyError as e:
+        logger.error("Database error creating campaign: %s", str(e))
+        raise HTTPException(status_code=500, detail="Database exception occurred creating campaign.")
 
     # Init Game State
     initial_location_name = "The Beginning"
     initial_location_desc = "" # Empty to prevent premature image gen
     initial_location_source_id = None
     initial_location_id = str(uuid4()) # Default if not found
+    initial_interactables = []
+    initial_walkable_hexes = []
+    initial_party_locations = []
 
     initial_npcs = []
 
@@ -208,6 +215,10 @@ async def create_campaign(
                              initial_location_desc = l_desc.get('visual', "A mystery location.")
                          else:
                              initial_location_desc = str(l_desc)
+
+                         initial_interactables = l_data.get('interactables', [])
+                         initial_walkable_hexes = l_data.get('walkable_hexes', [])
+                         initial_party_locations = l_data.get('party_locations', [])
 
                      # Fetch NPCs present at this location
                      query_npcs = select(npcs.c.id, npcs.c.name, npcs.c.role, npcs.c.data).where(
@@ -258,10 +269,10 @@ async def create_campaign(
                                  data=n_data
                              ))
 
-    except Exception as e:
-        logger.error(f"Error checking starting location/NPCs: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
+    except json.JSONDecodeError as je:
+        logger.error("JSON parsing error checking starting location: %s", str(je))
+    except SQLAlchemyError as e:
+        logger.error("Database error checking starting location/NPCs: %s", str(e))
 
     initial_state = GameState(
         session_id=new_id,
@@ -269,8 +280,12 @@ async def create_campaign(
             id=initial_location_id,
             source_id=initial_location_source_id,
             name=initial_location_name,
-            description=initial_location_desc
+            description=initial_location_desc,
+            interactables=initial_interactables,
+            walkable_hexes=initial_walkable_hexes,
+            party_locations=initial_party_locations
         ),
+        discovered_locations=[],
         party=[],
         npcs=initial_npcs
     )
@@ -633,6 +648,20 @@ async def delete_campaign(
         raise HTTPException(status_code=404, detail="Campaign not found")
 
     try:
+        # Delete scoped items from compendium tables
+        await db.execute(delete(items).where(items.c.campaign_id == campaign_id))
+        await db.execute(delete(monsters).where(monsters.c.campaign_id == campaign_id))
+        await db.execute(delete(spells).where(spells.c.campaign_id == campaign_id))
+
+        # Delete scoped game data
+        await db.execute(delete(quests).where(quests.c.campaign_id == campaign_id))
+        await db.execute(delete(locations).where(locations.c.campaign_id == campaign_id))
+        await db.execute(delete(npcs).where(npcs.c.campaign_id == campaign_id))
+
+        # Delete logs and memories
+        await db.execute(delete(campaign_memories).where(campaign_memories.c.campaign_id == campaign_id))
+        await db.execute(delete(debug_logs).where(debug_logs.c.campaign_id == campaign_id))
+
         # Delete related game states
         await db.execute(delete(game_states).where(game_states.c.campaign_id == campaign_id))
         # Delete related characters
@@ -646,9 +675,10 @@ async def delete_campaign(
         await db.execute(delete(campaigns).where(campaigns.c.id == campaign_id))
 
         await db.commit()
-    except Exception as e:
+    except SQLAlchemyError as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to delete campaign: {e}")
+        logger.error("Database error deleting campaign: %s", str(e))
+        raise HTTPException(status_code=500, detail="Database exception occurred deleting campaign.")
 
 
 @router.get("/{campaign_id}/logs")
@@ -688,9 +718,9 @@ async def get_campaign_logs(
             }
             for row in rows
         ]
-    except Exception as e:
-        logger.error(f"Error fetching logs: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch logs")
+    except SQLAlchemyError as e:
+        logger.error("Database error fetching logs: %s", str(e))
+        raise HTTPException(status_code=500, detail="Failed to fetch logs due to database error.")
 
 @router.post("/{campaign_id}/images/generate", response_model=ImageGenerationResponse)
 async def generate_campaign_image(
@@ -728,8 +758,8 @@ async def generate_campaign_image(
                 image_base64=cached_img,
                 prompt_used=req.prompt
             )
-    except Exception as e:
-        logger.warning(f"Cache read error: {e}")
+    except SQLAlchemyError as e:
+        logger.warning("Cache database read error: %s", str(e))
 
     # Generate Image via AI
     image_bytes = await AIService.generate_scene_image(campaign_id, req.prompt, db)
@@ -746,8 +776,8 @@ async def generate_campaign_image(
         )
         await db.execute(stmt)
         await db.commit()
-    except Exception as e:
-         logger.warning(f"Cache write error: {e}")
+    except SQLAlchemyError as e:
+         logger.warning("Cache write database error: %s", str(e))
          await db.rollback()
 
     # Broadcast stats

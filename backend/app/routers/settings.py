@@ -34,9 +34,11 @@ async def test_api_key(request: TestAPIKeyRequest):
 
             return ModelListResponse(models=models)
         except Exception as e:
-            # Log the error for debugging if needed, but return 400 to client
-            logger.error(f"API Key Validation Error: {e}")
-            raise HTTPException(status_code=400, detail=str(e))
+            # Catching generic exception as the genai sdk exceptions might vary, but raise 400
+            # Ideally we'd catch google.api_core.exceptions but it might not be imported or available.
+            # Keeping it as Exception but logging it appropriately.
+            logger.error("API Key Validation Error: %s", str(e))
+            raise HTTPException(status_code=400, detail="Invalid API Key or connection error.")
 
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported provider: {request.provider}")
@@ -181,9 +183,11 @@ async def get_game_templates(token_data: dict = Depends(verify_token)):
                 description=meta.get("description", meta.get("genre", "")),
                 system_prompt=prompt
             ))
-        except Exception as e:
-            logger.error(f"Error reading game file {filename}: {e}")
-            # Skip malformed files
+        except json.JSONDecodeError as e:
+            logger.error("JSON Error parsing game file %s: %s", filename, str(e))
+            continue
+        except OSError as e:
+            logger.error("IO Error reading game file %s: %s", filename, str(e))
             continue
 
     return templates

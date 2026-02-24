@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useSocketStore } from '@/lib/socket';
+import { useSocketContext } from '@/lib/SocketProvider';
 import { useCharacterStore } from '@/store/characterStore';
 import { X, PackageOpen, Coins, Check } from 'lucide-react';
 
@@ -27,7 +27,7 @@ interface LootModalProps {
 }
 
 export default function LootModal({ vessel, onClose, campaignId }: LootModalProps) {
-    const { socket } = useSocketStore();
+    const { socket } = useSocketContext();
     const { activeCharacterId } = useCharacterStore();
     const [taking, setTaking] = useState(false);
 

@@ -3,6 +3,7 @@ import logging
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from app.models import GameState, Player, Enemy, NPC
 
 logger = logging.getLogger(__name__)
@@ -222,8 +223,8 @@ async def build_narrative_context(db: AsyncSession, campaign_id: str, state: Gam
                         int_names.append(f"- {it.get('name')}{state_str}")
                     if int_names:
                         interactables_block = "\n**INTERACTABLES**:\n" + "\n".join(int_names)
-        except Exception as e:
-            logger.error(f"Error fetching paths: {e}")
+        except SQLAlchemyError as e:
+            logger.error("Database error fetching paths/interactables: %s", str(e))
 
     # Assembly
     context = f"""
