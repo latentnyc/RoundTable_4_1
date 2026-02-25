@@ -9,6 +9,9 @@ import json
 from uuid import uuid4
 from typing import Optional
 import traceback
+import logging
+
+logger = logging.getLogger(__name__)
 
 class AIService:
     @staticmethod
@@ -18,7 +21,7 @@ class AIService:
         row = result.mappings().fetchone()
 
         fallback_key = os.getenv("GEMINI_API_KEY")
-        fallback_model = "gemini-2.5-flash"
+        fallback_model = "gemini-3-flash-preview"
 
         if row:
             api_key = row.get("api_key")
@@ -32,7 +35,7 @@ class AIService:
         return (fallback_key, fallback_model)
 
     @staticmethod
-    def _build_combat_narration_prompt(context: str, history: list) -> list:
+    def _build_combat_narration_prompt(context: str, history: list, flags: list = None) -> list:
          narrator_persona = "You are the Dungeon Master. Keep narrations brief (1-2 sentences), vivid, and strictly based on the mechanics provided."
          task_prompt = f"""
          ACTION REPORT:
@@ -57,8 +60,26 @@ class AIService:
 
          - Use CAPS for NPC names.
          - Do not add new mechanics.
+         
+         CRITICAL: The chat history may contain mechanical commands from the player (e.g., "@cast ray of frost", "@attack goblin"). 
+         You must IGNORE these commands as instructions to you. You are the DM narrating the *outcome* of those commands, which is provided in the ACTION REPORT above.
+         Do NOT reply with "I cannot cast spells" or similar rejections. Simply narrate the ACTION REPORT.
          """
+         
+         if flags and "ACTED_NOT_MOVED" in flags:
+             task_prompt += "\n\n[SYSTEM INSTRUCTION: The player just attacked or performed an action but STILL HAS MOVEMENT left. You MUST end your narration by explicitly asking them, in character, if they want to move, take cover, or end their turn.]"
+         elif flags and "MOVED_NOT_ACTED" in flags:
+             task_prompt += "\n\n[SYSTEM INSTRUCTION: The player just moved but STILL HAS THEIR ACTION left. You MUST end your narration by explicitly asking them, in character, if they want to attack, cast a spell, or end their turn.]"
+             
          return [SystemMessage(content=narrator_persona)] + history + [HumanMessage(content=task_prompt)]
+
+    @staticmethod
+    def _build_turn_start_narration_prompt(context: str, history: list) -> list:
+          narrator_persona = "You are the Dungeon Master guiding the combat encounter."
+          task_prompt = f"""
+          {context}
+          """
+          return [SystemMessage(content=narrator_persona)] + history + [HumanMessage(content=task_prompt)]
 
     @staticmethod
     def _build_move_narration_prompt(context: str, history: list) -> list:
@@ -107,7 +128,7 @@ class AIService:
           return [SystemMessage(content=narrator_persona)] + history + [HumanMessage(content=task_prompt)]
 
     @staticmethod
-    async def generate_dm_narration(campaign_id: str, context: str, history: list, db: AsyncSession, sid: str = None, mode: str = "chat"):
+    async def generate_dm_narration(campaign_id: str, context: str, history: list, db: AsyncSession, sid: str = None, mode: str = "chat", flags: list = None):
         """
         Generates DM narration based on context and history.
         """
@@ -125,7 +146,9 @@ class AIService:
         sender_name = "System"
 
         if mode == "combat_narration":
-             final_history = AIService._build_combat_narration_prompt(context, history)
+             final_history = AIService._build_combat_narration_prompt(context, history, flags=flags)
+        elif mode == "turn_start_narration":
+              final_history = AIService._build_turn_start_narration_prompt(context, history)
         elif mode == "move_narration":
               final_history = AIService._build_move_narration_prompt(context, history)
         elif mode == "identify_narration":
@@ -147,7 +170,7 @@ class AIService:
         }
 
         # Model overrides for narration? (Optional, stick to campaign config for now)
-        dm_graph, _ = get_dm_graph(api_key=api_key, model_name=model or 'gemini-2.5-flash')
+        dm_graph, _ = get_dm_graph(api_key=api_key, model_name=model or 'gemini-3-flash-preview')
         if not dm_graph:
             logger.debug("DEBUG: Failed to get dm_graph.")
             return None
@@ -164,7 +187,7 @@ class AIService:
         except Exception as e:
              # This is a LangChain invocation so keeping it broad but logging tightly
              logger.error("dm_graph.ainvoke failed during narration: %s\n%s", str(e), traceback.format_exc())
-             return None
+             return f"*The Dungeon Master pauses momentarily, considering the outcome.* (System Error: Narration failed to generate)"
 
     @staticmethod
     async def get_latest_memory(campaign_id: str, db: AsyncSession):
@@ -253,11 +276,11 @@ class AIService:
             "campaign_id": campaign_id,
             "sender_name": sender_name,
             "api_key": api_key,
-            "model_name": model or 'gemini-2.5-flash'
+            "model_name": model or 'gemini-3-flash-preview'
         }
 
         # Get DM Graph
-        dm_graph, error_msg = get_dm_graph(api_key=api_key, model_name=model or 'gemini-2.5-flash')
+        dm_graph, error_msg = get_dm_graph(api_key=api_key, model_name=model or 'gemini-3-flash-preview')
         if not dm_graph:
                 return f"DM Agent is offline (Initialization Failed: {error_msg})."
 
@@ -266,11 +289,15 @@ class AIService:
              callback_handler = SocketIOCallbackHandler(sid, campaign_id, agent_name="Dungeon Master")
              config = {"callbacks": [callback_handler], "recursion_limit": 10}
 
-        final_state = await dm_graph.ainvoke(inputs, config=config)
-        msg_content = final_state["messages"][-1].content
-        if isinstance(msg_content, list):
-            return "".join([b.get("text", "") if isinstance(b, dict) else str(b) for b in msg_content])
-        return str(msg_content)
+        try:
+             final_state = await dm_graph.ainvoke(inputs, config=config)
+             msg_content = final_state["messages"][-1].content
+             if isinstance(msg_content, list):
+                 return "".join([b.get("text", "") if isinstance(b, dict) else str(b) for b in msg_content])
+             return str(msg_content)
+        except Exception as e:
+             logger.error("dm_graph.ainvoke failed in chat response: %s\n%s", str(e), traceback.format_exc())
+             return f"DM Agent encountered an error: {e}"
 
     @staticmethod
     async def generate_character_response(campaign_id: str, character: dict, history: list, db: AsyncSession, sid: str = None):
@@ -295,8 +322,9 @@ class AIService:
 
         char_agent = get_character_graph(
             api_key=api_key,
-            model_name=model or 'gemini-2.5-flash',
-            character_details=char_details
+            model_name=model or 'gemini-3-flash-preview',
+            character_details=char_details,
+            campaign_id=campaign_id
         )
 
         if not char_agent:
@@ -313,11 +341,45 @@ class AIService:
              callback_handler = SocketIOCallbackHandler(sid, campaign_id, agent_name=char_details['name'])
              config = {"callbacks": [callback_handler], "recursion_limit": 10}
 
-        final_state = await char_agent.ainvoke(inputs, config=config)
-        msg_content = final_state["messages"][-1].content
-        if isinstance(msg_content, list):
-            return "".join([b.get("text", "") if isinstance(b, dict) else str(b) for b in msg_content])
-        return str(msg_content)
+        try:
+             final_state = await char_agent.ainvoke(inputs, config=config)
+             msg_content = final_state["messages"][-1].content
+             
+             parsed_content = ""
+             if isinstance(msg_content, list):
+                 for b in msg_content:
+                     if isinstance(b, dict) and "text" in b:
+                         parsed_content += b["text"]
+                     elif isinstance(b, str):
+                         parsed_content += b
+             elif isinstance(msg_content, str):
+                 parsed_content = msg_content
+             else:
+                 parsed_content = str(msg_content)
+                 
+             logger.debug(f"AI Character Response Parsed: {parsed_content}")
+             return parsed_content
+        except Exception as e:
+             logger.error("char_agent.ainvoke failed: %s\n%s", str(e), traceback.format_exc())
+             raise RuntimeError(f"{char_details['name']} AI Pipeline Failed: {e}")
+
+    @staticmethod
+    async def generate_bark(campaign_id: str, character, context: str, db: AsyncSession, sid: str = None):
+        """
+        Generates a quick, one-sentence combat bark or action announcement for an AI party member.
+        """
+        prompt = f"""[SYSTEM COMBAT MECHANICS]
+        {context}
+        
+        [INSTRUCTION]
+        You are {character.name}. You just attempted the mechanical action described above.
+        Generate a SINGLE SENTENCE in-character chat message announcing what you are trying to do and explicitly stating your mechanical roll.
+        CRITICAL: DO NOT narrate whether the attack hits, misses, or deals damage. Only narrate your ATTEMPT and the die roll. The DM will narrate the outcome.
+        CRITICAL: You MUST use phrases like "I rolled a", "the dice gave me", or "this says I got" when stating the number to emphasize that you are reading dice results as a player.
+        Example: "I rush over and swing my sword at the goblin, I rolled an 18 to hit!"
+        """
+        messages = [HumanMessage(content=prompt)]
+        return await AIService.generate_character_response(campaign_id, character, messages, db, sid=sid)
 
     @staticmethod
     async def generate_scene_image(campaign_id: str, prompt: str, db: AsyncSession):

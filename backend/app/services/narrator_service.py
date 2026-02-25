@@ -48,7 +48,7 @@ class NarratorService:
             if narration:
                 save_result = await ChatService.save_message(campaign_id, 'dm', 'Dungeon Master', narration, db=db)
                 await sio.emit('chat_message', {
-                    'sender_id': 'dm', 'sender_name': 'Dungeon Master', 'content': narration, 'id': save_result['id'], 'timestamp': save_result['timestamp']
+                    'sender_id': 'dm', 'sender_name': 'Dungeon Master', 'content': narration, 'id': save_result['id'], 'timestamp': save_result['timestamp'], 'message_type': 'narration'
                 }, room=campaign_id)
                 # We should commit if we saved a message, but we must be careful if the caller manages the transaction.
                 # If 'db' was passed in, we usually expect the caller to commit?
@@ -61,8 +61,7 @@ class NarratorService:
 
         except Exception as e:
             logger.error(f"Service Error: {e}", exc_info=True)
-            raise e
-            await sio.emit('system_message', {'content': f"(DM Narrator Error: {e})"}, room=campaign_id)
+            await sio.emit('chat_message', {'sender_id': 'system', 'sender_name': 'System', 'content': f"🚫 DM Narrator Error: {e}", 'timestamp': "Just now", 'is_system': True, 'message_type': 'system'}, room=campaign_id)
 
         finally:
             await sio.emit('typing_indicator', {'sender_id': 'dm', 'is_typing': False}, room=campaign_id)

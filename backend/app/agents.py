@@ -36,7 +36,7 @@ def should_continue(state: AgentState):
 # Cache for compiled graphs: (api_key, model_name) -> compiled_graph
 _dm_graph_cache = {}
 
-def get_dm_graph(api_key: str = None, model_name: str = "gemini-2.0-flash"):
+def get_dm_graph(api_key: str = None, model_name: str = "gemini-3-flash-preview"):
     global _dm_graph_cache
 
     # Check cache first
@@ -55,7 +55,8 @@ def get_dm_graph(api_key: str = None, model_name: str = "gemini-2.0-flash"):
         llm = ChatGoogleGenerativeAI(
             model=model_name,
             temperature=0.7,
-            google_api_key=final_api_key
+            google_api_key=final_api_key,
+            thinking_level="low" # Disable extensive reasoning for faster generic turns
         )
         llm_with_tools = llm.bind_tools(game_tools)
     except Exception as e:
@@ -127,6 +128,9 @@ def get_dm_graph(api_key: str = None, model_name: str = "gemini-2.0-flash"):
             - Narrate the *intent* briefly.
             - Then ADD this tip: "(To perform this action mechanically, use `@attack <target>` or `@check <stat>`)".
 
+            **RULE 3: ENDING TURNS IN COMBAT**
+            - If the player explicitly tells you they are done with their turn, or declines further action after you prompt them, you MUST include the exact string `[SYSTEM_COMMAND:END_TURN]` anywhere in your response. This will mechanically pass the turn.
+
             **SYSTEM MESSAGES**
             You will see messages from "System" containing the results of commands. Use these as the absolute truth.
             """
@@ -189,7 +193,7 @@ def get_dm_graph(api_key: str = None, model_name: str = "gemini-2.0-flash"):
     _dm_graph_cache[cache_key] = compiled
     return compiled, None
 
-def get_character_graph(api_key: str, model_name: str, character_details: dict):
+def get_character_graph(api_key: str, model_name: str, character_details: dict, campaign_id: str = None, db=None):
     """
     Creates a LangGraph agent for a specific NPC/Character.
     character_details should include:
@@ -202,6 +206,7 @@ def get_character_graph(api_key: str, model_name: str, character_details: dict):
     """
     try:
         from langchain_google_genai import ChatGoogleGenerativeAI
+        from app.ai_tools import create_interact_tool
 
         final_api_key = api_key or os.getenv("GEMINI_API_KEY")
         if not final_api_key:
@@ -210,14 +215,18 @@ def get_character_graph(api_key: str, model_name: str, character_details: dict):
         llm = ChatGoogleGenerativeAI(
             model=model_name,
             temperature=0.8, # Slightly higher for creativity
-            google_api_key=final_api_key
+            google_api_key=final_api_key,
+            thinking_level="low" # Keep character chat snappy
         )
-        # Characters might not need tools yet, or maybe they do?
-        # For now, let's give them tools but maybe restrict usage instructions?
-        # Actually, let's keep it simple: No tools for now, just chat.
-        # Or maybe safe tools?
-        # Let's bind tools but not emphasize them in prompt unless needed.
-        llm_with_tools = llm.bind_tools(game_tools)
+        char_tools = []
+        if campaign_id and character_details.get('name'):
+             char_tools.append(create_interact_tool(campaign_id, character_details['name'], db=db))
+             
+        # Bind the specific character tools
+        if char_tools:
+            llm_with_tools = llm.bind_tools(char_tools)
+        else:
+            llm_with_tools = llm
 
     except Exception as e:
         logger.error(f"Error initializing Character LLM: {e}")
@@ -258,12 +267,15 @@ def get_character_graph(api_key: str, model_name: str, character_details: dict):
 
     workflow = StateGraph(AgentState)
     workflow.add_node("agent", call_character_model)
-    workflow.add_node("tools", ToolNode(game_tools))
+    
+    if char_tools:
+         workflow.add_node("tools", ToolNode(char_tools))
+         workflow.add_conditional_edges("agent", should_continue, {"tools": "tools", END: END})
+         workflow.add_edge("tools", "agent")
+    else:
+         workflow.add_edge("agent", END)
 
     workflow.set_entry_point("agent")
-    workflow.add_conditional_edges("agent", should_continue, {"tools": "tools", END: END})
-    workflow.add_edge("tools", "agent")
-
     return workflow.compile()
 
 async def summarize_messages(messages: List[BaseMessage], api_key: str = None) -> str | None:
@@ -277,7 +289,7 @@ async def summarize_messages(messages: List[BaseMessage], api_key: str = None) -
 
         # Use Flash for speed/cost
         llm = ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash",
+            model="gemini-3-flash-preview",
             temperature=0.3, # Low temp for factual summary
             google_api_key=final_api_key
         )

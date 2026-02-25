@@ -121,14 +121,16 @@ async def handle_chat_message(sid, data, sio, connected_users):
             'sender_name': sender_name,
             'content': content,
             'id': save_result['id'],
-            'timestamp': save_result['timestamp']
+            'timestamp': save_result['timestamp'],
+            'message_type': 'chat'
         }, room=campaign_id)
 
 
         # 3. Handle Commands via Registry
         # This handles @move, @attack, @identify, @dm, @help, etc.
         if is_command:
-            was_command = await CommandService.dispatch(campaign_id, sender_id, sender_name, content, sio, sid=sid)
+            target_id = data.get('target_id')
+            was_command = await CommandService.dispatch(campaign_id, sender_id, sender_name, content, sio, sid=sid, target_id=target_id)
             if was_command:
                 return
 
@@ -191,7 +193,8 @@ async def handle_chat_message(sid, data, sio, connected_users):
                                     'sender_name': target_char.name,
                                     'content': response_text,
                                     'id': save_result['id'],
-                                    'timestamp': save_result['timestamp']
+                                    'timestamp': save_result['timestamp'],
+                                    'message_type': 'chat'
                                 }, room=campaign_id)
 
                             await db.commit()
@@ -202,6 +205,7 @@ async def handle_chat_message(sid, data, sio, connected_users):
                             except Exception:
                                 pass
                         log_debug(f"Error in Mention generation: {e}")
+                        await sio.emit('chat_message', {'sender_id': 'system', 'sender_name': 'System', 'content': f"🚫 {target_char.name} Agent Error: {e}", 'timestamp': "Just now", 'is_system': True, 'message_type': 'system'}, room=campaign_id)
 
                     await sio.emit('typing_indicator', {'sender_id': target_char.id, 'is_typing': False}, room=campaign_id)
 

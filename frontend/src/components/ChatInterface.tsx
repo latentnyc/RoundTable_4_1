@@ -7,6 +7,7 @@ import { Send, User, Bot, Sparkles, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Character } from '@/lib/api';
 import CommandSuggestions from './CommandSuggestions';
+import { renderMessageContent, applyCommandSuggestion } from '@/lib/chatUtils';
 
 interface ChatInterfaceProps {
     campaignId: string;
@@ -18,9 +19,11 @@ export default function ChatInterface({ characterId }: ChatInterfaceProps) {
     const messages = useSocketStore(state => state.messages);
     const { socket } = useSocketContext();
     const [inputValue, setInputValue] = useState('');
+    const [targetMap, setTargetMap] = useState<Record<string, string>>({});
     const [showClearConfirm, setShowClearConfirm] = useState(false);
     const bottomRef = useRef<HTMLDivElement>(null);
     const [isDmTyping, setIsDmTyping] = useState(false);
+    const [chatFontSize, setChatFontSize] = useState<'text-sm' | 'text-base' | 'text-lg'>('text-base');
 
     useEffect(() => {
         if (!socket) return;
@@ -89,16 +92,29 @@ export default function ChatInterface({ characterId }: ChatInterfaceProps) {
             const apiKey = localStorage.getItem('gemini_api_key');
             const model = localStorage.getItem('selected_model');
 
+            let targetIdToSend = undefined;
+            const parts = inputValue.trim().split(' ');
+            if (parts.length > 1) {
+                // The target is usually everything after the command
+                const maybeTargetText = parts.slice(1).join(' ').toLowerCase();
+                if (targetMap[maybeTargetText]) {
+                    targetIdToSend = targetMap[maybeTargetText];
+                }
+            }
+
             socket.emit('chat_message', {
                 content: inputValue,
                 sender_name: senderName,
                 sender_id: senderId,
+                target_id: targetIdToSend,
                 api_key: apiKey,
                 model_name: model
             });
         }
 
         setInputValue('');
+        // Clear target state after send
+        setTargetMap({});
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -145,12 +161,23 @@ export default function ChatInterface({ characterId }: ChatInterfaceProps) {
                         </button>
                     </div>
                 ) : (
-                    <button
-                        onClick={() => setShowClearConfirm(true)}
-                        className="text-xs text-neutral-600 hover:text-white transition-colors"
-                    >
-                        Clear
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <select
+                            value={chatFontSize}
+                            onChange={(e) => setChatFontSize(e.target.value as any)}
+                            className="bg-neutral-800 text-neutral-300 text-xs rounded border border-neutral-700 px-2 py-1 outline-none appearance-none cursor-pointer hover:bg-neutral-700 transition"
+                        >
+                            <option value="text-sm">Small Font</option>
+                            <option value="text-base">Medium Font</option>
+                            <option value="text-lg">Large Font</option>
+                        </select>
+                        <button
+                            onClick={() => setShowClearConfirm(true)}
+                            className="text-xs text-neutral-600 hover:text-white transition-colors"
+                        >
+                            Clear
+                        </button>
+                    </div>
                 )}
             </div>
             {/* Messages Area */}
@@ -208,18 +235,19 @@ export default function ChatInterface({ characterId }: ChatInterfaceProps) {
                                 "flex flex-col max-w-[95%]",
                                 isMe ? "items-end" : "items-start"
                             )}>
-                                <span className="text-base font-semibold text-neutral-300 mb-1 px-1 flex items-center gap-2">
+                                <span className={cn("font-semibold text-neutral-300 mb-1 px-1 flex items-center gap-2", chatFontSize)}>
                                     {msg.sender_name} <span className="text-xs font-normal opacity-50">{msg.timestamp}</span>
                                 </span>
                                 <div className={cn(
-                                    "px-5 py-3 rounded-2xl text-base leading-relaxed shadow-md",
+                                    "px-5 py-3 rounded-2xl leading-relaxed shadow-md",
+                                    chatFontSize,
                                     isMe
                                         ? "bg-purple-600 text-white rounded-tr-sm"
                                         : (isDM || isAI)
                                             ? "bg-amber-900/40 border border-amber-500/30 text-amber-50 rounded-tl-sm italic shadow-amber-900/20"
                                             : "bg-neutral-800 text-neutral-100 rounded-tl-sm"
                                 )}>
-                                    {renderMessageContent(msg.content)}
+                                    {renderMessageContent(msg.content, msg.message_type, isDM)}
                                 </div>
                             </div>
                         </div>
@@ -234,20 +262,14 @@ export default function ChatInterface({ characterId }: ChatInterfaceProps) {
                 {/* Command Suggestions Popup */}
                 <CommandSuggestions
                     inputValue={inputValue}
-                    onSelect={(selectedText, isArgument) => {
-                        if (isArgument) {
-                            // If user selected an argument (like "Goblin 1"), replace the partial argument
-                            const parts = inputValue.trimStart().split(' ');
-                            const baseCmd = parts[0]; // e.g., "@attack"
-                            // If baseCmd already had a space typed after it, keep it and append the selected text.
-                            // If they selected a multi-word target, best to wrap it in quotes? Only if your backend handles quotes.
-                            // The backend uses `target_name = action_params.get("raw_text")` basically.
-                            // Let's just append the exact name.
-                            setInputValue(`${baseCmd} ${selectedText} `);
-                        } else {
-                            // Selected a base command
-                            setInputValue(`@${selectedText} `);
+                    characterId={characterId}
+                    userId={profile?.id || user?.uid}
+                    onSelect={(selectedText, isArgument, targetId) => {
+                        const newText = applyCommandSuggestion(inputValue, selectedText, isArgument);
+                        if (targetId) {
+                            setTargetMap(prev => ({ ...prev, [selectedText.toLowerCase()]: targetId }));
                         }
+                        setInputValue(newText);
                     }}
                 />
 
@@ -277,45 +299,3 @@ export default function ChatInterface({ characterId }: ChatInterfaceProps) {
         </div>
     );
 }
-
-// Helper to render complex message content
-const renderMessageContent = (content: any) => {
-    try {
-        if (!content) return "";
-        if (typeof content !== 'string') return String(content);
-
-        // 1. Check if it *might* be JSON
-        const trimmed = content.trim();
-        if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-            (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-            try {
-                const parsed = JSON.parse(trimmed);
-
-                // 2. Handle Arrays (Rich Text)
-                if (Array.isArray(parsed)) {
-                    return parsed.map((block: any, i: number) => {
-                        if (typeof block === 'string') return <span key={i}>{block}</span>;
-                        if (block?.type === 'text') return <span key={i}>{block.text}</span>;
-                        return null;
-                    });
-                }
-
-                // 3. Handle Single Object
-                if (typeof parsed === 'object' && parsed !== null) {
-                    return parsed.text || JSON.stringify(parsed);
-                }
-
-                return String(parsed);
-            } catch {
-                // Not JSON, fall through
-            }
-        }
-
-        // 4. Default: Plain Text
-        return content;
-
-    } catch (e) {
-        console.error("Error rendering message:", e);
-        return String(content);
-    }
-};
