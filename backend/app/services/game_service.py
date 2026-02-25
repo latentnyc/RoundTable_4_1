@@ -16,33 +16,59 @@ if TYPE_CHECKING:
 
 class GameService:
     @staticmethod
-    def _find_char_by_name(game_state, search_term: str):
+    def _find_char_by_name(game_state, search_term: str, target_id: str = None):
+        if target_id:
+            for li in [game_state.party, game_state.enemies, game_state.npcs]:
+                for c in li:
+                    if c.id == target_id:
+                        return c
+
+        if not search_term:
+            return None
+
         term = search_term.lower()
 
-        # Priority 1: Exact Name Match (contains) or ID/TargetID Match
+        # Priority 1: Exact ID or target_id Match
         for li in [game_state.party, game_state.enemies, game_state.npcs]:
             for c in li:
-                if term == c.id.lower() or term in c.name.lower():
+                if term == c.id.lower():
                     return c
                 if hasattr(c, 'target_id') and c.target_id and term == c.target_id.lower():
                     return c
 
-        # Priority 2: Race / Type / Role Match
+        # Priority 2: Exact Name Match
+        for li in [game_state.party, game_state.enemies, game_state.npcs]:
+            for c in li:
+                if term == c.name.lower():
+                    return c
+
+        # Priority 3: Prefix Name Match
+        for li in [game_state.party, game_state.enemies, game_state.npcs]:
+            for c in li:
+                if c.name.lower().startswith(term):
+                    return c
+
+        # Priority 4: Race / Type / Role Exact Match
         for li in [game_state.party, game_state.enemies, game_state.npcs]:
             for c in li:
                 # Player
-                if hasattr(c, 'race') and c.race and term in c.race.lower(): return c
-                if hasattr(c, 'role') and c.role and term in c.role.lower(): return c
+                if hasattr(c, 'race') and c.race and term == c.race.lower(): return c
+                if hasattr(c, 'role') and c.role and term == c.role.lower(): return c
 
                 # Enemy
-                if hasattr(c, 'type') and c.type and term in c.type.lower(): return c
+                if hasattr(c, 'type') and c.type and term == c.type.lower(): return c
 
                 # NPC
                 if hasattr(c, 'data') and c.data:
-                    # NPC Race/Type often in 'race' or 'type' keys in data
-                    if 'race' in c.data and term in str(c.data['race']).lower(): return c
-                    if 'type' in c.data and term in str(c.data['type']).lower(): return c
-                    if 'role' in c.data and term in str(c.data['role']).lower(): return c
+                    if 'race' in c.data and term == str(c.data['race']).lower(): return c
+                    if 'type' in c.data and term == str(c.data['type']).lower(): return c
+                    if 'role' in c.data and term == str(c.data['role']).lower(): return c
+
+        # Priority 5: Substring Name Match (Fallback)
+        for li in [game_state.party, game_state.enemies, game_state.npcs]:
+            for c in li:
+                if term in c.name.lower():
+                    return c
 
         return None
 
@@ -108,16 +134,10 @@ class GameService:
     async def save_game_state(campaign_id: str, game_state: GameState, db: AsyncSession):
          return await StateService.save_game_state(campaign_id, game_state, db)
 
-    @staticmethod
-    async def update_char_hp(char_obj, hp_val, game_state: GameState, db: AsyncSession, commit: bool = True):
-         return await StateService.update_char_hp(char_obj, hp_val, game_state, db, commit)
+
 
     @staticmethod
-    async def update_npc_hostility(npc_id: str, is_hostile: bool, db: AsyncSession, commit: bool = True):
-         return await StateService.update_npc_hostility(npc_id, is_hostile, db, commit)
-
-    @staticmethod
-    async def resolution_identify(campaign_id: str, actor_name: str, target_name: str, db: AsyncSession):
+    async def resolution_identify(campaign_id: str, actor_name: str, target_name: str, db: AsyncSession, target_id: str = None):
         """
         Mechanically resolves an identify/investigate check.
         Returns a dict with result and message.
@@ -139,7 +159,7 @@ class GameService:
         if not actor_char:
              return {"success": False, "message": f"Could not find actor '{actor_name}'."}
 
-        target_char = GameService._find_char_by_name(game_state, target_name)
+        target_char = GameService._find_char_by_name(game_state, target_name, target_id)
         if not target_char:
             return {"success": False, "message": f"Could not find target '{target_name}'."}
 
@@ -152,9 +172,7 @@ class GameService:
         dc = 12
 
         # Roll: d20 + Int Mod
-        # Get Int stats from sheet_data if available
-        stats = actor_char.sheet_data.get('stats', {})
-        int_score = int(stats.get('intelligence', 10) or 10) # default 10
+        int_score = actor_char.stats.intelligence
         int_mod = (int_score - 10) // 2
 
         # Check Proficiency? (Assume Investigation proficiency if class matches or just flat for now)
@@ -175,19 +193,11 @@ class GameService:
         }
 
         if is_success:
-            # Update Identified Status
-            # Check type and update DB
-
-            # NPC
+            # Update Identified Status (just update the model, StateService will persist)
             if any(n.id == target_char.id for n in game_state.npcs):
                  target_char.identified = True
-                 # Persist
-                 await GameService.update_npc_field(target_char.id, "identified", True, db)
-
-            # Enemy
             elif any(e.id == target_char.id for e in game_state.enemies):
                  target_char.identified = True
-                 await GameService.update_enemy_field(target_char.id, "identified", True, db)
 
             await StateService.save_game_state(campaign_id, game_state, db)
             result_pkg["message"] = f"You study {GameService.get_display_name(target_char)} closely... It is {target_char.name}!"
@@ -197,61 +207,6 @@ class GameService:
 
         return result_pkg
 
-    @staticmethod
-    async def update_npc_field(npc_id: str, field: str, value, db: AsyncSession):
-        """Generic updater for NPC fields in JSON data or columns"""
-        # For 'identified', it is a top-level field on our Pydantic model,
-        # but in DB it might need to be in 'data' json if we didn't add a column.
-        # Wait, I added it to the Pydantic model, but DID I ADD IT TO THE DB SCHEMA?
-        # The user's request didn't explicitly ask for a DB schema migration, but implied it.
-        # However, as a quick fix without migration, we can store it in the 'data' JSON blob!
-        # The Pydantic model can load it from there if we align it.
-        # Models.py `identified: bool = False` defaults to False.
-        # If I want it to persist, I should probably put it in the `data` JSON for NPCs/Enemies
-        # since I cannot easily run ALMBIC migrations here without risk.
-        # Strategy: Store in `data` JSON, have Model load it?
-        # Or just rely on the `data` JSON for persistence and the Model is just a view.
-
-        # Let's check `models.py` again. `NPC` has `data: Dict`.
-        # I added `identified` to the class.
-        # Pydantic doesn't automatically map `data['identified']` to `self.identified`.
-        # I should probably just use the `data` dict for storage to avoid schema changes.
-
-        # BUT, the prompt said "Schema Change: NPC and Enemy models will get an identified boolean field."
-        # If I change the python model but not the DB table, it won't persist as a column.
-        # It's safer to store it in the JSON `data` column for `npcs` and `monsters`.
-
-        query = select(npcs.c.data).where(npcs.c.id == npc_id)
-        n_res = await db.execute(query)
-        data_str = n_res.scalars().first()
-
-        if data_str:
-            data = json.loads(data_str)
-            data[field] = value
-
-            stmt = (
-                update(npcs)
-                .where(npcs.c.id == npc_id)
-                .values(data=json.dumps(data))
-            )
-            await db.execute(stmt)
-
-    @staticmethod
-    async def update_enemy_field(enemy_id: str, field: str, value, db: AsyncSession):
-        query = select(monsters.c.data).where(monsters.c.id == enemy_id)
-        m_res = await db.execute(query)
-        data_str = m_res.scalars().first()
-
-        if data_str:
-            data = json.loads(data_str)
-            data[field] = value
-
-            stmt = (
-                update(monsters)
-                .where(monsters.c.id == enemy_id)
-                .values(data=json.dumps(data))
-            )
-            await db.execute(stmt)
 
 
     @staticmethod
@@ -359,3 +314,107 @@ class GameService:
              "message": f"**{actor_name}** moved the party to **{dest_row.name}**.",
              "game_state": game_state
         }
+
+    @staticmethod
+    async def process_ai_following(campaign_id: str, leader_id: str, db: AsyncSession, sio, game_state: GameState):
+        """
+        Out of combat, AI party members attempt to stay within 3 hexes of the leader.
+        They will move up to their speed.
+        """
+        import math
+
+        if game_state.phase == 'combat':
+            return
+            
+        leader = next((p for p in game_state.party if p.id == leader_id), None)
+        if not leader or not leader.position:
+            return
+
+        # Helper for hex distance
+        def hex_distance(q1, r1, s1, q2, r2, s2):
+            return max(abs(q1 - q2), abs(r1 - r2), abs(s1 - s2))
+
+        # Helper to get occupied hexes
+        def get_obstacle_hexes():
+            obstacles = set()
+            for entity in [e for e in game_state.enemies if e.hp_current > 0] + game_state.npcs:
+                if entity.position:
+                    obstacles.add((entity.position.q, entity.position.r, entity.position.s))
+            return obstacles
+            
+        def get_allied_hexes(ignore_id=None):
+            allies = set()
+            for entity in game_state.party:
+                if entity.id != ignore_id and entity.position:
+                    allies.add((entity.position.q, entity.position.r, entity.position.s))
+            return allies
+
+        walkable = {(h.q, h.r, h.s) for h in game_state.location.walkable_hexes}
+        state_changed = False
+
+        for member in game_state.party:
+            if member.id == leader_id:
+                continue
+                
+            # Only process AI or NPCs in party
+            if not member.is_ai and member.control_mode != 'ai':
+                continue
+            if not member.position:
+                continue
+
+            dist = hex_distance(member.position.q, member.position.r, member.position.s, leader.position.q, leader.position.r, leader.position.s)
+            
+            # If they are further than 3 hexes away, they need to move
+            if dist > 3:
+                obstacles = get_obstacle_hexes()
+                allies = get_allied_hexes(ignore_id=member.id)
+                max_move = member.speed // 5 if member.speed else 6
+                
+                # BFS to find reachable hexes
+                start_hex = (member.position.q, member.position.r, member.position.s)
+                def get_neighbors(curr):
+                    return [
+                        (curr[0]+1, curr[1], curr[2]-1),
+                        (curr[0]+1, curr[1]-1, curr[2]),
+                        (curr[0], curr[1]-1, curr[2]+1),
+                        (curr[0]-1, curr[1], curr[2]+1),
+                        (curr[0]-1, curr[1]+1, curr[2]),
+                        (curr[0], curr[1]+1, curr[2]-1)
+                    ]
+                queue = [(start_hex, [])]
+                visited = {start_hex: []}
+                
+                while queue:
+                    curr, path = queue.pop(0)
+                    if len(path) >= max_move:
+                        continue
+                    for n in get_neighbors(curr):
+                        if n in walkable and n not in obstacles:
+                            if n not in visited or len(path) + 1 < len(visited[n]):
+                                visited[n] = path + [n]
+                                queue.append((n, path + [n]))
+                                
+                reachable_and_valid = [h for h in visited if h != start_hex and h not in allies]
+
+                if reachable_and_valid:
+                    # Sort reachable by distance to leader
+                    reachable_and_valid.sort(key=lambda h: hex_distance(h[0], h[1], h[2], leader.position.q, leader.position.r, leader.position.s))
+                    best_hex = reachable_and_valid[0]
+                    new_dist_to_leader = hex_distance(best_hex[0], best_hex[1], best_hex[2], leader.position.q, leader.position.r, leader.position.s)
+                    
+                    if new_dist_to_leader < dist:
+                        member.position.q = best_hex[0]
+                        member.position.r = best_hex[1]
+                        member.position.s = best_hex[2]
+                        state_changed = True
+                        path_found = visited[best_hex]
+                        anim_path = [{"q": h[0], "r": h[1], "s": h[2]} for h in path_found]
+                        if sio:
+                            # Schedule emission for sync
+                            asyncio.create_task(sio.emit('entity_path_animation', {'entity_id': member.id, 'path': anim_path}, room=campaign_id))
+
+        if state_changed:
+            await StateService.save_game_state(campaign_id, game_state, db)
+            if sio:
+                await StateService.emit_state_update(campaign_id, game_state, sio)
+

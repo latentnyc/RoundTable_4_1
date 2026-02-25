@@ -18,7 +18,7 @@ export default function DebugPanel({ campaignId }: DebugPanelProps) {
     useEffect(() => {
         if (!campaignId || !isConnected || !token) return;
 
-        const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
         fetch(`${SOCKET_URL}/campaigns/${campaignId}/logs?limit=50`, {
             headers: { 'Authorization': `Bearer ${token}` }
         })

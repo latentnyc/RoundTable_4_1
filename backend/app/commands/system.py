@@ -79,12 +79,25 @@ class DMCommand(Command):
                 rich_context=rich_context
             )
 
+            # Check for system commands
+            end_turn_triggered = False
+            if "[SYSTEM_COMMAND:END_TURN]" in response_text:
+                response_text = response_text.replace("[SYSTEM_COMMAND:END_TURN]", "").strip()
+                end_turn_triggered = True
+                if not response_text:
+                    response_text = "I'll pass the turn to the next in initiative."
+
             save_result = await ChatService.save_message(ctx.campaign_id, 'dm', 'Dungeon Master', response_text, db=ctx.db)
             await ctx.db.commit()
 
             await ctx.sio.emit('chat_message', {
                 'sender_id': 'dm', 'sender_name': 'Dungeon Master', 'content': response_text, 'id': save_result['id'], 'timestamp': save_result['timestamp']
             }, room=ctx.campaign_id)
+
+            if end_turn_triggered and game_state.phase == 'combat':
+                from app.services.turn_manager import TurnManager
+                await TurnManager.advance_turn(ctx.campaign_id, ctx.sio, ctx.db, current_game_state=game_state)
+                await ctx.db.commit()
 
             # --- BANTER LOGIC (Refactored slightly to run here) ---
             # Ideally this moves to an event bus, but for now we keep it here to match functionality

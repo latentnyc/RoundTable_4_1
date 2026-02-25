@@ -144,13 +144,13 @@ export default function EntityListPanel({ onCharacterClick }: { onCharacterClick
                     <div className="flex items-center gap-2 min-w-0">
                         <div className={cn(
                             "w-2 h-2 rounded-full shrink-0",
-                            type === 'party' ? "bg-purple-500" : type === 'enemy' ? "bg-red-500" : "bg-amber-500"
+                            entity.is_ai ? "bg-purple-500" : "bg-blue-500"
                         )} />
                         <span className={cn(
                             "text-sm font-semibold truncate transition-colors",
-                            isActive ? "text-amber-200" : "text-neutral-100 group-hover:text-white"
+                            isActive ? "text-amber-200" : (entity.is_ai ? "text-purple-400 group-hover:text-purple-300" : "text-blue-400 group-hover:text-blue-300")
                         )}>
-                            {entity.name}
+                            {entity.name}{entity.is_ai ? " - AI" : ""}
                         </span>
                     </div>
                     <div className="flex gap-2">

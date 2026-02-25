@@ -136,7 +136,7 @@ async def create_campaign(
     # Default Model
     model_to_use = req.model
     if not model_to_use:
-        model_to_use = "gemini-2.5-flash"
+        model_to_use = "gemini-3-flash-preview"
 
     try:
         # Create Campaign

@@ -119,8 +119,8 @@ export const CLASS_LOADOUTS: Record<string, ClassLoadout> = {
     },
     "Paladin": {
         stats: { Strength: 14, Dexterity: 10, Constitution: 14, Intelligence: 8, Wisdom: 12, Charisma: 14 },
-        equipment: [chainMail, longsword],
-        inventory: [priestPack, shield, "wpn-5x-javelin", emblem]
+        equipment: [chainMail, longsword, shield],
+        inventory: [priestPack, "wpn-5x-javelin", emblem]
         // Paladins usually prepare spells at 2nd level, but we could omit for now.
     },
     "Ranger": {
@@ -144,7 +144,7 @@ export const CLASS_LOADOUTS: Record<string, ClassLoadout> = {
         stats: { Strength: 8, Dexterity: 14, Constitution: 14, Intelligence: 10, Wisdom: 12, Charisma: 14 },
         equipment: [leatherArmor, lightCrossbow],
         inventory: [scholPack, "itm-20x-crossbow-bolts", dagger, dagger2, orb],
-        spells: ["eldritch-blast", "hex", "armor-of-agathys"]
+        spells: ["eldritch-blast", "charm-person", "hellish-rebuke"]
     },
     "Wizard": {
         stats: { Strength: 8, Dexterity: 14, Constitution: 14, Intelligence: 14, Wisdom: 12, Charisma: 10 },

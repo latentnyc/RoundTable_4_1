@@ -23,6 +23,7 @@ from app.auth_utils import verify_token
 # Import data loader service
 from app.services.data_loader import load_basic_dataset, is_dataset_loaded
 from app.services.campaign_loader import parse_and_load
+from app.services.test_campaign_setup import create_test_campaign
 from db.session import AsyncSessionLocal
 from sqlalchemy import text  # Moved up for cleaner imports
 
@@ -51,6 +52,10 @@ async def startup_event():
         logger.info("Syncing campaign templates...")
         await parse_and_load()
         logger.info("Campaign templates synced.")
+        
+        logger.info("Setting up QoL dependencies...")
+        async with AsyncSessionLocal() as db:
+            await create_test_campaign(db)
 
     except Exception as e:
         logger.critical(f"Database initialization failed: {e}")
@@ -111,7 +116,7 @@ fastapi_app.add_middleware(
 )
 
 
-@fastapi_app.get("/debug/config")
+@fastapi_app.get("/debug/config", dependencies=[Depends(verify_token)])
 async def debug_config():
     async with AsyncSessionLocal() as db:
         try:

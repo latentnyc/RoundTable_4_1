@@ -555,9 +555,9 @@ export default function CampaignDash() {
                             <div>
                                 <label className="block text-sm font-medium text-neutral-400 mb-1">Model</label>
                                 <select
-                                    value={currentCampaign.model || 'gemini-1.5-pro'}
-                                    onChange={e => setCurrentCampaign({ ...currentCampaign, model: e.target.value })}
-                                    className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white"
+                                    value={currentCampaign.model || 'gemini-3-flash-preview'}
+                                    onChange={(e) => setCurrentCampaign({ ...currentCampaign, model: e.target.value })}
+                                    className="w-full bg-neutral-900 border border-neutral-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-neutral-500"
                                 >
                                     {modelList.length > 0 ? (
                                         modelList.map(m => (
@@ -565,9 +565,17 @@ export default function CampaignDash() {
                                         ))
                                     ) : (
                                         <>
-                                            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
-                                            <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
-                                            <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                                            <optgroup label="Advanced Models">
+                                                <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                                                <option value="gemini-2.5-pro-preview">Gemini 2.5 Pro</option>
+                                                <option value="gemini-3-pro-preview">Gemini 3.0 Pro</option>
+                                            </optgroup>
+                                            <optgroup label="Fast/Cost-Effective Models">
+                                                <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                                                <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                                                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                                                <option value="gemini-3-flash-preview">Gemini 3.0 Flash</option>
+                                            </optgroup>
                                             <option disabled>-- Test API key to fetch more --</option>
                                         </>
                                     )}

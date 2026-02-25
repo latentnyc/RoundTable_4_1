@@ -47,6 +47,23 @@ async def search_spells(q: str = Query(None), db: AsyncSession = Depends(get_db)
     """Search for spells by name. Returns first 25 if no query."""
     return await search_compendium("spells", q, db)
 
+@router.get("/spells/{item_id}", response_model=CompendiumItem)
+async def get_spell(item_id: str, db: AsyncSession = Depends(get_db)):
+    """Get a specific spell by ID."""
+    result = await db.execute(
+        text("SELECT id, name, data FROM spells WHERE id = :id"),
+        {"id": item_id}
+    )
+    row = result.mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Spell not found")
+    
+    try:
+        data = json.loads(row['data'])
+    except json.JSONDecodeError:
+        data = {}
+
+    return CompendiumItem(id=row['id'], name=row['name'], data=data)
 @router.get("/feats", response_model=List[CompendiumItem])
 async def search_feats(q: str = Query(None), db: AsyncSession = Depends(get_db)):
     """Search for feats by name. Returns first 25 if no query."""

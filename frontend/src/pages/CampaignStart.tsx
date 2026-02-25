@@ -94,7 +94,7 @@ export default function CampaignStart() {
                 name: newCampaignName,
                 gm_id: user?.uid,
                 // api_key: apiKey, // Removed
-                model: "gemini-2.5-flash", // Default to flash for speed/cost equivalent
+                model: "gemini-3-flash-preview", // Default to flash for speed/cost equivalent
                 system_prompt: "You are a Dungeon Master.",
                 template_id: selectedTemplate || undefined
             });

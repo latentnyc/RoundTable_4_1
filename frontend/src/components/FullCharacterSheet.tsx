@@ -13,7 +13,7 @@ export default function FullCharacterSheet({ character, onClose }: FullCharacter
     const sheet = character.sheet_data || {};
     const stats = sheet.stats || {};
     const equipment = (sheet.equipment || []) as Item[];
-    const inventory = (character.inventory || []) as (string | Item)[];
+    const inventory = (sheet.inventory || []) as (string | Item)[];
     const spells = (sheet.spells || []) as Item[];
     const feats = (sheet.feats || []) as Item[];
 

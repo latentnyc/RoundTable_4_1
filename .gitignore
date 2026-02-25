@@ -24,3 +24,5 @@ build/
 *.log
 
 lint_report.txt
+*_report.txt
+list_models.py

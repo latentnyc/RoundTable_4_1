@@ -31,8 +31,8 @@ try:
         echo=False,
         future=True,
         pool_pre_ping=True, # Good for Cloud SQL
-        pool_size=20,
-        max_overflow=10,
+        pool_size=50,
+        max_overflow=20,
         connect_args={
             "timeout": 10 # 10 seconds connection timeout
         }

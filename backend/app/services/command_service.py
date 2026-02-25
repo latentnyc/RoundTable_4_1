@@ -36,7 +36,7 @@ class CommandService:
         logger.info("CommandService: All commands registered.")
 
     @staticmethod
-    async def dispatch(campaign_id: str, sender_id: str, sender_name: str, content: str, sio, sid=None):
+    async def dispatch(campaign_id: str, sender_id: str, sender_name: str, content: str, sio, sid=None, target_id=None):
         """
         Delegates command execution to the Registry.
         """
@@ -47,7 +47,8 @@ class CommandService:
                 sender_name=sender_name,
                 sio=sio,
                 db=db,
-                sid=sid
+                sid=sid,
+                target_id=target_id
             )
 
             # Dispatch

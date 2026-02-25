@@ -40,8 +40,9 @@ export default function CreateCharacterPage({ onClose, embedded = false, forceEd
             store.resetForm();
         } else {
             // Load existing character for editing
-            if (characterStore.activeCharacter) {
-                store.loadCharacter(characterStore.activeCharacter);
+            const activeChar = characterStore.getActiveCharacter();
+            if (activeChar) {
+                store.loadCharacter(activeChar);
             }
         }
         setMounted(true);
@@ -279,7 +280,7 @@ export default function CreateCharacterPage({ onClose, embedded = false, forceEd
 
         if (!embedded || !socket) return;
 
-        const charId = characterStore.activeCharacter?.id;
+        const charId = characterStore.activeCharacterId;
         if (!charId) return;
 
         socket.emit('equip_item', {
@@ -768,12 +769,12 @@ export default function CreateCharacterPage({ onClose, embedded = false, forceEd
                                                 <Trash2 className="w-3.5 h-3.5" />
                                             </button>
                                         </div>
-                                        {feat.data.desc && (
+                                        {feat.data?.desc && (
                                             <div className="text-[10px] text-neutral-400 line-clamp-3 hover:line-clamp-none cursor-help">
                                                 {Array.isArray(feat.data.desc) ? feat.data.desc.join(' ') : feat.data.desc}
                                             </div>
                                         )}
-                                        {feat.data.description && (
+                                        {feat.data?.description && (
                                             <div className="text-[10px] text-neutral-400 line-clamp-3 hover:line-clamp-none cursor-help whitespace-pre-line">
                                                 {feat.data.description}
                                             </div>
@@ -1086,7 +1087,7 @@ export default function CreateCharacterPage({ onClose, embedded = false, forceEd
                                             <span className="bg-neutral-800 px-1 rounded">{spell.data?.level > 0 ? `Level ${spell.data.level}` : 'Cantrip'}</span>
                                             <span>{spell.data?.school?.name || spell.data?.school}</span>
                                         </div>
-                                        {spell.data.desc && (
+                                        {spell.data?.desc && (
                                             <div className="text-[10px] text-neutral-400 line-clamp-2 hover:line-clamp-none cursor-help">
                                                 {Array.isArray(spell.data.desc) ? spell.data.desc.join(' ') : spell.data.desc}
                                             </div>

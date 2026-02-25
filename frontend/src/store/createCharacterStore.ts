@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Stat, Skill, RACES, CLASSES } from '@/lib/srd-data';
-import { Item, characterApi, Character } from '@/lib/api';
+import { Item, characterApi, Character, compendiumApi } from '@/lib/api';
 import { calculateRemainingPoints, getPointBuyCost, validateStat, getInitialSkillState } from '@/lib/rules/characterRules';
 import { CLASS_LOADOUTS } from '@/lib/rules/classLoadouts';
 import { useAuthStore } from '@/store/authStore';
@@ -148,11 +148,35 @@ export const useCreateCharacterStore = create<CreateCharacterState>((set, get) =
                             id: spl,
                             name: spl.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
                             type: 'Spell',
-                            data: { desc: 'Details loading or unavailable.' }
+                            data: { desc: 'Details loading...' }
                         } as Item;
                     }
                     return spl;
                 });
+
+                // Fetch real spell data asynchronously and update store when done
+                if (loadout.spells && loadout.spells.length > 0) {
+                    Promise.all(loadout.spells.map(async (spl) => {
+                        if (typeof spl === 'string') {
+                            try {
+                                return await compendiumApi.getSpell(spl);
+                            } catch (e) {
+                                return {
+                                    id: spl,
+                                    name: spl.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+                                    type: 'Spell',
+                                    data: { desc: 'Details unavailable.' }
+                                } as Item;
+                            }
+                        }
+                        return spl;
+                    })).then(loadedSpells => {
+                        // Ensure the store only updates if the role is still the one we fetched for
+                        if (get().role === value) {
+                            set({ spells: loadedSpells });
+                        }
+                    });
+                }
 
                 return {
                     ...state,
@@ -261,11 +285,33 @@ export const useCreateCharacterStore = create<CreateCharacterState>((set, get) =
                     id: spl,
                     name: spl.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
                     type: 'Spell',
-                    data: { desc: 'Details loading or unavailable.' }
+                    data: { desc: 'Details loading...' }
                 } as Item;
             }
             return spl as Item;
         }) : [];
+
+        if (loadout && loadout.spells && loadout.spells.length > 0) {
+            Promise.all(loadout.spells.map(async (spl) => {
+                if (typeof spl === 'string') {
+                    try {
+                        return await compendiumApi.getSpell(spl);
+                    } catch (e) {
+                        return {
+                            id: spl,
+                            name: spl.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+                            type: 'Spell',
+                            data: { desc: 'Details unavailable.' }
+                        } as Item;
+                    }
+                }
+                return spl as Item;
+            })).then(loadedSpells => {
+                if (get().role === randomClass) {
+                    set({ spells: loadedSpells });
+                }
+            });
+        }
 
         set({
             race: randomRace,

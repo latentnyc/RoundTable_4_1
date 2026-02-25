@@ -1,32 +1,23 @@
-# RoundTable_4_1 - Survived the Blizzard Code-Marathon 🧊🔥
+# RoundTable_4_1 - Movement, Maps, and Mranged Attacks Update 🗺️🏹
 
 A TTRPG application with an AI-powered Game Master and 5e rules integration.
 
-## 🏔️ The "Survived the Blizzard Code-Marathon" Changelog
+## 🏹 The "Movement, Maps, and Mranged Attacks" Changelog
 
-We made it through! After a grueling blizzard code-marathon, we've melted away critical bugs, significantly tightened the architecture, and introduced a ton of improvements. Here is what survived the storm:
+We've been hard at work forging new paths and sharpening our arrows! This massive update brings rock-solid stability to combat, expands our maps, and makes sure every strike (ranged or otherwise) counts. Here is what's new:
 
-### 🗺️ Battlemap & Movement Polish
-*   **Spawn Hex Logic**: Refined map rendering to correctly display southern spawn hexes, expanding the map's bounding box automatically to prevent clipping, and flawlessly centering tokens within their designated hex.
-*   **Movement Fixes**: Fixed a critical movement bug where closed doors in unrelated rooms would incorrectly block all traversal in `resolution_move`.
+### ⚔️ Combat Loop & Turn Concurrency
+*   **Rock-Solid Turns**: Completely overhauled the `TurnManager` and combat loop to prevent race conditions and AI turn skipping. No more hanging encounters!
+*   **Precision @attack**: Fixed critical targeting bugs ensuring the `@attack` command flawlessly identifies and strikes entities on the hex map.
 
-### 🛡️ Core Rules & Stats Integrity
-*   **Armor Class (AC) Hydration**: Characters no longer default to 10 AC! The engine now dynamically calculates and displays the correct AC in the sidebar based on character stats and equipment.
-*   **Class Loadouts**: Implemented D&D 5E base class loadouts. Swapping classes during creation now immediately clears and accurately replaces starting equipment and stats.
-*   **Goblin Enhancements**: Identified enemy stats (like those pesky goblins) now correctly appear on mouseover in the entity list panel. Oh, and we added a new Goblin Room to the north!
+### 🗺️ Maps, State, & Synchronization 
+*   **State Stability**: Major enhancements to `SocketProvider` and game state patching. Synchronization between the server and your party is now smoother than ever.
+*   **Corpse Rendering & Loot Bags**: Defeated foes no longer awkwardly stand around! Enemies now correctly collapse into interactive loot bags on the battlemap.
+*   **Campaign Tuning**: Expanded several campaign maps (including `Goblin_Combat_Test.json`) with new NPC data, interactables, and fresh goblin encounters.
 
-### 🎒 Immersive Looting & Chests
-*   **Rich Loot Metadata**: Drops are no longer just raw item IDs. The backend now fetches rich metadata (names, descriptions, types) from the database to display beautifully in the new `LootModal`.
-*   **Interactable Chests**: Chests now function as `Vessel` entities—clicking them opens a dedicated dialogue window instead of auto-looting immediately.
-
-### ⚙️ Deep Architectural Refactoring
-*   **Exception Handling**: Conducted a massive refactoring to replace lazy, broad `except Exception` blocks with granular, specific exception types. Errors are no longer swallowed silently!
-*   **AI Turn Manager**: Debugged the `TurnManager` to correctly identify AI party members via their `control_mode`, preventing the game from hanging indefinitely during AI turns.
-*   **Performance Audits**: Audited the entire codebase for inefficiencies, resolving data loss risks, streamlining UI performance, and completely cleaning up dead code and throwaway test scripts.
-
-### 🎨 UI & Quality of Life
-*   **DM Status Indicator**: Repositioned the DM busy indicator to sit cleanly inline with the "Party Chat" header.
-*   **Image Generation Control**: Disabled the unpredictable AI redraw triggers upon enemy death to prevent hallucinations of living enemies appearing.
+### 🗣️ Immersive Chat & AI Mastery
+*   **Structured Messaging**: Introduced a robust `message_type` discriminator distinguishing between Player Chat, DM Narration, and System Messages for a cleaner, more readable interface.
+*   **AI Tool Invocations**: Upgraded the AI Service with better tool activity logging and frontend support, giving you deeper insights into the DM's thought process behind the screen.
 
 ---
 

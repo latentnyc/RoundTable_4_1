@@ -17,8 +17,8 @@ interface CharacterState {
     deleteCharacter: (id: string) => Promise<void>;
     updateCharacter: (id: string, updates: Partial<Character>) => Promise<void>;
 
-    // Legacy support for sheet viewer if needed, or we can just fetch on demand
-    activeCharacter: Character | null;
+    // Derived state
+    getActiveCharacter: () => Character | null;
 }
 
 export const useCharacterStore = create<CharacterState>()(
@@ -28,7 +28,12 @@ export const useCharacterStore = create<CharacterState>()(
             characters: [],
             isLoading: false,
             error: null,
-            activeCharacter: null,
+
+            getActiveCharacter: () => {
+                const state = get();
+                if (!state.activeCharacterId) return null;
+                return state.characters.find(c => c.id === state.activeCharacterId) || null;
+            },
 
             loadCharacters: async (campaignId) => {
                 set({ isLoading: true, error: null });
@@ -43,8 +48,7 @@ export const useCharacterStore = create<CharacterState>()(
             },
 
             selectCharacter: (id) => {
-                const char = get().characters.find(c => c.id === id) || null;
-                set({ activeCharacterId: id, activeCharacter: char });
+                set({ activeCharacterId: id });
             },
 
             deleteCharacter: async (id) => {
@@ -53,8 +57,7 @@ export const useCharacterStore = create<CharacterState>()(
                     await characterApi.delete(id);
                     set(state => ({
                         characters: state.characters.filter(c => c.id !== id),
-                        activeCharacterId: state.activeCharacterId === id ? null : state.activeCharacterId,
-                        activeCharacter: state.activeCharacterId === id ? null : state.activeCharacter
+                        activeCharacterId: state.activeCharacterId === id ? null : state.activeCharacterId
                     }));
                 } catch (err: any) {
                     set({ error: err.message });
@@ -67,8 +70,7 @@ export const useCharacterStore = create<CharacterState>()(
             updateCharacter: async (id, updates) => {
                 // Optimistic update
                 set(state => ({
-                    characters: state.characters.map(c => c.id === id ? { ...c, ...updates } : c),
-                    activeCharacter: state.activeCharacter && state.activeCharacter.id === id ? { ...state.activeCharacter, ...updates } : state.activeCharacter
+                    characters: state.characters.map(c => c.id === id ? { ...c, ...updates } : c)
                 }));
 
                 try {

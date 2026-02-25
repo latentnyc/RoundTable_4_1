@@ -22,3 +22,17 @@ trace_*.json
 temp_*.json
 full_logs.json
 startup_*.json
+
+# Debug Scripts
+check_spells.py
+inspect_*.py
+query_logs.py
+test_*.py
+!tests/
+scripts/check_jenath.py
+scripts/debug_*.py
+scripts/fix_test_*.py
+scripts/list_models.py
+scripts/patch_spells_full.py
+scripts/test_socket.py
+scripts/verify_snapback.py

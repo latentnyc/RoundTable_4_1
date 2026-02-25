@@ -6,21 +6,43 @@ import { useAuthStore } from '@/store/authStore';
 
 export default function LogViewer() {
     const debugLogs = useSocketStore(state => state.debugLogs);
-    const { socket, isConnected } = useSocketContext();
-    const { user } = useAuthStore();
+    const { socket, isConnected, connect, disconnect } = useSocketContext();
+    const { token } = useAuthStore();
     const [searchParams] = useSearchParams();
     const campaignId = searchParams.get('campaignId');
     const scrollRef = useRef<HTMLDivElement>(null);
 
     // Connect to socket on mount
     useEffect(() => {
-        if (campaignId && user?.uid && socket && isConnected) {
-            // Emitting get_logs once connected
-            socket.emit('get_logs', { campaign_id: campaignId });
+        if (!campaignId || !token) return;
+
+        // Ensure standalone log window initiates a socket connection
+        if (!isConnected) {
+            connect(campaignId).catch(console.error);
         }
+
+        const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+        fetch(`${SOCKET_URL}/campaigns/${campaignId}/logs?limit=100`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+            .then(res => res.json())
+            .then(logs => {
+                const formattedLogs = logs.map((l: any) => ({
+                    type: l.type,
+                    content: l.content,
+                    full_content: l.full_content,
+                    timestamp: new Date(l.created_at).toLocaleTimeString(),
+                    agent_name: l.content?.startsWith('[') ? l.content.match(/\[(.*?)\]/)?.[1] : undefined
+                })).reverse();
+                useSocketStore.getState().setDebugLogs(formattedLogs);
+            })
+            .catch(e => console.error("Failed to fetch logs:", e));
+
+        return () => {
+            disconnect();
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [campaignId, user?.uid, socket, isConnected]);
-    // We only want to trigger this once or when IDs change, not when `connect` changes reference (though it shouldn't)
+    }, [campaignId, token]);
 
     // Auto-scroll
     useEffect(() => {

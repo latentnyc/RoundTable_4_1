@@ -62,8 +62,8 @@ async def test_identification():
     with patch('app.services.state_service.StateService.get_game_state', new_callable=AsyncMock) as mock_get:
         mock_get.return_value = mock_game_state
 
-        # Mock update_npc_field
-        with patch('app.services.game_service.GameService.update_npc_field', new_callable=AsyncMock) as mock_update:
+        # Mock save_game_state
+        with patch('app.services.state_service.StateService.save_game_state', new_callable=AsyncMock) as mock_save:
 
             # Test 1: Identify "Man" (Search for Silas)
             print("\nTest 1: Identify 'Silas' (Success Case)")

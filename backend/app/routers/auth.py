@@ -6,6 +6,7 @@ from ..dtos import CreateProfileRequest, Profile
 from ..auth_utils import verify_token
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from uuid import uuid4
 
 
@@ -51,8 +52,8 @@ async def login(token_data: dict = Depends(verify_token), db: AsyncSession = Dep
 
             # Create new profile
             try:
-                # check if this is the FIRST user
-                res = await db.execute(text("SELECT COUNT(*) as count FROM profiles"))
+                # check if this is the FIRST real user (ignoring the auto-generated test user)
+                res = await db.execute(text("SELECT COUNT(*) as count FROM profiles WHERE id != 'local_auth_dev_id'"))
                 count_row = res.mappings().fetchone()
                 is_first = count_row["count"] == 0
 
@@ -63,6 +64,13 @@ async def login(token_data: dict = Depends(verify_token), db: AsyncSession = Dep
 
                 await db.execute(text("INSERT INTO profiles (id, username, is_admin, status) VALUES (:id, :username, :is_admin, :status)"),
                                  {"id": uid, "username": token_username, "is_admin": is_admin, "status": status})
+                                 
+                if is_first:
+                    logger.info(f"Transferring Test Campaign ownership to the first user: {token_username}")
+                    await db.execute(text("UPDATE campaigns SET gm_id = :uid WHERE gm_id = 'local_auth_dev_id'"), {"uid": uid})
+                    await db.execute(text("UPDATE campaign_participants SET user_id = :uid WHERE user_id = 'local_auth_dev_id'"), {"uid": uid})
+                    await db.execute(text("UPDATE characters SET user_id = :uid WHERE user_id = 'local_auth_dev_id'"), {"uid": uid})
+                    
             except SQLAlchemyError as e:
                 logger.error("Database error creating profile: %s", str(e))
                 # Identify if error is due to missing columns or constraints

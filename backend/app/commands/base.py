@@ -9,13 +9,15 @@ class CommandContext:
                  sender_name: str,
                  sio: Any,
                  db: AsyncSession,
-                 sid: Optional[str] = None):
+                 sid: Optional[str] = None,
+                 target_id: Optional[str] = None):
         self.campaign_id = campaign_id
         self.sender_id = sender_id
         self.sender_name = sender_name
         self.sio = sio
         self.db = db
         self.sid = sid
+        self.target_id = target_id
 
 class Command(ABC):
     name: str = "base"

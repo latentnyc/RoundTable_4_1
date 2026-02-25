@@ -2,7 +2,7 @@ import json
 import os
 import copy
 
-file_path = r"c:\Users\laten\Vibes\RoundTable_4_1\games\Goblin_Combat_Test.json"
+file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "games", "Goblin_Combat_Test.json"))
 
 with open(file_path, "r", encoding="utf-8") as f:
     data = json.load(f)

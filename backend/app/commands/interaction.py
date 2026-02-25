@@ -5,6 +5,8 @@ from app.services.loot_service import LootService
 from app.services.chat_service import ChatService
 from app.services.narrator_service import NarratorService
 from app.services.turn_manager import TurnManager
+from app.services.lock_service import LockService
+from app.services.state_service import StateService
 
 class OpenCommand(Command):
     name = "open"
@@ -19,8 +21,14 @@ class OpenCommand(Command):
 
         target_name = " ".join(args)
 
-        result = await LootService.open_vessel(ctx.campaign_id, ctx.sender_name, target_name, ctx.db)
+        try:
+            async with LockService.acquire(ctx.campaign_id):
+                result = await LootService.open_vessel(ctx.campaign_id, ctx.sender_name, target_name, ctx.db, target_id=ctx.target_id)
+                await self._process_result(ctx, target_name, result)
+        except TimeoutError:
+            await ctx.sio.emit('system_message', {'content': "🚫 Action blocked: Server is processing another request. Please try again."}, room=ctx.sid)
 
+    async def _process_result(self, ctx: CommandContext, target_name: str, result: dict):
         if result['success']:
             # Message to Chat
             msg = result['message']
@@ -33,6 +41,9 @@ class OpenCommand(Command):
             # The response "Inside you find..." should probably be a system message or narrator.
 
             await ctx.sio.emit('system_message', {'content': msg}, room=ctx.campaign_id)
+
+            if 'game_state' in result:
+                await StateService.emit_state_update(ctx.campaign_id, result['game_state'], ctx.sio)
 
             # Trigger DM Narration (Optional, but good for flavor)
             # "As you rifle through the pockets of the goblin..."
@@ -107,7 +118,16 @@ class OpenCommand(Command):
 
         else:
             await ctx.sio.emit('system_message', {'content': result.get('message', "Could not open that.")}, room=ctx.campaign_id)
-            if "interrupts" in result.get('message', '').lower():
+            if result.get('out_of_range'):
+                await NarratorService.narrate(
+                    campaign_id=ctx.campaign_id,
+                    context=result['message'] + f"\n[CRITICAL SYSTEM NOTE TO DM: The player's command was REJECTED by the physics engine because they are physically too far away from '{result.get('target_name', target_name)}' on the hex map. DO NOT narrate them touching or interacting with it. DO NOT advance the plot. DO NOT start combat. In 1-2 sentences, mock them playfully for trying to use telekinesis, or simply state their arms aren't that long.]",
+                    sio=ctx.sio,
+                    db=ctx.db,
+                    mode="interaction_narration",
+                    sid=ctx.sid
+                )
+            elif "interrupts" in result.get('message', '').lower():
                 await NarratorService.narrate(
                     campaign_id=ctx.campaign_id,
                     context=result['message'],

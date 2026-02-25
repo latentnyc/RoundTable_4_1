@@ -76,7 +76,7 @@ WWxQ6RfITJQIg5LNTQ6axUg9c5LabzPVnc3bcsxAaW5ObtbNo8MWSwnZfWj3TWyo
                 logger.info("Connecting to Production Firestore")
 
             firebase_admin.initialize_app(cred, {
-                'projectId': 'roundtable41-1dc2c', # From .firebaserc
+                'projectId': 'roundtable41-1dc2c' # From .firebaserc
             })
 
             logger.info("Firebase Admin Initialized")

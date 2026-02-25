@@ -77,6 +77,7 @@ Write-Host "Frontend ready." -ForegroundColor Green
 # 6. Set Environment Variables for Emulators
 $env:FIRESTORE_EMULATOR_HOST="127.0.0.1:8080"
 $env:FIREBASE_AUTH_EMULATOR_HOST="127.0.0.1:9099"
+$env:FIREBASE_DATABASE_EMULATOR_HOST="127.0.0.1:9000"
 $env:GCLOUD_PROJECT="roundtable41-1dc2c"
 
 # 7. Run Everything
@@ -89,6 +90,6 @@ Write-Host "Press Ctrl+C to stop all services." -ForegroundColor Yellow
 # - Frontend (using npm run dev, running from frontend dir)
 
 npx concurrently -k -n "firebase,backend,frontend" -c "yellow,blue,green" `
-    "firebase emulators:start --only auth,firestore,hosting,ui" `
+    "firebase emulators:start --only auth,firestore,database,hosting,ui" `
     "cd backend && venv\Scripts\python -m uvicorn main:app --reload --port 8000" `
     "cd frontend && npm run dev"

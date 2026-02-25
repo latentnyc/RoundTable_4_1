@@ -6,6 +6,7 @@ from app.services.chat_service import ChatService
 from app.services.narrator_service import NarratorService
 from app.services.turn_manager import TurnManager
 from app.services.context_builder import build_narrative_context
+from app.services.state_service import StateService
 
 class MoveCommand(Command):
     name = "move"
@@ -38,7 +39,7 @@ class MoveCommand(Command):
             )
 
             # 3. Emit Game State Update to trigger the UI changes and Image Generation
-            await ctx.sio.emit('game_state_update', move_result['game_state'].model_dump(), room=ctx.campaign_id)
+            await StateService.emit_state_update(ctx.campaign_id, move_result['game_state'], ctx.sio)
 
             await ctx.db.commit()
         else:
@@ -68,7 +69,7 @@ class IdentifyCommand(Command):
 
         target_name = " ".join(args)
 
-        result = await GameService.resolution_identify(ctx.campaign_id, ctx.sender_name, target_name, ctx.db)
+        result = await GameService.resolution_identify(ctx.campaign_id, ctx.sender_name, target_name, ctx.db, target_id=ctx.target_id)
 
         # Persist system message (The Roll)
         roll_msg = f"🔍 **{result.get('actor_name', ctx.sender_name)}** investigates **{result.get('target_name', target_name)}**.\n"
@@ -125,7 +126,7 @@ class EquipCommand(Command):
             await ctx.sio.emit('system_message', {'content': f"**{ctx.sender_name}** equipped **{item_name.title()}**."}, room=ctx.campaign_id)
             game_state = await GameService.get_game_state(ctx.campaign_id, ctx.db)
             if game_state:
-                 await ctx.sio.emit('game_state_update', game_state.model_dump(), room=ctx.campaign_id)
+                 await StateService.emit_state_update(ctx.campaign_id, game_state, ctx.sio)
         else:
             await ctx.sio.emit('system_message', {'content': result.get('message', "Failed to equip item.")}, room=ctx.campaign_id)
 
@@ -153,6 +154,6 @@ class UnequipCommand(Command):
             await ctx.sio.emit('system_message', {'content': f"**{ctx.sender_name}** unequipped **{item_name.title()}**."}, room=ctx.campaign_id)
             game_state = await GameService.get_game_state(ctx.campaign_id, ctx.db)
             if game_state:
-                 await ctx.sio.emit('game_state_update', game_state.model_dump(), room=ctx.campaign_id)
+                 await StateService.emit_state_update(ctx.campaign_id, game_state, ctx.sio)
         else:
             await ctx.sio.emit('system_message', {'content': result.get('message', "Failed to unequip item.")}, room=ctx.campaign_id)

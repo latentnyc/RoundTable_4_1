@@ -17,6 +17,9 @@ class CheckInput(BaseModel):
     stat: str = Field(description="Stat to check (strength, dexterity, constitution, intelligence, wisdom, charisma)")
     dc: int = Field(default=10, description="Difficulty Class of the check")
 
+class EndTurnInput(BaseModel):
+    reason: Optional[str] = Field(default="", description="Reason for ending turn")
+
 # --- TOOLS ---
 
 class AttackTool(BaseTool):
@@ -63,5 +66,13 @@ class MoveTool(BaseTool):
         # OR we just say "Please use the @move command".
         return "To move, the user should type @move <location>."
 
+class EndTurnTool(BaseTool):
+    name: str = "end_turn"
+    description: str = "Ends the current player's turn to pass the initiative to the next character in combat. Use this when the player explicitly states they are done with their turn or declines further actions after being prompted."
+    args_schema: Type[BaseModel] = EndTurnInput
+
+    def _run(self, reason: str = "") -> str:
+        return "[SYSTEM_COMMAND:END_TURN]"
+
 # List of tools to bind to the LLM
-game_tools = [AttackTool(), CheckTool(), MoveTool()]
+game_tools = [AttackTool(), CheckTool(), MoveTool(), EndTurnTool()]
