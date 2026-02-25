@@ -101,7 +101,4 @@ async def verify_fix():
 
 
 if __name__ == "__main__":
-    # hack to run async in script
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(verify_fix())
+    asyncio.run(verify_fix())

@@ -5,6 +5,8 @@ from app.services.combat_service import CombatService
 from app.services.turn_manager import TurnManager
 from app.services.chat_service import ChatService
 from app.services.narrator_service import NarratorService
+from app.services.lock_service import LockService
+from app.services.state_service import StateService
 import logging
 
 logger = logging.getLogger(__name__)
@@ -16,6 +18,13 @@ class AttackCommand(Command):
     args_help = "<target_name>"
 
     async def execute(self, ctx: CommandContext, args: List[str]):
+        try:
+            async with LockService.acquire(ctx.campaign_id):
+                await self._execute_locked(ctx, args)
+        except TimeoutError:
+            await ctx.sio.emit('system_message', {'content': "🚫 Action blocked: Server is processing another request. Please try again."}, room=ctx.sid)
+
+    async def _execute_locked(self, ctx: CommandContext, args: List[str]):
         if not args:
             await ctx.sio.emit('system_message', {'content': f"Usage: @{self.name} {self.args_help}"}, room=ctx.campaign_id)
             return
@@ -32,47 +41,87 @@ class AttackCommand(Command):
         game_state = await GameService.get_game_state(campaign_id, db)
         if not game_state: return
 
-        if game_state.phase != 'combat':
-            # Start Combat Trigger
-            start_res = await CombatService.start_combat(campaign_id, db)
-            if start_res['success']:
-                await sio.emit('system_message', {'content': "⚔️ **COMBAT STARTED!** Rolling Initiative..."}, room=campaign_id)
-                await sio.emit('game_state_update', start_res['game_state'].model_dump(), room=campaign_id)
+        was_out_of_combat = (game_state.phase != 'combat')
+        is_ranged = False
 
-                # Check if it is THIS user's turn
-                if start_res['active_entity_id'] != sender_id:
-                    active_name = "Unknown"
-                    for c in (start_res['game_state'].party + start_res['game_state'].enemies + start_res['game_state'].npcs):
-                        if c.id == start_res['active_entity_id']:
-                            active_name = c.name
+        if was_out_of_combat:
+            actor_char = GameService._find_char_by_name(game_state, sender_name)
+            if not actor_char:
+                for p in game_state.party:
+                    if p.id == sender_id:
+                        actor_char = p
+                        break
+            if actor_char:
+                weapon = None
+                if hasattr(actor_char, 'inventory'):
+                    for item in actor_char.inventory:
+                        if getattr(item, 'equipped', False) and getattr(item, 'type', '') == 'weapon':
+                            weapon = item
                             break
-                    await sio.emit('system_message', {'content': f"Initiative Rolled! It is **{active_name}**'s turn first."}, room=campaign_id)
+                            
+                if weapon:
+                    props = weapon.get('properties', []) if isinstance(weapon, dict) else getattr(weapon, 'data', {}).get('properties', [])
+                    if isinstance(props, str): props = [props]
+                    is_ranged = 'RANGE' in [p.upper() for p in (props or [])] or 'THROWN' in [p.upper() for p in (props or [])]
 
-                    # Trigger AI Turn if it's not the player
-                    await TurnManager.process_turn(campaign_id, start_res['active_entity_id'], start_res['game_state'], sio, db=db)
-                    await db.commit()
-                    return
-            game_state = start_res.get('game_state', game_state)
+            if not is_ranged:
+                # Start Combat Trigger for Melee
+                start_res = await CombatService.start_combat(campaign_id, db)
+                if start_res['success']:
+                    await sio.emit('system_message', {'content': "⚔️ **COMBAT STARTED!** Rolling Initiative..."}, room=campaign_id)
+                    await StateService.emit_state_update(campaign_id, start_res['game_state'], sio)
+
+                    # Check if it is THIS user's turn
+                    if start_res['active_entity_id'] != sender_id:
+                        active_name = "Unknown"
+                        for c in (start_res['game_state'].party + start_res['game_state'].enemies + start_res['game_state'].npcs):
+                            if c.id == start_res['active_entity_id']:
+                                active_name = c.name
+                                break
+                        # await sio.emit('system_message', {'content': f"Initiative Rolled! It is **{active_name}**'s turn first."}, room=campaign_id)
+
+                        # Trigger AI Turn if it's not the player
+                        from app.services.turn_manager import TurnManager
+                        await TurnManager.process_turn(campaign_id, start_res['active_entity_id'], start_res['game_state'], sio, db=db)
+                        await db.commit()
+                        return
+                game_state = start_res.get('game_state', game_state)
 
         # Check Logic: Is it my turn?
-        if game_state.active_entity_id != sender_id:
-            active_name = "Unknown"
-            for c in (game_state.party + game_state.enemies + game_state.npcs):
-                if c.id == game_state.active_entity_id:
-                    active_name = c.name
-                    break
-            await sio.emit('system_message', {'content': f"🚫 It is not your turn! It is **{active_name}**'s turn."}, room=campaign_id)
-            return
+        if game_state.phase == 'combat':
+            if game_state.active_entity_id != sender_id:
+                active_name = "Unknown"
+                for c in (game_state.party + game_state.enemies + game_state.npcs):
+                    if c.id == game_state.active_entity_id:
+                        active_name = c.name
+                        break
+                await sio.emit('system_message', {'content': f"🚫 It is not your turn! It is **{active_name}**'s turn."}, room=campaign_id)
+                return
 
         # Resolve Attack
-        result = await CombatService.resolution_attack(campaign_id, sender_id, sender_name, target_name, db)
+        result = await CombatService.resolution_attack(campaign_id, sender_id, sender_name, target_name, db, target_id=ctx.target_id)
 
         if not result['success']:
             await sio.emit('system_message', {'content': result['message']}, room=campaign_id)
+            if "too far away" in result.get('message', '').lower():
+                await NarratorService.narrate(
+                    campaign_id=campaign_id,
+                    context=result['message'] + f"\n[CRITICAL SYSTEM NOTE TO DM: The player {sender_name} attempted to melee attack {target_name}, but they are too far away on the hexagonal map. The physics engine REJECTED this attack. DO NOT narrate a missed swing or a counterattack. DO NOT advance the plot. Explain that they are out of range and must move closer first.]",
+                    sio=sio,
+                    db=db,
+                    mode="combat_narration",
+                    sid=sid
+                )
             return
 
         # Emit Mechanics
-        mech_msg = f"⚔️ **{result['attacker_name']}** attacks **{result['target_name']}**!\n"
+        target_char = result.get('target_object')
+        target_type = getattr(target_char, 'type', getattr(target_char, 'race', '')) if target_char else ''
+        if not target_type and target_char and hasattr(target_char, 'data') and isinstance(target_char.data, dict):
+            target_type = target_char.data.get('race', '')
+            
+        type_str = f" [{target_type.upper()}]" if target_type else ""
+        mech_msg = f"⚔️ **{result['attacker_name']}** attacks **{result['target_name']}**{type_str}!\n"
         mech_msg += f"**Roll:** {result['attack_roll']} + {result['attack_mod']} = **{result['attack_total']}** vs AC {result['target_ac']}\n"
         if result['is_hit']:
             mech_msg += f"**HIT!** 🩸 Damage: **{result['damage_total']}** ({result['damage_detail']})\n"
@@ -88,7 +137,7 @@ class AttackCommand(Command):
             'sender_id': 'system', 'sender_name': 'System', 'content': mech_msg, 'id': save_result['id'], 'timestamp': save_result['timestamp'], 'is_system': True
         }, room=campaign_id)
 
-        await sio.emit('game_state_update', result['game_state'].model_dump(), room=campaign_id)
+        await StateService.emit_state_update(campaign_id, result['game_state'], sio)
         # Commit handled by caller or we should do it?
         # CommandContext db is passed from caller.
         # But wait, original code committed here.
@@ -110,8 +159,30 @@ class AttackCommand(Command):
         )
         await db.commit()
 
+        await db.commit()
+
+        if was_out_of_combat and is_ranged:
+            # We must now start combat
+            start_res = await CombatService.start_combat(campaign_id, db)
+            if start_res['success']:
+                await sio.emit('system_message', {'content': "⚔️ **COMBAT STARTED!** Rolling Initiative..."}, room=campaign_id)
+                await StateService.emit_state_update(campaign_id, start_res['game_state'], sio)
+
+                active_name = "Unknown"
+                for c in (start_res['game_state'].party + start_res['game_state'].enemies + start_res['game_state'].npcs):
+                    if c.id == start_res['active_entity_id']:
+                        active_name = c.name
+                        break
+                # await sio.emit('system_message', {'content': f"Initiative Rolled! It is **{active_name}**'s turn first."}, room=campaign_id)
+
+                from app.services.turn_manager import TurnManager
+                await TurnManager.process_turn(campaign_id, start_res['active_entity_id'], start_res['game_state'], sio, db=db)
+                await db.commit()
+            return
+
         # Advance Turn
         try:
+            from app.services.turn_manager import TurnManager
             await TurnManager.advance_turn(campaign_id, sio, db, current_game_state=result.get('game_state'))
             await db.commit()
         except Exception as e:
@@ -125,6 +196,13 @@ class CastCommand(Command):
     args_help = "<spell_name> [target_name]"
 
     async def execute(self, ctx: CommandContext, args: List[str]):
+        try:
+            async with LockService.acquire(ctx.campaign_id):
+                await self._execute_locked(ctx, args)
+        except TimeoutError:
+            await ctx.sio.emit('system_message', {'content': "🚫 Action blocked: Server is processing another request. Please try again."}, room=ctx.sid)
+
+    async def _execute_locked(self, ctx: CommandContext, args: List[str]):
         if not args:
             await ctx.sio.emit('system_message', {'content': f"Usage: @{self.name} {self.args_help}"}, room=ctx.campaign_id)
             return
@@ -162,10 +240,20 @@ class CastCommand(Command):
         game_state = await GameService.get_game_state(campaign_id, db)
         if not game_state: return
 
-        if game_state.phase != 'combat' and target_name:
-            # We might want to start combat if casting an offensive spell.
-            # For now, let's just allow it or rely on resolution_cast to determine if combat starts
-            pass
+        was_out_of_combat = (game_state.phase != 'combat')
+
+        # Check if target is hostile
+        is_hostile_target = False
+        if target_name or ctx.target_id:
+            target_char_for_combat_check = GameService._find_char_by_name(game_state, target_name or "", ctx.target_id)
+            if target_char_for_combat_check:
+                if any(e.id == target_char_for_combat_check.id for e in game_state.enemies):
+                    is_hostile_target = True
+                else:
+                    for n in game_state.npcs:
+                        if n.id == target_char_for_combat_check.id and getattr(n, 'data', {}).get('hostile') == True:
+                            is_hostile_target = True
+                            break
 
         # If in combat, check turn
         if game_state.phase == 'combat':
@@ -179,7 +267,7 @@ class CastCommand(Command):
                 return
 
         # Resolve Cast
-        result = await CombatService.resolution_cast(campaign_id, sender_id, sender_name, spell_name, target_name, db)
+        result = await CombatService.resolution_cast(campaign_id, sender_id, sender_name, spell_name, target_name, db, target_id=ctx.target_id)
 
         if not result['success']:
             await sio.emit('system_message', {'content': result['message']}, room=campaign_id)
@@ -194,7 +282,7 @@ class CastCommand(Command):
         }, room=campaign_id)
 
         if 'game_state' in result:
-             await sio.emit('game_state_update', result['game_state'].model_dump(), room=campaign_id)
+             await StateService.emit_state_update(campaign_id, result['game_state'], sio)
 
         await db.commit()
 
@@ -210,14 +298,36 @@ class CastCommand(Command):
             context=narration_context,
             sio=sio,
             db=db,
-            mode="combat_narration" if game_state.phase == 'combat' else "exploration",
+            mode="combat_narration",
             sid=sid
         )
         await db.commit()
 
+        if was_out_of_combat and is_hostile_target:
+            # Start Combat Trigger
+            start_res = await CombatService.start_combat(campaign_id, db)
+            if start_res['success']:
+                await sio.emit('system_message', {'content': "⚔️ **COMBAT STARTED!** Rolling Initiative..."}, room=campaign_id)
+                await StateService.emit_state_update(campaign_id, start_res['game_state'], sio)
+
+                # Check if it is THIS user's turn
+                active_name = "Unknown"
+                for c in (start_res['game_state'].party + start_res['game_state'].enemies + start_res['game_state'].npcs):
+                    if c.id == start_res['active_entity_id']:
+                        active_name = c.name
+                        break
+                # await sio.emit('system_message', {'content': f"Initiative Rolled! It is **{active_name}**'s turn first."}, room=campaign_id)
+
+                # Trigger AI Turn if it's not the player
+                from app.services.turn_manager import TurnManager
+                await TurnManager.process_turn(campaign_id, start_res['active_entity_id'], start_res['game_state'], sio, db=db)
+                await db.commit()
+            return
+
         # Advance Turn if in combat AND the action wasn't a free action (casting usually takes an action)
         if result.get('game_state') and getattr(result['game_state'], 'phase', '') == 'combat':
             try:
+                from app.services.turn_manager import TurnManager
                 await TurnManager.advance_turn(campaign_id, sio, db, current_game_state=result.get('game_state'))
                 await db.commit()
             except Exception as e:

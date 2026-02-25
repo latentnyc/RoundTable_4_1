@@ -33,8 +33,22 @@ async def seed_data(session_factory):
         uid1 = str(uuid4())
         uid2 = str(uuid4())
         # Profiles
-        await db.execute(text("INSERT INTO profiles (id, username) VALUES (:id, 'Test 1')"), {"id": uid1})
-        await db.execute(text("INSERT INTO profiles (id, username) VALUES (:id, 'Test 2')"), {"id": uid2})
+        try:
+            # Upsert won't work easily here if we want the new UUID, so let's just select first
+            res1 = await db.execute(text("SELECT id FROM profiles WHERE username = 'Test 1'"))
+            row1 = res1.fetchone()
+            if row1: uid1 = row1[0]
+            else: await db.execute(text("INSERT INTO profiles (id, username) VALUES (:id, 'Test 1')"), {"id": uid1})
+                
+            res2 = await db.execute(text("SELECT id FROM profiles WHERE username = 'Test 2'"))
+            row2 = res2.fetchone()
+            if row2: uid2 = row2[0]
+            else: await db.execute(text("INSERT INTO profiles (id, username) VALUES (:id, 'Test 2')"), {"id": uid2})
+            
+            await db.commit()
+        except Exception as e:
+            print(f"Error seeding profiles: {e}")
+            await db.rollback()
 
         # Campaign
         await db.execute(text("INSERT INTO campaigns (id, name, gm_id) VALUES (:id, 'Loop Test', :gm)"), {"id": cid, "gm": uid1})
@@ -87,7 +101,7 @@ async def seed_data(session_factory):
         )
 
         await db.execute(
-            text("INSERT INTO npcs (id, campaign_id, source_id, name, role, data) VALUES (:id, :cid, 'goblin', 'Goblin', 'Monster', :data)"),
+            text("INSERT INTO monsters (id, campaign_id, name, type, data) VALUES (:id, :cid, 'Goblin', 'Monster', :data)"),
             {"id": eid, "cid": cid, "data": json.dumps(npc_data)}
         )
 

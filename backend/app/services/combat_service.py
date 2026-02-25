@@ -34,20 +34,8 @@ class CombatService:
 
         # Helper to get Dex Mod
         def get_dex_mod(entity):
-            # Try Player sheet_data
-            if hasattr(entity, 'sheet_data'):
-                stats = entity.sheet_data.get('stats', {})
-                dex = int(stats.get('dexterity', 10) or 10)
-                return (dex - 10) // 2
-
-            # Try Enemy/NPC data
-            if hasattr(entity, 'data'):
-                stats = entity.data.get('stats', {})
-                # Some monsters might have 'dex' or 'dexterity'
-                dex = int(stats.get('dexterity', stats.get('dex', 10)) or 10)
-                return (dex - 10) // 2
-
-            return 0
+            dex = getattr(entity.stats, 'dexterity', 10) if hasattr(entity, 'stats') else 10
+            return (dex - 10) // 2
 
         # Roll Initiative
         combatants = []
@@ -130,6 +118,8 @@ class CombatService:
 
         game_state.turn_index = next_idx
         game_state.active_entity_id = game_state.turn_order[next_idx]
+        game_state.has_moved_this_turn = False
+        game_state.has_acted_this_turn = False
 
         if commit:
             await StateService.save_game_state(campaign_id, game_state, db)
@@ -137,7 +127,7 @@ class CombatService:
         return game_state.active_entity_id, game_state
 
     @staticmethod
-    async def resolution_attack(campaign_id: str, attacker_id: str, attacker_name: str, target_name: str, db: AsyncSession, current_state=None, commit: bool = True):
+    async def resolution_attack(campaign_id: str, attacker_id: str, attacker_name: str, target_name: str, db: AsyncSession, current_state=None, commit: bool = True, target_id: str = None):
         """
         Mechanically resolves an attack.
         Returns a dict with results and the updated game state elements.
@@ -156,9 +146,11 @@ class CombatService:
         if not actor_char:
              actor_char = GameService._find_char_by_name(game_state, attacker_name)
 
-        target_char = GameService._find_char_by_name(game_state, target_name)
+        target_char = GameService._find_char_by_name(game_state, target_name, target_id)
 
         if not actor_char or not target_char:
+            print(f"DEBUG: attacker_id={attacker_id}, actor_char={actor_char}, target_name={target_name}, target_char={target_char}")
+            for n in game_state.enemies: print(f"DEBUG: ENEMY: {n.name}")
             return {"success": False, "message": f"Could not find actor '{attacker_name}' or target '{target_name}'."}
 
         # Engine Resolution
@@ -192,12 +184,38 @@ class CombatService:
                         break
 
                 w_type = (weapon_data['data'].get('type') or '').lower()
-                if 'ranged' in w_type:
+                is_w_ranged = 'ranged' in w_type
+                for prop in properties:
+                    if isinstance(prop, dict) and 'thrown' in (prop.get('name') or '').lower():
+                        is_w_ranged = True
+                
+                if is_w_ranged:
                     params['is_ranged'] = True
 
                 # Second weapon is offhand
                 if idx > 0:
                     params['is_offhand'] = True
+
+            # Range Limit Check
+            dist = actor_char.position.distance_to(target_char.position)
+            is_ranged_attack = params.get('is_ranged', False)
+            
+            max_hex_range = 1
+            if is_ranged_attack and weapon_data and 'data' in weapon_data:
+                range_data = weapon_data['data'].get('range', {})
+                if isinstance(range_data, dict):
+                    normal_range_ft = range_data.get('normal', 120)
+                    if isinstance(normal_range_ft, (int, float)):
+                        max_hex_range = max(1, int(normal_range_ft) // 5)
+                else:
+                    max_hex_range = 24 # Fallback 120ft
+
+            if dist > max_hex_range:
+                action_results.append({
+                    "success": False,
+                    "message": f"**{actor_char.name}** tries to attack **{target_char.name}**, but is too far away. (Range: {max_hex_range} hexes)!"
+                })
+                continue
 
             # Run synchronous engine logic for this attack
             res = await loop.run_in_executor(
@@ -211,6 +229,9 @@ class CombatService:
                     params
                 )
             )
+            res['weapon_name'] = params.get('weapon_name')
+            res['is_ranged'] = params.get('is_ranged', False)
+            res['is_finesse'] = params.get('is_finesse', False)
             action_results.append(res)
 
             # Stop if target is dead before subsequent attacks
@@ -229,17 +250,13 @@ class CombatService:
         action_result["message"] = combined_message
         if action_result.get("success"):
             new_hp = action_result.get("target_hp_remaining")
-            await StateService.update_char_hp(target_char, new_hp, game_state, db, commit=commit)
+            target_char.hp_current = new_hp
 
             # Hostility
             is_npc = any(n.id == getattr(target_char, 'id', None) for n in game_state.npcs)
             if is_npc:
                 # Check current hostility
                 if 'hostile' not in getattr(target_char, 'data', {}) or not target_char.data['hostile']:
-                    target_id_str = target_char.id
-                    if isinstance(target_id_str, dict):
-                        target_id_str = target_id_str.get('id')
-                    await StateService.update_npc_hostility(target_id_str, True, db, commit=commit)
                     target_char.data['hostile'] = True # Update local state object too
 
             # Barks & Death Logic
@@ -258,102 +275,8 @@ class CombatService:
                     bark_msg = f'{GameService.get_display_name(target_char)} gasps: "{bark}"'
 
                 # HANDLE DEATH
-                # 1. Convert to Vessel (Corpse)
-                # Only for Enemies (and maybe NPCs?) - Requirement said "opponents are defeated"
-                target_id_str = target_char.id
-                if isinstance(target_id_str, dict):
-                    target_id_str = target_id_str.get('id')
-
-                if any(e.id == target_id_str for e in game_state.enemies) or is_npc:
-                    from app.models import Vessel
-
-                    # Create Vessel
-                    char_type = getattr(target_char, 'type', getattr(target_char, 'race', ''))
-                    if not char_type and hasattr(target_char, 'data') and isinstance(target_char.data, dict):
-                        char_type = target_char.data.get('race', '')
-                    char_type = char_type.upper()
-                    v_name = f"CORPSE OF {target_char.name.upper()}"
-                    if char_type:
-                        v_name += f" ({char_type})"
-                    v_desc = f"The lifeless body of {target_char.name}."
-
-                    # Loot Generation
-                    # 1. Equipment/Inventory
-                    v_contents = list(target_char.inventory) if getattr(target_char, 'inventory', None) else []
-
-                    # 2. Loot Table Items
-                    generated_loot = LootService.generate_loot(target_char)
-                    v_contents.extend(generated_loot)
-
-                    # 3. Currency (1d10 sp, 1d10 cp)
-                    sp = random.randint(1, 10)
-                    cp = random.randint(1, 10)
-                    v_currency = {"pp": 0, "gp": 0, "sp": sp, "cp": cp}
-
-                    # Create Object
-                    vessel = Vessel(
-                        name=v_name,
-                        description=v_desc,
-                        position=target_char.position,
-                        contents=v_contents,
-                        currency=v_currency
-                    )
-
-                    # Add to State
-                    if getattr(game_state, 'vessels', None) is None:
-                        game_state.vessels = []
-                    game_state.vessels.append(vessel)
-                    action_result['vessel_created'] = vessel
-                    death_msg = f"{target_char.name} has died! A {v_name} falls to the ground."
-
-                    # Remove from Enemies list / NPCs list
-                    # (Actually, we probably keep them in DB but remove from Active GameState list?)
-                    # For now, let's remove from the active lists so they stop taking turns.
-                    target_id_str = target_char.id
-                    if isinstance(target_id_str, dict):
-                        target_id_str = target_id_str.get('id')
-
-                    if is_npc:
-                        game_state.npcs = [n for n in game_state.npcs if getattr(n, 'id', None) != target_id_str]
-                    else:
-                        game_state.enemies = [e for e in game_state.enemies if getattr(e, 'id', None) != target_id_str]
-
-                    # Remove from Turn Order
-                    if target_id_str in getattr(game_state, 'turn_order', []):
-                        game_state.turn_order.remove(target_id_str)
-
-
-                # 2. Check Combat End
-                # Victory: All enemies and hostile NPCs dead
-                hostile_npcs = [n for n in game_state.npcs if getattr(n, 'hp_current', 0) > 0 and getattr(n, 'data', {}).get('hostile') == True]
-                if not game_state.enemies and not hostile_npcs:
-                     game_state.phase = 'exploration'
-                     game_state.turn_order = []
-                     game_state.active_entity_id = None
-                     if not death_msg: death_msg = ""
-                     death_msg += "\n\n**COMBAT ENDED! VICTORY!**"
-
-                     # Revive fallen players with 1 HP
-                     revived = []
-                     for p in game_state.party:
-                         if getattr(p, 'hp_current', 0) <= 0:
-                             p.hp_current = 1
-                             await StateService.update_char_hp(p, 1, game_state, db, commit=False)
-                             revived.append(p.name)
-
-                     if revived:
-                         death_msg += f"\n*({', '.join(revived)} narrowly survived and regained 1 HP.)*"
-
-                     action_result['combat_end'] = 'victory'
-
-                # Defeat: All party dead/down
-                # Check HP of all party members
-                live_party = [p for p in game_state.party if getattr(p, 'hp_current', 0) > 0]
-                if not live_party:
-                    game_state.phase = 'exploration' # Or game over state?
-                    if not death_msg: death_msg = ""
-                    death_msg += "\n\n**DEFEAT! The party has fallen. Game Over.**"
-                    action_result['combat_end'] = 'defeat'
+                death_msg, action_result_updates = await CombatService._handle_entity_death(campaign_id, target_char, game_state, is_npc, db, commit)
+                action_result.update(action_result_updates)
 
             # Save State
             if commit:
@@ -371,7 +294,7 @@ class CombatService:
         return action_result
 
     @staticmethod
-    async def resolution_cast(campaign_id: str, actor_id: str, actor_name: str, spell_name: str, target_name: str, db: AsyncSession, commit=True):
+    async def resolution_cast(campaign_id: str, actor_id: str, actor_name: str, spell_name: str, target_name: str, db: AsyncSession, commit=True, target_id: str = None):
         """
         Resolves casting a spell in or out of combat.
         """
@@ -417,10 +340,29 @@ class CombatService:
 
         # Resolve Target (Optional for some spells, but required for most combat ones)
         target_char = None
-        if target_name:
-            target_char = GameService._find_char_by_name(game_state, target_name)
+        if target_name or target_id:
+            target_char = GameService._find_char_by_name(game_state, target_name or "", target_id)
             if not target_char:
                 return {"success": False, "message": f"Could not find target '{target_name}'."}
+
+            # Distance Verification for Spell Targeting
+            dist = actor_char.position.distance_to(target_char.position)
+            spell_range_str = matched_spell.get('data', {}).get('range', 'Touch').lower()
+            max_hexes = 1 # Default touch/melee
+            
+            import re
+            if 'feet' in spell_range_str or 'ft' in spell_range_str:
+                nums = re.findall(r'\d+', spell_range_str)
+                if nums:
+                    max_hexes = max(1, int(nums[0]) // 5)
+            elif 'mile' in spell_range_str:
+                max_hexes = 100 # Effectively limitless on a standard battlemap
+            elif 'self' in spell_range_str:
+                max_hexes = 0
+
+            # Allow casting on self if distance is 0, otherwise check bounds
+            if dist > max_hexes:
+                return {"success": False, "message": f"**{actor_char.name}** tries to cast **{spell_name}** at **{target_char.name}**, but they are out of range ({max_hexes} hexes max)!"}
 
         # Engine Resolution
         engine = GameEngine()
@@ -451,66 +393,19 @@ class CombatService:
         death_msg = None
         if target_char and "target_hp_remaining" in action_result:
             new_hp = action_result["target_hp_remaining"]
-            await StateService.update_char_hp(target_char, new_hp, game_state, db, commit=commit)
+            target_char.hp_current = new_hp
 
             # Hostility Aggro if target is NPC and the spell dealt damage or hostile effect
             # We assume for now targeting them with a spell = hostile
             is_npc = any(n.id == getattr(target_char, 'id', None) for n in game_state.npcs)
             if is_npc:
                 if 'hostile' not in getattr(target_char, 'data', {}) or not target_char.data['hostile']:
-                    t_id = target_char.id if isinstance(target_char.id, str) else target_char.id.get('id')
-                    await StateService.update_npc_hostility(t_id, True, db, commit=commit)
                     target_char.data['hostile'] = True
 
             # Death Processing (identical to attack)
             if new_hp <= 0:
-                t_id = target_char.id if isinstance(target_char.id, str) else target_char.id.get('id')
-                if any(getattr(e, 'id', None) == t_id for e in game_state.enemies) or is_npc:
-                    from app.models import Vessel
-
-                    char_type = getattr(target_char, 'type', getattr(target_char, 'race', '')).upper()
-                    v_name = f"CORPSE OF {target_char.name.upper()}" + (f" ({char_type})" if char_type else "")
-
-                    v_contents = list(target_char.inventory) if getattr(target_char, 'inventory', None) else []
-                    v_contents.extend(LootService.generate_loot(target_char))
-
-                    vessel = Vessel(
-                        name=v_name,
-                        description=f"The lifeless body of {target_char.name}.",
-                        position=target_char.position,
-                        contents=v_contents,
-                        currency={"pp": 0, "gp": 0, "sp": random.randint(1,10), "cp": random.randint(1,10)}
-                    )
-
-                    if getattr(game_state, 'vessels', None) is None:
-                        game_state.vessels = []
-                    game_state.vessels.append(vessel)
-                    death_msg = f"💀 {target_char.name} has been destroyed! A {v_name} falls to the ground."
-
-                    if is_npc:
-                        game_state.npcs = [n for n in game_state.npcs if getattr(n, 'id', None) != t_id]
-                    else:
-                        game_state.enemies = [e for e in game_state.enemies if getattr(e, 'id', None) != t_id]
-
-                    if t_id in getattr(game_state, 'turn_order', []):
-                        game_state.turn_order.remove(t_id)
-
-                # Combat End Checks
-                hostile_npcs = [n for n in game_state.npcs if getattr(n, 'hp_current', 0) > 0 and getattr(n, 'data', {}).get('hostile')]
-                if not game_state.enemies and not hostile_npcs:
-                    game_state.phase = 'exploration'
-                    game_state.turn_order = []
-                    game_state.active_entity_id = None
-                    death_msg = (death_msg or "") + "\n\n**COMBAT ENDED! VICTORY!**"
-
-                    revived = []
-                    for p in game_state.party:
-                        if getattr(p, 'hp_current', 0) <= 0:
-                            p.hp_current = 1
-                            await StateService.update_char_hp(p, 1, game_state, db, commit=False)
-                            revived.append(p.name)
-                    if revived:
-                        death_msg += f"\n*({', '.join(revived)} snagged a breath and regained 1 HP.)*"
+                death_msg, action_result_updates = await CombatService._handle_entity_death(campaign_id, target_char, game_state, is_npc, db, commit)
+                action_result.update(action_result_updates)
 
         if commit:
             await StateService.save_game_state(campaign_id, game_state, db)
@@ -526,25 +421,55 @@ class CombatService:
     @staticmethod
     async def _handle_opportunity_attack(campaign_id: str, actor_name: str, action_name: str, db: AsyncSession, game_state: 'GameState'):
         """
-        Checks if there are living enemies. If so, a random enemy interrupts the action and attacks the actor.
+        Checks if there are living enemies within 10 hexes and with Line of Sight. 
+        If so, a random valid enemy interrupts the action and attacks the actor.
         Returns (interrupted: bool, message: str)
         """
         from app.services.chat_service import ChatService
+        from app.services.game_service import GameService
+
+        actor_char = GameService._find_char_by_name(game_state, actor_name)
+        if not actor_char or not actor_char.position:
+            return False, "", game_state
 
         living_enemies = [e for e in game_state.enemies if getattr(e, 'hp_current', 0) > 0]
-        hostile_npcs = [n for n in game_state.npcs if getattr(n, 'hp_current', 0) > 0 and getattr(n, 'role', '').lower() in ['hostile', 'enemy']]
+        hostile_npcs = [n for n in game_state.npcs if getattr(n, 'hp_current', 0) > 0 and (getattr(n, 'hostile', False) or getattr(n, 'data', {}).get('hostile') == True)]
         all_hostiles = living_enemies + hostile_npcs
 
         if not all_hostiles:
             return False, "", game_state
 
-        attacker = random.choice(all_hostiles)
+        # Filter by distance (<= 10) and Line of Sight
+        walkable_set = {(h.q, h.r, h.s) for h in getattr(game_state.location, 'walkable_hexes', [])}
+        valid_interrupters = []
+        for hostile in all_hostiles:
+            if not hostile.position:
+                continue
+            
+            dist = hostile.position.distance_to(actor_char.position)
+            if dist > 10:
+                continue
+                
+            # Line of Sight check
+            los_path = hostile.position.get_line_to(actor_char.position)
+            has_los = True
+            for point in los_path:
+                if (point.q, point.r, point.s) not in walkable_set:
+                    has_los = False
+                    break
+            
+            if has_los:
+                valid_interrupters.append(hostile)
+
+        if not valid_interrupters:
+            return False, "", game_state
+
+        attacker = random.choice(valid_interrupters)
 
         if getattr(game_state, 'phase', '') != 'combat':
             game_state.phase = 'combat'
             if not getattr(game_state, 'turn_order', []):
                 turn_order = [p.id for p in game_state.party if getattr(p, 'hp_current', 0) > 0] + [e.id for e in all_hostiles]
-                # Random initiative
                 random.shuffle(turn_order)
                 game_state.turn_order = turn_order
                 game_state.turn_index = 0
@@ -552,14 +477,90 @@ class CombatService:
 
             await StateService.save_game_state(campaign_id, game_state, db)
 
-        interruption_msg = f"**{attacker.name}** interrupts {actor_name}'s attempt to {action_name} and attacks!"
+        interruption_msg = f"**{attacker.name}** catches {actor_name} attempting to {action_name}!\n\n**COMBAT HAS BEGUN!** Roll for Initiative!"
         await ChatService.save_message(campaign_id, 'system', 'System', interruption_msg, db=db)
 
-        # Execute the attack
-        attack_result = await CombatService.resolution_attack(campaign_id, str(attacker.id), attacker.name, actor_name, db)
+        # We do NOT grant a free telekinetic melee attack from across the map.
+        # Just kickstart the combat loop naturally.
 
-        full_msg = f"{interruption_msg}\n\n{attack_result.get('message', '')}"
-
-        # We must re-fetch state because the attack might have killed the actor or changed stats
         latest_state = await StateService.get_game_state(campaign_id, db)
-        return True, full_msg, latest_state
+        return True, interruption_msg, latest_state
+
+    @staticmethod
+    async def _handle_entity_death(campaign_id: str, target_char, game_state: 'GameState', is_npc: bool, db: AsyncSession, commit: bool = True):
+        from app.models import Vessel, Coordinates
+        from app.services.loot_service import LootService
+
+        target_id_str = target_char.id
+        if isinstance(target_id_str, dict):
+            target_id_str = target_id_str.get('id')
+
+        action_result_updates = {}
+
+        char_type = getattr(target_char, 'type', getattr(target_char, 'race', ''))
+        if not char_type and hasattr(target_char, 'data') and isinstance(target_char.data, dict):
+            char_type = target_char.data.get('race', '')
+        if isinstance(char_type, dict):
+            char_type = target_char.data.get('race', '')
+        char_type = char_type.upper()
+        v_name = f"CORPSE OF {target_char.name.upper()}"
+        if char_type:
+            v_name += f" ({char_type})"
+        v_desc = f"The lifeless body of {target_char.name}."
+
+        v_contents = list(target_char.inventory) if getattr(target_char, 'inventory', None) else []
+        v_contents.extend(LootService.generate_loot(target_char))
+
+        sp = random.randint(1, 10)
+        cp = random.randint(1, 10)
+        v_currency = {"pp": 0, "gp": 0, "sp": sp, "cp": cp}
+
+        vessel = Vessel(
+            name=v_name,
+            description=v_desc,
+            position=Coordinates(q=target_char.position.q, r=target_char.position.r, s=target_char.position.s) if target_char.position else None,
+            contents=v_contents,
+            currency=v_currency
+        )
+
+        if getattr(game_state, 'vessels', None) is None:
+            game_state.vessels = []
+        game_state.vessels.append(vessel)
+        action_result_updates['vessel_created'] = vessel
+        death_msg = f"💀 {target_char.name} has died! A {v_name} falls to the ground."
+
+        if is_npc:
+            game_state.npcs = [n for n in game_state.npcs if getattr(n, 'id', None) != target_id_str]
+        else:
+            game_state.enemies = [e for e in game_state.enemies if getattr(e, 'id', None) != target_id_str]
+
+        if target_id_str in getattr(game_state, 'turn_order', []):
+            game_state.turn_order.remove(target_id_str)
+
+        # Combat End Check
+        hostile_npcs = [n for n in game_state.npcs if getattr(n, 'hp_current', 0) > 0 and getattr(n, 'data', {}).get('hostile') == True]
+        if not game_state.enemies and not hostile_npcs:
+            game_state.phase = 'exploration'
+            game_state.turn_order = []
+            game_state.active_entity_id = None
+            death_msg += "\n\n**COMBAT ENDED! VICTORY!**"
+
+            revived = []
+            for p in game_state.party:
+                if getattr(p, 'hp_current', 0) <= 0:
+                    p.hp_current = 1
+                    revived.append(p.name)
+
+            if revived:
+                death_msg += f"\n*({', '.join(revived)} narrowly survived and regained 1 HP.)*"
+
+            action_result_updates['combat_end'] = 'victory'
+
+        # Defeat Check
+        live_party = [p for p in game_state.party if getattr(p, 'hp_current', 0) > 0]
+        if not live_party:
+            game_state.phase = 'exploration'
+            death_msg += "\n\n**DEFEAT! The party has fallen. Game Over.**"
+            action_result_updates['combat_end'] = 'defeat'
+
+        return death_msg, action_result_updates
