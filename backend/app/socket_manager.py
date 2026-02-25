@@ -6,7 +6,7 @@ import json
 from uuid import uuid4
 
 # Import Handlers
-from app.socket.handlers import connection, chat, game_state, inventory
+from app.socket.handlers import connection, chat, game_state, inventory, exploration
 
 
 sio = socketio.AsyncServer(
@@ -67,3 +67,7 @@ async def equip_item(sid, data):
 @sio.event
 async def clear_debug_logs(sid):
     await chat.handle_clear_logs(sid, sio, connected_users)
+
+@sio.event
+async def move_entity(sid, data):
+    await exploration.handle_move_entity(sid, data, sio, connected_users)

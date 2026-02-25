@@ -187,7 +187,7 @@ class SocketIOCallbackHandler(AsyncCallbackHandler):
 
             # Safe serialization for full content
             try:
-                full_content = response.dict() if hasattr(response, 'dict') else str(response)
+                full_content = response.model_dump() if hasattr(response, 'model_dump') else str(response)
             except Exception:
                 full_content = str(response)
 

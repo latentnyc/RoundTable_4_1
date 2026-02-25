@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { applyPatch } from 'fast-json-patch';
 import { useAuthStore } from '../store/authStore';
 import { useSocketStore } from './socket';
 
@@ -25,6 +26,7 @@ export const useSocketContext = () => useContext(SocketContext);
 
 export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const socketRef = useRef<Socket | null>(null);
+    const [socketVal, setSocketVal] = React.useState<Socket | null>(null);
     const connectPromiseRef = useRef<Promise<void> | null>(null);
 
     const token = useAuthStore(state => state.token);
@@ -38,6 +40,8 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const setPing = useSocketStore(state => state.setPing);
     const setAiTyping = useSocketStore(state => state.setAiTyping);
     const setAiStats = useSocketStore(state => state.setAiStats);
+    const addDebugLog = useSocketStore(state => state.addDebugLog);
+    const setDebugLogs = useSocketStore(state => state.setDebugLogs);
 
     const isConnected = useSocketStore(state => state.isConnected);
     const connectionError = useSocketStore(state => state.connectionError);
@@ -46,6 +50,7 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         if (socketRef.current) {
             socketRef.current.disconnect();
             socketRef.current = null;
+            setSocketVal(null);
         }
         connectPromiseRef.current = null;
         setConnected(false);
@@ -75,6 +80,7 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                 });
 
                 socketRef.current = newSocket;
+                setSocketVal(newSocket);
 
                 newSocket.on('connect', () => {
                     setConnected(true);
@@ -108,14 +114,29 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                     reject(error);
                 });
 
-                newSocket.on('disconnect', (reason) => {
+                newSocket.on('disconnect', () => {
                     setConnected(false);
                     connectPromiseRef.current = null;
                 });
 
                 // Bind State Event Handlers
                 newSocket.on('game_state_update', (state) => {
-                    setGameState(state);
+                    useSocketStore.getState().setGameState(state);
+                });
+
+                newSocket.on('game_state_patch', (patch) => {
+                    const state = useSocketStore.getState().gameState;
+                    if (state) {
+                        try {
+                            // Fourth argument is 'mutateDocument'. We must set it to false so Zustand detects a new object reference.
+                            const result = applyPatch(state, patch, false, false);
+                            useSocketStore.getState().setGameState(result.newDocument);
+                        } catch (e) {
+                            console.error("Failed to apply game state patch:", e);
+                        }
+                    } else {
+                        console.warn("Received patch but no base game state exists yet.");
+                    }
                 });
 
                 newSocket.on('chat_history', (history) => {
@@ -143,6 +164,14 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                     setConnectionError(error.message || 'Unknown socket error');
                 });
 
+                newSocket.on('debug_log', (log) => {
+                    addDebugLog(log);
+                });
+
+                newSocket.on('debug_logs_cleared', () => {
+                    setDebugLogs([]);
+                });
+
             } catch (error: any) {
                 console.error('❌ Failed to initialize socket:', error);
                 setConnectionError(error.message);
@@ -163,7 +192,7 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }, []);
 
     return (
-        <SocketContext.Provider value={{ socket: socketRef.current, connect, disconnect, isConnected, connectionError }}>
+        <SocketContext.Provider value={{ socket: socketVal, connect, disconnect, isConnected, connectionError }}>
             {children}
         </SocketContext.Provider>
     );

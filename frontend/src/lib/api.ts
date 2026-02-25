@@ -218,6 +218,10 @@ export const compendiumApi = {
         const response = await api.get(`/compendium/spells`, { params: { q: query } });
         return response.data;
     },
+    getSpell: async (id: string): Promise<Item> => {
+        const response = await api.get(`/compendium/spells/${id}`);
+        return response.data;
+    },
     searchFeats: async (query: string): Promise<Item[]> => {
         const response = await api.get(`/compendium/feats`, { params: { q: query } });
         return response.data;

@@ -44,7 +44,7 @@ class LootService:
         return loot_items
 
     @staticmethod
-    async def open_vessel(campaign_id: str, actor_name: str, vessel_name: str, db: AsyncSession):
+    async def open_vessel(campaign_id: str, actor_name: str, vessel_name: str, db: AsyncSession, target_id: str = None):
         """
         Unlocks/Opens a vessel by name and returns its contents. Also handles doors and chests.
         """
@@ -56,12 +56,7 @@ class LootService:
         if not game_state:
             return {"success": False, "message": "No active game state."}
 
-        interrupted, opp_msg, latest_state = await CombatService._handle_opportunity_attack(campaign_id, actor_name, f"open {vessel_name}", db, game_state)
-        game_state = await StateService.get_game_state(campaign_id, db)
-        if interrupted:
-            return {"success": False, "message": opp_msg, "game_state": latest_state}
-
-        # 1. Check permanent architecture (interactables)
+        # 1. Find the target interactable (doors/chests) or vessel (corpses)
         query = select(locations.c.data).where(locations.c.id == game_state.location.id)
         loc_res = await db.execute(query)
         loc_data_str = loc_res.scalar_one_or_none()
@@ -69,21 +64,108 @@ class LootService:
         loc_data = json.loads(loc_data_str) if loc_data_str else {}
         interactables = loc_data.get('interactables', [])
 
+        actor_char = next((p for p in game_state.party if p.name == actor_name), None)
+        
+        # We need Coordinates to do distance calculations
+        from app.models import Coordinates
+        
         target_interactable = None
         target_idx = -1
+        
+        # Build list of matching interactables
+        matches = []
         for i, item in enumerate(interactables):
-            if vessel_name.lower() in item.get('name', '').lower() or vessel_name.lower() in item.get('id', '').lower():
-                target_interactable = item
-                target_idx = i
-                break
+            if target_id and item.get('id') == target_id:
+                matches.append((item, i))
+                break # Exact ID match wins instantly
+            if vessel_name and (vessel_name.lower() in item.get('name', '').lower() or vessel_name.lower() in item.get('id', '').lower()):
+                matches.append((item, i))
+                
+        # Resolve best match (closest)
+        if matches:
+            if actor_char and hasattr(actor_char, 'position'):
+                best_match = None
+                best_dist = float('inf')
+                for m, idx in matches:
+                    tp = m.get('position')
+                    if tp:
+                        t_pos = Coordinates(q=tp['q'], r=tp['r'], s=tp.get('s', 0))
+                        dist = actor_char.position.distance_to(t_pos)
+                        if dist < best_dist:
+                            best_dist = dist
+                            best_match = (m, idx)
+                if best_match:
+                    target_interactable, target_idx = best_match
+                else:
+                    target_interactable, target_idx = matches[0]
+            else:
+                target_interactable, target_idx = matches[0]
+
+        target_vessel = None
+        if not target_interactable:
+            v_matches = []
+            if target_id:
+                 for v in game_state.vessels:
+                     if v.id == target_id:
+                         v_matches.append(v)
+                         break
+            if not v_matches and vessel_name:
+                 for v in game_state.vessels:
+                     if v.name.lower() == vessel_name.lower():
+                         v_matches.append(v)
+                         break
+                 if not v_matches:
+                      for v in game_state.vessels:
+                          if vessel_name.lower() in v.name.lower():
+                              v_matches.append(v)
+                              
+            if v_matches:
+                if actor_char and hasattr(actor_char, 'position'):
+                    best_vessel = None
+                    best_dist = float('inf')
+                    for v in v_matches:
+                        if hasattr(v, 'position') and v.position:
+                            dist = actor_char.position.distance_to(v.position)
+                            if dist < best_dist:
+                                best_dist = dist
+                                best_vessel = v
+                    if best_vessel:
+                        target_vessel = best_vessel
+                    else:
+                        target_vessel = v_matches[0]
+                else:
+                    target_vessel = v_matches[0]
+
+        if not target_interactable and not target_vessel:
+            return {"success": False, "message": f"Could not find '{vessel_name}' to open."}
 
         if target_interactable:
-            item_type = target_interactable.get('type')
-            current_state = target_interactable.get('state', 'closed')
+            if actor_char and hasattr(actor_char, 'position') and target_interactable.get('position'):
+                tp = target_interactable['position']
+                target_pos = Coordinates(q=tp['q'], r=tp['r'], s=tp.get('s', 0))
+                if actor_char.position.distance_to(target_pos) > 1:
+                    return {"success": False, "message": f"**{actor_name}** tries to open the {target_interactable['name']}, but they are too far away. They must move adjacent to it.", "out_of_range": True, "target_name": target_interactable['name']}
 
+            current_state = target_interactable.get('state', 'closed')
             if current_state == 'open':
                 return {"success": False, "message": f"The {target_interactable['name']} is already open."}
 
+        elif target_vessel:
+            if actor_char and hasattr(actor_char, 'position') and hasattr(target_vessel, 'position') and getattr(target_vessel, 'position'):
+                # Note target_vessel.position is a Coordinates object
+                if actor_char.position.distance_to(target_vessel.position) > 1:
+                    return {"success": False, "message": f"**{actor_name}** tries to search {target_vessel.name}, but they are too far away. They must move adjacent to it.", "out_of_range": True, "target_name": target_vessel.name}
+
+        # 3. Handle incoming Opportunity Attacks now that we know the action is valid and in range!
+        interrupted, opp_msg, latest_state = await CombatService._handle_opportunity_attack(campaign_id, actor_name, f"open {vessel_name}", db, game_state)
+        if interrupted:
+            return {"success": False, "message": opp_msg, "game_state": latest_state}
+            
+        game_state = await StateService.get_game_state(campaign_id, db)  # Refresh state if not interrupted
+
+        # 4. Process the interaction
+        if target_interactable:
+            item_type = target_interactable.get('type')
             interactables[target_idx]['state'] = 'open'
             loc_data['interactables'] = interactables
 
@@ -101,10 +183,10 @@ class LootService:
 
                 # Fallback to connection list if target_location_id isn't on the interactable
                 if not t_id:
-                    desc_data = loc_data.get('description', {})
-                    connections = desc_data.get('connections', [])
-                    if connections:
-                        t_id = connections[0].get('target_id')
+                     desc_data = loc_data.get('description', {})
+                     connections = desc_data.get('connections', [])
+                     if connections:
+                         t_id = connections[0].get('target_id')
 
                 if t_id:
                      q_dest = select(locations.c.id, locations.c.source_id, locations.c.name, locations.c.data).where(
@@ -137,7 +219,8 @@ class LootService:
                              await StateService.save_game_state(campaign_id, game_state, db)
                              await db.commit()
 
-                return {"success": True, "message": f"**{actor_name}** creaks open the {target_interactable['name']}{reveal_text}."}
+                return {"success": True, "message": f"**{actor_name}** creaks open the {target_interactable['name']}{reveal_text}.", "game_state": game_state}
+                
             elif item_type == 'chest':
                 contents = target_interactable.get('contents', [])
                 currency = target_interactable.get('currency', {"pp": 0, "gp": 0, "sp": 0, "cp": 0})
@@ -147,6 +230,7 @@ class LootService:
 
                 if not existing:
                     actor = next((p for p in game_state.party if p.name == actor_name), None)
+                    from app.models import Vessel, Coordinates
                     new_vessel = Vessel(
                         name=chest_name,
                         description=f"An opened {chest_name.lower()}.",
@@ -174,49 +258,36 @@ class LootService:
                 return {
                     "success": True,
                     "message": f"**{actor_name}** opens the {target_interactable['name']}.",
-                    "vessel": existing
+                    "vessel": existing,
+                    "game_state": game_state
                 }
-            return {"success": True, "message": f"**{actor_name}** opens the {target_interactable['name']}."}
+            return {"success": True, "message": f"**{actor_name}** opens the {target_interactable['name']}.", "game_state": game_state}
 
-        # 2. Check GameState transient vessels (corpses)
-        target_vessel = None
-        for v in game_state.vessels:
-            if v.name.lower() == vessel_name.lower():
-                target_vessel = v
-                break
+        elif target_vessel:
+            # Format Contents
+            items_msg = "Nothing"
+            if target_vessel.contents:
+                 cleaned_items = [i.replace('-', ' ').title() for i in target_vessel.contents]
+                 items_msg = ", ".join(cleaned_items)
 
-        if not target_vessel:
-             for v in game_state.vessels:
-                 if vessel_name.lower() in v.name.lower():
-                     target_vessel = v
-                     break
+            curr_parts = []
+            if target_vessel.currency:
+                for c_type in ["pp", "gp", "sp", "cp"]:
+                    val = target_vessel.currency.get(c_type, 0)
+                    if val > 0:
+                         curr_parts.append(f"{val} {c_type}")
 
-        if not target_vessel:
-            return {"success": False, "message": f"Could not find '{vessel_name}' to open."}
+            currency_msg = ", ".join(curr_parts)
+            if not currency_msg: currency_msg = "No currency"
 
-        # Format Contents
-        items_msg = "Nothing"
-        if target_vessel.contents:
-             cleaned_items = [i.replace('-', ' ').title() for i in target_vessel.contents]
-             items_msg = ", ".join(cleaned_items)
+            msg = f"**{actor_name}** searches {target_vessel.name}. Inside you find: {items_msg}.\nWealth: {currency_msg}."
 
-        curr_parts = []
-        if target_vessel.currency:
-            for c_type in ["pp", "gp", "sp", "cp"]:
-                val = target_vessel.currency.get(c_type, 0)
-                if val > 0:
-                     curr_parts.append(f"{val} {c_type}")
-
-        currency_msg = ", ".join(curr_parts)
-        if not currency_msg: currency_msg = "No currency"
-
-        msg = f"**{actor_name}** searches {target_vessel.name}. Inside you find: {items_msg}.\nWealth: {currency_msg}."
-
-        return {
-            "success": True,
-            "message": msg,
-            "vessel": target_vessel
-        }
+            return {
+                "success": True,
+                "message": msg,
+                "vessel": target_vessel,
+                "game_state": game_state
+            }
 
     @staticmethod
     async def take_items(campaign_id: str, actor_id: str, vessel_id: str, item_ids: list, take_currency: bool, db: AsyncSession):
@@ -234,6 +305,10 @@ class LootService:
         vessel = next((v for v in game_state.vessels if v.id == vessel_id), None)
         if not vessel:
             return {"success": False, "message": "Vessel not found."}
+
+        if hasattr(actor, 'position') and hasattr(vessel, 'position') and getattr(vessel, 'position'):
+            if actor.position.distance_to(vessel.position) > 1:
+                return {"success": False, "message": "You are too far away to loot that."}
 
         taken_items = []
         for i_id in item_ids:

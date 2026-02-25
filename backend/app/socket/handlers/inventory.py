@@ -4,6 +4,7 @@ from db.session import AsyncSessionLocal
 from app.socket.decorators import socket_event_handler
 from app.services.game_service import GameService
 from app.services.loot_service import LootService
+from app.services.state_service import StateService
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ async def handle_take_items(sid, data, sio, connected_users):
                 # didn't explicitly emit the event. We'll emit it here.
                 # Actually, `GameService.save_game_state` just saves to DB. We need to emit.
                 game_state = await GameService.get_game_state(campaign_id, db)
-                await sio.emit('game_state_update', game_state.model_dump(), room=campaign_id)
+                await StateService.emit_state_update(campaign_id, game_state, sio)
 
                 # We could also emit a system message depending on whether we want to spam chat
                 # Let's emit a subtle message or nothing, the GUI will update.
@@ -61,7 +62,7 @@ async def handle_equip_item(sid, data, sio, connected_users):
 
             if result["success"]:
                 game_state = await GameService.get_game_state(campaign_id, db)
-                await sio.emit('game_state_update', game_state.model_dump(), room=campaign_id)
+                await StateService.emit_state_update(campaign_id, game_state, sio)
 
                 # Emit a system message just for flavor ("X equips Y")
                 actor = result.get("actor")

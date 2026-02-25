@@ -13,6 +13,22 @@ class StateService:
     Handles all hydration, persistence, and querying of the GameState and its entities.
     Extracted from GameService to adhere to the Single Responsibility Principle.
     """
+    _last_broadcasted_state = {}
+
+    @staticmethod
+    async def emit_state_update(campaign_id: str, game_state: 'GameState', sio):
+        import jsonpatch
+        new_state_dict = game_state.model_dump()
+        old_state_dict = StateService._last_broadcasted_state.get(campaign_id)
+        
+        if old_state_dict:
+            patch = jsonpatch.make_patch(old_state_dict, new_state_dict)
+            if patch.patch: # Only emit if there are actual changes
+                await sio.emit('game_state_patch', patch.patch, room=campaign_id)
+        else:
+            await sio.emit('game_state_update', new_state_dict, room=campaign_id)
+            
+        StateService._last_broadcasted_state[campaign_id] = new_state_dict
 
     @staticmethod
     async def get_game_state(campaign_id: str, db: AsyncSession) -> GameState:
@@ -94,6 +110,7 @@ class StateService:
                     'id': str(r.id),
                     'name': str(r.name) if r.name else "Unknown",
                     'role': str(r.role) if r.role else "Unknown",
+                    'race': str(r.race) if r.race else "Human",
                     'user_id': str(r.user_id) if r.user_id else None, # Important for auth checks
                     'control_mode': str(s_data.get('control_mode') or (r.control_mode if hasattr(r, 'control_mode') and r.control_mode else "human"))
                 })
@@ -308,73 +325,4 @@ class StateService:
         if inserts:
             await db.execute(insert(npcs), inserts)
 
-    @staticmethod
-    async def update_char_hp(char_obj, hp_val: int, game_state: GameState, db: AsyncSession, commit: bool = True):
-        """
-        Updates the HP of a character/enemy/npc in the database.
-        """
-        char_obj.hp_current = hp_val
 
-        if commit:
-            if hasattr(char_obj, 'user_id') or any(p.id == char_obj.id for p in game_state.party):
-                 query = select(characters.c.sheet_data).where(characters.c.id == char_obj.id)
-                 c_res = await db.execute(query)
-                 sheet_data_str = c_res.scalars().first()
-
-                 if sheet_data_str:
-                    c_data = json.loads(sheet_data_str)
-                    if 'stats' not in c_data: c_data['stats'] = {}
-                    c_data['stats']['hp_current'] = hp_val
-
-                    stmt = (
-                        update(characters)
-                        .where(characters.c.id == char_obj.id)
-                        .values(sheet_data=json.dumps(c_data))
-                    )
-                    await db.execute(stmt)
-
-            elif any(e.id == char_obj.id for e in game_state.enemies):
-                 query = select(monsters.c.data).where(monsters.c.id == char_obj.id)
-                 m_res = await db.execute(query)
-                 data_str = m_res.scalars().first()
-
-                 if data_str:
-                    m_data = json.loads(data_str)
-                    if 'stats' not in m_data: m_data['stats'] = {}
-                    m_data['stats']['hp'] = hp_val
-
-                    stmt = (
-                        update(monsters)
-                        .where(monsters.c.id == char_obj.id)
-                        .values(data=json.dumps(m_data))
-                    )
-                    await db.execute(stmt)
-
-            elif any(n.id == char_obj.id for n in game_state.npcs):
-                if 'stats' not in char_obj.data: char_obj.data['stats'] = {}
-                char_obj.data['stats']['hp'] = hp_val
-
-                stmt = (
-                    update(npcs)
-                    .where(npcs.c.id == char_obj.id)
-                    .values(data=json.dumps(char_obj.data))
-                )
-                await db.execute(stmt)
-
-    @staticmethod
-    async def update_npc_hostility(npc_id: str, is_hostile: bool, db: AsyncSession, commit: bool = True):
-        if commit:
-            query = select(npcs.c.data).where(npcs.c.id == npc_id)
-            n_res = await db.execute(query)
-            data_str = n_res.scalars().first()
-
-            if data_str:
-                data = json.loads(data_str)
-                data['hostile'] = is_hostile
-
-                stmt = (
-                    update(npcs)
-                    .where(npcs.c.id == npc_id)
-                    .values(data=json.dumps(data))
-                )
-                await db.execute(stmt)

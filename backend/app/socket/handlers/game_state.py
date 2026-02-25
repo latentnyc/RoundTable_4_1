@@ -15,6 +15,7 @@ from app.agents import get_dm_graph
 from app.callbacks import SocketIOCallbackHandler
 from langchain_core.messages import HumanMessage
 from app.services.game_service import GameService
+from app.services.state_service import StateService
 
 logger = logging.getLogger(__name__)
 
@@ -78,10 +79,51 @@ async def handle_join_campaign(sid, data, sio, connected_users):
 
                 hp_current = _safe_int(sheet_data.get('hpCurrent'), 10)
                 hp_max = _safe_int(sheet_data.get('hpMax'), 10)
-                ac = _safe_int(sheet_data.get('ac'), 10)
                 speed = _safe_int(sheet_data.get('speed'), 30)
                 level = _safe_int(char_row['level'], 1)
                 xp = _safe_int(char_row['xp'], 0)
+                
+                # Derive AC & Initiative from Equipment + Stats
+                dex_score = _safe_int(sheet_data.get('stats', {}).get('Dexterity'), 10)
+                dex_mod = (dex_score - 10) // 2
+                
+                base_ac = 10
+                shield_bonus = 0
+                equipped_armor = None
+                
+                for item in sheet_data.get('equipment', []):
+                    if isinstance(item, dict) and item.get('type') == 'Armor':
+                        item_data = item.get('data', {})
+                        if isinstance(item_data, dict) and item_data.get('type') == 'Shield':
+                            ac_info_shield = item_data.get('armor_class', {})
+                            shield_bonus = ac_info_shield.get('base', 2) if isinstance(ac_info_shield, dict) else 2
+                        else:
+                            equipped_armor = item
+                            
+                if isinstance(equipped_armor, dict):
+                    ac_info = equipped_armor.get('data', {}).get('armor_class', {})
+                    if isinstance(ac_info, dict):
+                        base_ac = int(ac_info.get('base', 10))
+                        if ac_info.get('dex_bonus'):
+                            max_bonus = ac_info.get('max_bonus')
+                            if max_bonus is not None and int(dex_mod) > int(max_bonus):
+                                base_ac += int(max_bonus)
+                            else:
+                                base_ac += int(dex_mod)
+                        else:
+                            base_ac += int(dex_mod)
+                    else:
+                        base_ac += int(dex_mod)
+                    
+                derived_ac = int(base_ac) + int(shield_bonus)
+                
+                explicit_ac = sheet_data.get('ac')
+                if explicit_ac is not None:
+                     ac = _safe_int(explicit_ac, derived_ac)
+                else:
+                     ac = derived_ac
+                
+                initiative = _safe_int(sheet_data.get('initiative'), dex_mod)
 
                 # Check control mode
                 control_mode = str(char_row['control_mode']) if char_row.get('control_mode') else 'human'
@@ -170,7 +212,6 @@ async def handle_join_campaign(sid, data, sio, connected_users):
 
             # 5. Save Updated State
             # Ensure character JSON sheets capture the new spawn coordinates
-            from app.services.state_service import StateService
             await StateService._save_party(game_state.party, campaign_id, db)
 
             await db.execute(
@@ -195,7 +236,7 @@ async def handle_join_campaign(sid, data, sio, connected_users):
 
             # 6. Broadcast Update
 
-            await sio.emit('game_state_update', game_state.model_dump(), room=campaign_id)
+            await StateService.emit_state_update(campaign_id, game_state, sio)
 
     except SQLAlchemyError as e:
         import traceback
@@ -262,7 +303,7 @@ async def handle_join_campaign(sid, data, sio, connected_users):
 
             if camp_row and camp_row['api_key']:
                 api_key = camp_row['api_key']
-                model_name = camp_row['model'] or "gemini-2.0-flash"
+                model_name = camp_row['model'] or "gemini-3-flash-preview"
                 camp_description = camp_row['description'] or "A fantasy adventure."
                 template_id = camp_row['template_id']
 
@@ -375,7 +416,8 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                                 'sender_id': 'dm',
                                 'sender_name': 'Dungeon Master',
                                 'content': opening_text,
-                                'timestamp': 'Just now'
+                                'timestamp': 'Just now',
+                                'message_type': 'narration'
                             }, room=campaign_id)
 
                             # Update Game State Location Description to match Intro
@@ -391,7 +433,7 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                             await db.commit()
 
                             # Emit Game State Update
-                            await sio.emit('game_state_update', gs.model_dump(), room=campaign_id)
+                            await StateService.emit_state_update(campaign_id, gs, sio)
 
                             await db.execute(
                                 text("INSERT INTO debug_logs (id, campaign_id, type, content, created_at) VALUES (:id, :cid, 'intro_success', 'Message sent', :now)"),

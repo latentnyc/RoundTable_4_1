@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useSocketStore } from '@/lib/socket';
+import { useSocketContext } from '@/lib/SocketProvider';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
-import { Expand, Minus, Plus } from 'lucide-react';
+import { Expand, Minus, Plus, ShoppingBag } from 'lucide-react';
 import { Player, Enemy, NPC } from '@/lib/socket';
 
 // Hexagon Math (Flat-topped hexes)
@@ -26,20 +27,49 @@ const HEX_PATH = `
   Z
 `;
 
-
-
 interface TokenProps {
     entity: Player | Enemy | NPC;
     color: string;
     isPlayer?: boolean;
     isSelected?: boolean;
+    onClick?: () => void;
     dx?: number;
     dy?: number;
+    animatingPath?: { q: number, r: number, s: number }[];
+    onAnimationComplete?: () => void;
 }
 
-const Token = ({ entity, color, isSelected, dx = 0, dy = 0 }: TokenProps) => {
-    const xBase = hexToPixel(entity.position.q, entity.position.r).x;
-    const yBase = hexToPixel(entity.position.q, entity.position.r).y;
+const Token = ({ entity, color, isSelected, onClick, dx = 0, dy = 0, animatingPath, onAnimationComplete }: TokenProps) => {
+    const [visualPos, setVisualPos] = useState(entity.position);
+
+    useEffect(() => {
+        if (!animatingPath || animatingPath.length === 0) {
+            setVisualPos(entity.position);
+        }
+    }, [entity.position.q, entity.position.r, entity.position.s, animatingPath]);
+
+    useEffect(() => {
+        if (animatingPath && animatingPath.length > 0) {
+            let currentStep = 0;
+            const totalSteps = animatingPath.length;
+
+            const interval = setInterval(() => {
+                if (currentStep < totalSteps) {
+                    setVisualPos(animatingPath[currentStep]);
+                    currentStep++;
+                } else {
+                    clearInterval(interval);
+                    onAnimationComplete?.();
+                    setVisualPos(entity.position);
+                }
+            }, 300);
+
+            return () => clearInterval(interval);
+        }
+    }, [animatingPath]);
+
+    const xBase = hexToPixel(visualPos.q, visualPos.r).x;
+    const yBase = hexToPixel(visualPos.q, visualPos.r).y;
     const x = xBase + dx;
 
     // SVG viewBox centers (0,0) at the hex coordinate.
@@ -51,7 +81,16 @@ const Token = ({ entity, color, isSelected, dx = 0, dy = 0 }: TokenProps) => {
     const initials = entity.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
 
     return (
-        <g transform={`translate(${x}, ${y})`}>
+        <g
+            transform={`translate(${x}, ${y})`}
+            onClick={(e) => {
+                if (onClick) {
+                    e.stopPropagation();
+                    onClick();
+                }
+            }}
+            className={`transition-transform duration-300 ease-linear ${onClick ? "cursor-pointer" : ""}`}
+        >
             {/* Selection Ring */}
             {isSelected && (
                 <circle cx="0" cy="0" r={HEX_SIZE * 0.9} fill="none" stroke="white" strokeWidth="2" strokeDasharray="4 2" className="animate-spin-slow" />
@@ -102,10 +141,189 @@ const Token = ({ entity, color, isSelected, dx = 0, dy = 0 }: TokenProps) => {
 
 export default function BattlemapPanel() {
     const gameState = useSocketStore(state => state.gameState);
+    const { socket } = useSocketContext();
+
+    // We need the socket instance to emit the move event. 
+    // Since we don't store the raw socket in the store, we might need a helper from our API or just window.socket for now, 
+    // OR more cleanly, useSocket() if we have a context. Looking at the codebase, there's usually a global socket or a provider.
+    // Wait, let's check lib/socket.ts or other components how they emit.
+    // They usually import `socket` from `@/lib/socket-client` or similar, or have an API adapter.
+    // Let me check api-adapters.ts first to see if I need to import something.
+    // Actually, I can just use a generic window event for now and hook it up in GameInterface, OR check how other components do it.
 
     const party = gameState?.party || [];
     const enemies = gameState?.enemies || [];
     const npcs = gameState?.npcs || [];
+
+    const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
+    const [plottedPath, setPlottedPath] = useState<{ q: number, r: number, s: number }[]>([]);
+    const [animatingPaths, setAnimatingPaths] = useState<Record<string, { q: number, r: number, s: number }[]>>({});
+
+    // Listen for path animations from backend (ensuring synced movement for all players/AI)
+    useEffect(() => {
+        if (!socket) return;
+
+        const handlePathAnimation = (data: { entity_id: string, path: { q: number, r: number, s: number }[] }) => {
+            setAnimatingPaths(prev => ({ ...prev, [data.entity_id]: data.path }));
+        };
+
+        socket.on('entity_path_animation', handlePathAnimation);
+        return () => {
+            socket.off('entity_path_animation', handlePathAnimation);
+        };
+    }, [socket]);
+
+    // Calculate hex distance (cube distance)
+    const getHexDistance = (q1: number, r1: number, s1: number, q2: number, r2: number, s2: number) => {
+        return Math.max(Math.abs(q1 - q2), Math.abs(r1 - r2), Math.abs(s1 - s2));
+    };
+
+    const handleHexHover = (hex: { q: number, r: number, s: number }) => {
+        if (!selectedTokenId) return;
+        const token = [...party, ...enemies, ...npcs].find(e => e.id === selectedTokenId);
+        if (!token) return;
+
+        const pathIdx = plottedPath.findIndex(p => p.q === hex.q && p.r === hex.r);
+
+        if (pathIdx !== -1) {
+            setPlottedPath(prev => prev.slice(0, pathIdx + 1));
+            return;
+        }
+
+        if (hex.q === token.position.q && hex.r === token.position.r) {
+            setPlottedPath([]);
+            return;
+        }
+
+        const tip = plottedPath.length > 0 ? plottedPath[plottedPath.length - 1] : token.position;
+        const dist = getHexDistance(tip.q, tip.r, tip.s, hex.q, hex.r, hex.s);
+
+        if (dist === 1) {
+            const maxHexDistance = Math.floor((token.speed || 30) / 5);
+            if (plottedPath.length < maxHexDistance) {
+                const isEnemyOrNPC = [...enemies, ...npcs].some(e => e.position && e.position.q === hex.q && e.position.r === hex.r && (e.hp_current === undefined || e.hp_current > 0));
+                if (!isEnemyOrNPC) {
+                    setPlottedPath(prev => [...prev, hex]);
+                }
+            }
+        }
+    };
+
+    const handleHexClick = (hex: { q: number, r: number, s: number }, isReachable: boolean) => {
+        if (!selectedTokenId || !socket || !isReachable) return;
+
+        const pathTarget = plottedPath.length > 0 ? plottedPath[plottedPath.length - 1] : null;
+        const matchesPathTarget = pathTarget && pathTarget.q === hex.q && pathTarget.r === hex.r;
+
+        let finalPath = [];
+        if (matchesPathTarget) {
+            finalPath = [...plottedPath];
+        } else {
+            finalPath = [hex];
+        }
+
+        const emitId = selectedTokenId;
+        setSelectedTokenId(null);
+        setPlottedPath([]);
+
+        socket.emit('move_entity', {
+            entity_id: emitId,
+            q: hex.q,
+            r: hex.r,
+            s: hex.s,
+            path: finalPath
+        });
+    };
+
+    const polylinePoints = useMemo(() => {
+        if (!selectedTokenId || plottedPath.length === 0) return "";
+        const token = [...party, ...enemies, ...npcs].find(e => e.id === selectedTokenId);
+        if (!token) return "";
+
+        const pts = [token.position, ...plottedPath].map(h => {
+            const px = hexToPixel(h.q, h.r);
+            return `${px.x},${px.y}`;
+        });
+        return pts.join(" ");
+    }, [plottedPath, selectedTokenId, party, enemies, npcs]);
+
+    // Helper for finding neighbors inline
+    const getHexNeighbors = (q: number, r: number, s: number) => [
+        { q: q + 1, r: r, s: s - 1 },
+        { q: q + 1, r: r - 1, s: s },
+        { q: q, r: r - 1, s: s + 1 },
+        { q: q - 1, r: r, s: s + 1 },
+        { q: q - 1, r: r + 1, s: s },
+        { q: q, r: r + 1, s: s - 1 },
+    ];
+
+    // Derived state for reachable hexes (Shrinks as path is plotted)
+    const reachableHexes = useMemo(() => {
+        if (!selectedTokenId || !gameState?.location?.walkable_hexes) return new Set<string>();
+
+        const token = [...party, ...enemies, ...npcs].find(e => e.id === selectedTokenId);
+        if (!token || token.speed === undefined || !token.position) return new Set<string>();
+
+        const isPartyMember = party.some(p => p.id === selectedTokenId);
+        if (!isPartyMember) return new Set<string>();
+
+        const maxMoves = Math.floor(token.speed / 5);
+        const remainingMoves = maxMoves - plottedPath.length;
+
+        const reachable = new Set<string>();
+
+        // Add the path itself and origin so they stay highlighted (to allow clicking backwards)
+        reachable.add(`${token.position.q},${token.position.r}`);
+        plottedPath.forEach(p => reachable.add(`${p.q},${p.r}`));
+
+        if (remainingMoves <= 0) return reachable;
+
+        // Only enemies and NPCs block movement paths (allies can be moved through, but not ended on)
+        const obstacleHexes = new Set(
+            [...enemies.filter(e => e.hp_current > 0), ...npcs]
+                .map(e => `${e.position.q},${e.position.r}`)
+        );
+
+        const alliedHexes = new Set(
+            party.map(p => `${p.position.q},${p.position.r}`)
+        );
+
+        // Set of hexes we have already stepped on in this path
+        const pathSet = new Set(plottedPath.map(p => `${p.q},${p.r}`));
+        pathSet.add(`${token.position.q},${token.position.r}`);
+
+        const walkableSet = new Set(gameState.location.walkable_hexes.map(h => `${h.q},${h.r}`));
+        const startPos = plottedPath.length > 0 ? plottedPath[plottedPath.length - 1] : token.position;
+
+        // BFS to find all hexes reachable within remainingMoves
+        const visited = new Set<string>();
+        const queue: { q: number, r: number, s: number, dist: number }[] = [{ ...startPos, dist: 0 }];
+        visited.add(`${startPos.q},${startPos.r}`);
+
+        while (queue.length > 0) {
+            const current = queue.shift()!;
+
+            // Reached max distance for this tip
+            if (current.dist >= remainingMoves) continue;
+
+            const neighbors = getHexNeighbors(current.q, current.r, current.s);
+            for (const n of neighbors) {
+                const key = `${n.q},${n.r}`;
+                if (walkableSet.has(key) && !visited.has(key) && !pathSet.has(key) && !obstacleHexes.has(key)) {
+                    visited.add(key);
+                    reachable.add(key);
+                    queue.push({ ...n, dist: current.dist + 1 });
+                }
+            }
+        }
+
+        // Cannot end your turn on an ally's hex
+        for (const alliedHex of alliedHexes) {
+            reachable.delete(alliedHex);
+        }
+
+        return reachable;
+    }, [selectedTokenId, gameState?.location?.walkable_hexes, party, enemies, npcs, gameState?.phase, plottedPath]);
 
     // Calculate rendering offsets for tokens that share the same hex
     const allEntities = useMemo(() => {
@@ -308,39 +526,88 @@ export default function BattlemapPanel() {
                             >
                                 {/* Grid Layer - Fog of War Rooms */}
                                 <g className="hex-rooms" stroke="white" strokeWidth="1" fill="none">
-                                    {roomRenderData.map((room) => (
-                                        <g key={room.id} className="room-layer">
-                                            {/* Draw Dynamic Bounding Box */}
-                                            <rect
-                                                x={room.rect.x}
-                                                y={room.rect.y}
-                                                width={room.rect.width}
-                                                height={room.rect.height}
-                                                fill="#171717"
-                                                stroke="#404040"
-                                                strokeWidth="4"
-                                                rx="12"
-                                                className="shadow-2xl"
-                                            />
+                                    {/* Base Room Silhouette (Merged Overlaps) */}
+                                    <g className="room-base-layer">
+                                        <g className="room-borders" style={{ filter: "drop-shadow(0px 20px 25px rgba(0,0,0,0.5))" }}>
+                                            {roomRenderData.map((room) => (
+                                                <rect
+                                                    key={`border-${room.id}`}
+                                                    x={room.rect.x}
+                                                    y={room.rect.y}
+                                                    width={room.rect.width}
+                                                    height={room.rect.height}
+                                                    fill="#404040"
+                                                    stroke="#404040"
+                                                    strokeWidth="8"
+                                                    strokeLinejoin="round"
+                                                    rx="12"
+                                                />
+                                            ))}
+                                        </g>
+                                        <g className="room-fills" stroke="none">
+                                            {roomRenderData.map((room) => (
+                                                <rect
+                                                    key={`fill-${room.id}`}
+                                                    x={room.rect.x}
+                                                    y={room.rect.y}
+                                                    width={room.rect.width}
+                                                    height={room.rect.height}
+                                                    fill="#171717"
+                                                    stroke="none"
+                                                    rx="12"
+                                                />
+                                            ))}
+                                        </g>
+                                    </g>
 
+                                    {roomRenderData.map((room) => (
+                                        <g key={`content-${room.id}`} className="room-content-layer">
                                             {/* Draw Walkable Hexes */}
                                             {room.hexes.map((hex) => {
                                                 const { x, y } = hexToPixel(hex.q, hex.r);
+                                                const hexKey = `${hex.q},${hex.r}`;
+                                                const isReachable = reachableHexes.has(hexKey);
+                                                const isInPath = plottedPath.some(p => p.q === hex.q && p.r === hex.r);
+                                                const hasVessel = gameState.vessels?.some(v => v.position?.q === hex.q && v.position?.r === hex.r);
+                                                const hasCorpse = enemies.some(e => e.position && e.position.q === hex.q && e.position.r === hex.r && e.hp_current !== undefined && e.hp_current <= 0);
+
                                                 return (
-                                                    <path
-                                                        key={`${hex.q},${hex.r}`}
-                                                        d={HEX_PATH}
-                                                        transform={`translate(${x}, ${y})`}
-                                                        className="transition-colors hover:fill-white/10 opacity-20"
-                                                    />
+                                                    <g key={hexKey} transform={`translate(${x}, ${y})`}>
+                                                        <path
+                                                            d={HEX_PATH}
+                                                            className={`transition-colors duration-200 ${isReachable ? 'fill-green-500/20 stroke-green-500/50 cursor-pointer' : 'opacity-20 hover:fill-white/10'} ${isInPath && isReachable ? '!fill-yellow-500/30' : ''}`}
+                                                            onMouseEnter={() => handleHexHover(hex)}
+                                                            onClick={() => handleHexClick(hex, isReachable)}
+                                                        />
+                                                        {(hasVessel || hasCorpse) && (
+                                                            <g transform="translate(0, 8)" className="pointer-events-none opacity-80">
+                                                                <ShoppingBag color="#facc15" size={14} x={-7} y={0} strokeWidth={2.5} />
+                                                            </g>
+                                                        )}
+                                                    </g>
                                                 );
                                             })}
+
+                                            {/* Plotted Path Overlay */}
+                                            {plottedPath.length > 0 && (
+                                                <polyline
+                                                    points={polylinePoints}
+                                                    fill="none"
+                                                    stroke="#eab308"
+                                                    strokeWidth="4"
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeDasharray="8 6"
+                                                    className="pointer-events-none opacity-80"
+                                                    style={{ filter: "drop-shadow(0px 2px 4px rgba(0,0,0,0.5))" }}
+                                                />
+                                            )}
 
                                             {/* Draw Party Spawn Hexes */}
                                             {room.partyLocations?.map((spawn) => {
                                                 const { x, y } = hexToPixel(spawn.position.q, spawn.position.r);
                                                 return (
-                                                    <g key={`spawn-${spawn.position.q}-${spawn.position.r}`} transform={`translate(${x}, ${y})`}>
+                                                    <g key={`spawn-${spawn.position.q}-${spawn.position.r}`} transform={`translate(${x}, ${y})`} className="pointer-events-none">
                                                         <path d={HEX_PATH} fill="rgba(234, 179, 8, 0.2)" />
                                                         <text
                                                             x="0"
@@ -387,7 +654,15 @@ export default function BattlemapPanel() {
                                 <g className="tokens">
                                     {/* NPCs */}
                                     {npcs.map(npc => (
-                                        <Token key={npc.id} entity={npc} color="#3b82f6" dx={entityOffsets[npc.id]?.dx} dy={entityOffsets[npc.id]?.dy} /> // blue-500
+                                        <Token
+                                            key={npc.id}
+                                            entity={npc}
+                                            color="#f59e0b" // amber-500
+                                            dx={entityOffsets[npc.id]?.dx}
+                                            dy={entityOffsets[npc.id]?.dy}
+                                            animatingPath={animatingPaths[npc.id]}
+                                            onAnimationComplete={() => setAnimatingPaths(p => { const next = { ...p }; delete next[npc.id]; return next; })}
+                                        />
                                     ))}
 
                                     {/* Enemies */}
@@ -400,6 +675,8 @@ export default function BattlemapPanel() {
                                                 color="#ef4444" // red-500
                                                 dx={entityOffsets[enemy.id]?.dx}
                                                 dy={entityOffsets[enemy.id]?.dy}
+                                                animatingPath={animatingPaths[enemy.id]}
+                                                onAnimationComplete={() => setAnimatingPaths(p => { const next = { ...p }; delete next[enemy.id]; return next; })}
                                             />
                                         );
                                     })}
@@ -409,11 +686,22 @@ export default function BattlemapPanel() {
                                         <Token
                                             key={player.id}
                                             entity={player}
-                                            color="#a855f7" // purple-500
+                                            color={player.is_ai ? "#a855f7" : "#3b82f6"} // purple-500 for AI, blue-500 for human
                                             isPlayer={true}
-                                            isSelected={gameState.active_entity_id === player.id}
+                                            isSelected={gameState.active_entity_id === player.id || selectedTokenId === player.id}
+                                            onClick={() => {
+                                                if (gameState.phase !== 'combat' || gameState.active_entity_id === player.id) {
+                                                    setSelectedTokenId(prev => {
+                                                        const next = prev === player.id ? null : player.id;
+                                                        if (next !== prev) setPlottedPath([]);
+                                                        return next;
+                                                    });
+                                                }
+                                            }}
                                             dx={entityOffsets[player.id]?.dx}
                                             dy={entityOffsets[player.id]?.dy}
+                                            animatingPath={animatingPaths[player.id]}
+                                            onAnimationComplete={() => setAnimatingPaths(p => { const next = { ...p }; delete next[player.id]; return next; })}
                                         />
                                     ))}
                                 </g>

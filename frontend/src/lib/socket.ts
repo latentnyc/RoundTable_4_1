@@ -128,6 +128,7 @@ export interface ChatMessage {
     content: string;
     timestamp: string;
     is_system?: boolean;
+    message_type?: string;
 }
 
 export interface DebugLogItem {

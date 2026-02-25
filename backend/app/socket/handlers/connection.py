@@ -28,7 +28,7 @@ async def handle_connect(sid, environ, auth, connected_users):
         # We don't have sio session yet, but return user_id to be stored
         return user_id, decoded_token
     except Exception as e:
-
+        logger.error(f"Authentication failed: {e}")
         raise ConnectionRefusedError("Authentication failed: Invalid token")
 
 @socket_event_handler
