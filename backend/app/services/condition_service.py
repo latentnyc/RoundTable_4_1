@@ -200,6 +200,12 @@ def get_save_modifiers(entity, save_stat: str) -> dict:
     return {"auto_fail": False, "advantage": False, "disadvantage": False}
 
 
+def has_damage_resistance(entity) -> bool:
+    """Check if entity has resistance to all damage (Petrified)."""
+    effects = get_active_effects(entity)
+    return "damage_resistance" in effects
+
+
 def tick_conditions(entity) -> List[str]:
     """Tick condition durations at the start/end of an entity's turn.
     Call this at the appropriate turn phase (start or end).

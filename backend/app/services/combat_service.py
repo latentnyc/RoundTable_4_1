@@ -161,8 +161,8 @@ class CombatService:
             for n in game_state.enemies: print(f"DEBUG: ENEMY: {n.name}")
             return {"success": False, "message": f"Could not find actor '{attacker_name}' or target '{target_name}'."}
 
-        # Check conditions for advantage/disadvantage
-        from app.services.condition_service import get_attack_modifiers, should_skip_turn
+        # Check conditions for advantage/disadvantage and damage resistance
+        from app.services.condition_service import get_attack_modifiers, should_skip_turn, has_damage_resistance
         if should_skip_turn(actor_char):
             return {"success": False, "message": f"{actor_char.name} is incapacitated and cannot attack."}
 
@@ -247,6 +247,8 @@ class CombatService:
             target_effects = get_active_effects(target_char)
             if "melee_auto_crit" in target_effects and is_melee_weapon:
                 params["melee_auto_crit"] = True
+            if has_damage_resistance(target_char):
+                params["damage_resistance"] = True
 
             # Run synchronous engine logic for this attack
             res = await loop.run_in_executor(
@@ -444,6 +446,9 @@ class CombatService:
                     params["save_auto_fail"] = True
                 if save_mods["disadvantage"]:
                     params["save_disadvantage"] = True
+            # Damage resistance (Petrified)
+            if has_damage_resistance(target_char):
+                params["damage_resistance"] = True
 
         loop = asyncio.get_running_loop()
         action_result = await loop.run_in_executor(

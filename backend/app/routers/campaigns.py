@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Dict
 import json
 import logging
+import os
+import base64
 from ..permissions import verify_token, is_admin
 from ..dependencies import get_db
 from ..dtos import (
@@ -35,7 +37,6 @@ async def test_api_key(
     try:
         api_key_to_use = req.api_key
         if not api_key_to_use:
-             import os
              api_key_to_use = os.getenv("GEMINI_API_KEY")
 
         models = SystemService.validate_api_key(api_key_to_use, req.provider)
@@ -83,7 +84,6 @@ async def list_campaigns(
 
         result = await db.execute(query)
         rows = result.all()
-        import os
         return [
             CampaignResponse(
                 id=row.id,
@@ -115,7 +115,6 @@ async def create_campaign(
     # Resolve API Key
     api_key_to_use = req.api_key
     if not api_key_to_use:
-        import os
         api_key_to_use = os.getenv("GEMINI_API_KEY")
 
     # Verify API Key if provided
@@ -361,7 +360,6 @@ async def update_campaign(
 
     if not row: raise HTTPException(status_code=404)
 
-    import os
     return CampaignDetailsResponse(
         id=row.id,
         name=row.name,
@@ -445,7 +443,6 @@ async def get_campaign(
     elif await is_admin(user, db):
         pass
 
-    import os
     return CampaignDetailsResponse(
         id=row.id,
         name=row.name,
@@ -732,8 +729,6 @@ async def generate_campaign_image(
     from app.services.ai_service import AIService
     import hashlib
     from db.schema import image_cache
-    from sqlalchemy import select, insert
-    import base64
 
     # Check if participant
     if not await is_admin(user, db):

@@ -23,7 +23,17 @@ class CharacterSheet:
         return math.floor((int(score) - 10) / 2)
 
     def get_save(self, stat: str) -> int:
-        return self.get_mod(stat)
+        """Saving throw modifier: ability mod + proficiency bonus if proficient."""
+        ability_mod = self.get_mod(stat)
+        saving_throws = self.data.get("saving_throws", [])
+        if not saving_throws and "sheet_data" in self.data:
+            saving_throws = self.data["sheet_data"].get("saving_throws", [])
+        if isinstance(saving_throws, list):
+            stat_lower = stat.lower()
+            stat_short = stat_lower[:3]
+            if any(s.lower() in (stat_lower, stat_short) for s in saving_throws):
+                return ability_mod + self.get_proficiency_bonus()
+        return ability_mod
 
     def take_damage(self, amount: int) -> str:
         self.hp["current"] = max(0, self.hp["current"] - amount)

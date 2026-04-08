@@ -20,7 +20,7 @@ class Dice:
             try:
                 val = int(clean_expr)
                 return {"total": val, "rolls": [], "detail": str(val)}
-            except:
+            except (ValueError, IndexError):
                 return {"total": 0, "rolls": [], "detail": "Invalid"}
 
         parts = clean_expr.split("+")
@@ -64,7 +64,7 @@ class Dice:
                     mod = int(part)
                     total += mod
                     details.append(str(mod))
-                except:
+                except (ValueError, IndexError):
                     pass
 
         return {

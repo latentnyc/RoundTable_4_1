@@ -55,20 +55,24 @@ export interface Player extends Entity {
     user_id?: string;
     campaign_id?: string;
     backstory?: string;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    sheet_data: Record<string, any>;
+    sheet_data: Record<string, unknown>;
 }
 
 export interface Enemy extends Entity {
     type: string;
     identified?: boolean;
-    data?: Record<string, any>;
+    hostile?: boolean;
+    ally?: boolean;
+    data?: Record<string, unknown>;
 }
 
 export interface NPC extends Entity {
     role: string;
-    data: Record<string, unknown>;
     identified?: boolean;
+    hostile?: boolean;
+    friendly?: boolean;
+    ally?: boolean;
+    data?: Record<string, unknown>;
 }
 
 export interface LogEntry {
@@ -92,7 +96,7 @@ export interface GameState {
     npcs: NPC[];
     turn_order: string[];
     combat_log: LogEntry[];
-    vessels?: any[];
+    vessels?: { id: string; name: string; position: Coordinates; contents: string[]; currency: Record<string, number> }[];
 }
 
 

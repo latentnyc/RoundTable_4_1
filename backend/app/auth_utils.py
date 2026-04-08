@@ -32,17 +32,3 @@ async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(secur
 async def get_current_user(token_data: dict = Depends(verify_token)):
     return token_data
 
-async def get_current_profile(token_data: dict = Depends(verify_token)):
-    # Import here to avoid circular dependency if possible, or move to dependencies.py
-    # But dependencies.py imports get_db.
-    # Let's perform a raw DB lookup or import get_db inside.
-    from .dependencies import get_db
-
-    # We need a new async generator context for get_db since it's a generator
-    # But Depends(get_db) works in FastAPI.
-    # To do this manually inside a function is tricky without Depends.
-    # So we should use Depends(get_db) in the signature.
-    pass
-
-# We will define these in routers or a separate complex dependencies file to avoid circular imports.
-# For now, let's keep auth_utils simple and do the admin check in the router using Depends.

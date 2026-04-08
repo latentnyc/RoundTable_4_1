@@ -10,7 +10,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { SKILLS_LIST, Skill, Stat, RaceData, ClassData, BackgroundData } from '@/lib/srd-data';
 import { adaptRace, adaptClass, adaptBackground } from '@/lib/api-adapters';
-import { getDerivedAC } from '@/lib/rules/characterRules';
+import { getDerivedAC, getMod, formatMod } from '@/lib/rules/characterRules';
 
 interface CreateCharacterPageProps {
     onClose?: () => void;
@@ -364,8 +364,6 @@ export default function CreateCharacterPage({ onClose, embedded = false, forceEd
 
     const getScore = (stat: string) => (store.stats[stat as Stat] || 8);
     const getTotalScore = (stat: string) => getScore(stat) + getRacialBonus(stat);
-    const getMod = (score: number) => Math.floor((score - 10) / 2);
-    const formatMod = (mod: number) => (mod >= 0 ? `+${mod}` : `${mod}`);
 
     // Skill Logic
     const isSkillFromBg = (skill: Skill) => bgData?.skills?.includes(skill);

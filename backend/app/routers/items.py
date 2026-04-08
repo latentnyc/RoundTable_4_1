@@ -33,7 +33,7 @@ async def search_items(q: str = Query(None), db: AsyncSession = Depends(get_db))
     for row in rows:
         try:
             data = json.loads(row['data'])
-        except:
+        except (json.JSONDecodeError, TypeError):
             data = {}
 
         items.append(Item(

@@ -13,8 +13,13 @@ class CompendiumItem(BaseModel):
     name: str
     data: dict
 
+ALLOWED_TABLES = {"spells", "feats", "races", "classes", "alignments", "subraces", "backgrounds", "items", "monsters"}
+
 async def search_compendium(table_name: str, q: str, db: AsyncSession, limit_val: int = 25) -> List[CompendiumItem]:
     """Generic helper to search a given table by name."""
+    if table_name not in ALLOWED_TABLES:
+        raise ValueError(f"Invalid table name: {table_name}")
+
     if q and len(q.strip()) > 0:
         result = await db.execute(
             text(f"SELECT id, name, data FROM {table_name} WHERE name LIKE :q LIMIT :limit"),

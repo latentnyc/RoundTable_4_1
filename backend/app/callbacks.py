@@ -102,7 +102,7 @@ class SocketIOCallbackHandler(AsyncCallbackHandler):
             })
             self.logger.debug("Emit complete.")
 
-        except BaseException as e:
+        except Exception as e:
             # Catch EVERYTHING including CancelledError just to see
             import traceback
             self.logger.error(f"CRITICAL ERROR in on_chat_model_start callback: {e}")
@@ -130,7 +130,7 @@ class SocketIOCallbackHandler(AsyncCallbackHandler):
                 'full_content': prompts,
                 'timestamp': 'Just now'
             })
-        except BaseException as e:
+        except Exception as e:
             self.logger.error(f"CRITICAL ERROR in on_llm_start callback: {e}")
 
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
@@ -165,7 +165,7 @@ class SocketIOCallbackHandler(AsyncCallbackHandler):
             await self._handle_token_usage(response)
 
             self.logger.debug("on_llm_end emit complete.")
-        except BaseException as e:
+        except Exception as e:
             import traceback
             self.logger.error(f"CRITICAL ERROR in on_llm_end callback: {e}")
             self.logger.error(traceback.format_exc())
@@ -202,7 +202,7 @@ class SocketIOCallbackHandler(AsyncCallbackHandler):
             await self._handle_token_usage(response)
 
             self.logger.debug("on_chat_model_end emit complete.")
-        except BaseException as e:
+        except Exception as e:
             import traceback
             self.logger.error(f"CRITICAL ERROR in on_chat_model_end callback: {e}")
             self.logger.error(traceback.format_exc())
@@ -351,7 +351,7 @@ class SocketIOCallbackHandler(AsyncCallbackHandler):
                 'full_content': input_str,
                 'timestamp': 'Just now'
             })
-        except BaseException as e:
+        except Exception as e:
             self.logger.error(f"CRITICAL ERROR in on_tool_start callback: {e}")
 
     async def on_tool_end(self, output: str, **kwargs: Any) -> None:
@@ -369,5 +369,5 @@ class SocketIOCallbackHandler(AsyncCallbackHandler):
                 'full_content': str(content),
                 'timestamp': 'Just now'
             })
-        except BaseException as e:
+        except Exception as e:
              self.logger.error(f"CRITICAL ERROR in on_tool_end callback: {e}")

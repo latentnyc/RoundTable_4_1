@@ -4,28 +4,7 @@ import { useSocketContext } from '@/lib/SocketProvider';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { Expand, Minus, Plus, ShoppingBag } from 'lucide-react';
 import { Player, Enemy, NPC } from '@/lib/socket';
-
-// Hexagon Math (Flat-topped hexes)
-const HEX_SIZE = 30; // Radius
-const HEX_HEIGHT = Math.sqrt(3) * HEX_SIZE;
-
-// Calculate pixel coordinates from axial coordinates (q, r)
-const hexToPixel = (q: number, r: number) => {
-    const x = HEX_SIZE * (3 / 2 * q);
-    const y = HEX_SIZE * (Math.sqrt(3) / 2 * q + Math.sqrt(3) * r);
-    return { x, y };
-};
-
-// SVG path for a flat-topped hexagon centered at 0,0
-const HEX_PATH = `
-  M ${HEX_SIZE} 0
-  L ${HEX_SIZE / 2} ${HEX_HEIGHT / 2}
-  L ${-HEX_SIZE / 2} ${HEX_HEIGHT / 2}
-  L ${-HEX_SIZE} 0
-  L ${-HEX_SIZE / 2} ${-HEX_HEIGHT / 2}
-  L ${HEX_SIZE / 2} ${-HEX_HEIGHT / 2}
-  Z
-`;
+import { HEX_SIZE, HEX_PATH, hexToPixel, getHexDistance, getHexNeighbors } from '@/lib/hexMath';
 
 interface TokenProps {
     entity: Player | Enemy | NPC;
@@ -211,11 +190,6 @@ export default function BattlemapPanel() {
         };
     }, [socket]);
 
-    // Calculate hex distance (cube distance)
-    const getHexDistance = (q1: number, r1: number, s1: number, q2: number, r2: number, s2: number) => {
-        return Math.max(Math.abs(q1 - q2), Math.abs(r1 - r2), Math.abs(s1 - s2));
-    };
-
     const handleHexHover = (hex: { q: number, r: number, s: number }) => {
         if (!selectedTokenId) return;
         const token = [...party, ...enemies, ...npcs].find(e => e.id === selectedTokenId);
@@ -284,16 +258,6 @@ export default function BattlemapPanel() {
         });
         return pts.join(" ");
     }, [plottedPath, selectedTokenId, party, enemies, npcs]);
-
-    // Helper for finding neighbors inline
-    const getHexNeighbors = (q: number, r: number, s: number) => [
-        { q: q + 1, r: r, s: s - 1 },
-        { q: q + 1, r: r - 1, s: s },
-        { q: q, r: r - 1, s: s + 1 },
-        { q: q - 1, r: r, s: s + 1 },
-        { q: q - 1, r: r + 1, s: s },
-        { q: q, r: r + 1, s: s - 1 },
-    ];
 
     // Derived state for reachable hexes (Shrinks as path is plotted)
     const reachableHexes = useMemo(() => {

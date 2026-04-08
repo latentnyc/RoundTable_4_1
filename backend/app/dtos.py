@@ -131,10 +131,3 @@ class ImageGenerationRequest(BaseModel):
 class ImageGenerationResponse(BaseModel):
     image_base64: str
     prompt_used: str
-
-class ImageGenerationRequest(BaseModel):
-    prompt: str
-
-class ImageGenerationResponse(BaseModel):
-    image_base64: str
-    prompt_used: str

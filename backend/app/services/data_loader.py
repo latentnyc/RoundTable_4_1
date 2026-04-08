@@ -67,7 +67,7 @@ async def import_table(db: AsyncSession, table_name, json_filename, json_dir, na
 
             level = item.get('level', 0)
             try: level = int(level)
-            except: level = 0
+            except (ValueError, TypeError): level = 0
 
             batch_params.append({
                 "id": record_id,

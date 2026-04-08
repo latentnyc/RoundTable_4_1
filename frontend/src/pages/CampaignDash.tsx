@@ -371,15 +371,16 @@ export default function CampaignDash() {
                     <button
                         onClick={async () => {
                             try {
-                                const result = await devApi.quickjoin(id);
+                                await devApi.quickjoin(id);
                                 // Refresh character list
                                 const chars = await characterApi.getUserCharacters(profile?.uid || '', id);
                                 setCharacters(chars);
                                 // Re-run status checks
                                 fetchStatusChecks();
-                            } catch (e: any) {
+                            } catch (e: unknown) {
                                 console.error('Quickjoin failed:', e);
-                                alert('Quick join failed: ' + (e?.response?.data?.detail || e.message));
+                                const msg = e instanceof Error ? e.message : 'Unknown error';
+                                alert('Quick join failed: ' + msg);
                             }
                         }}
                         className="px-4 py-2 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 rounded-lg text-sm font-bold transition-colors whitespace-nowrap"

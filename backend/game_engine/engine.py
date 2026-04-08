@@ -140,6 +140,11 @@ class GameEngine:
             if damage_mod != 0:
                 detail_str += f" + {damage_mod}"
 
+            # Damage resistance (Petrified)
+            if params.get("damage_resistance"):
+                damage = damage // 2
+                detail_str += " [HALVED - RESISTANT]"
+
             result_str += f"Hit! Damage: {damage} ({detail_str}). "
 
             # Apply damage (updates target object)
@@ -209,8 +214,16 @@ class GameEngine:
 
             if dmg_at_slot and str(level) in dmg_at_slot:
                 damage_dice = dmg_at_slot[str(level)]
-            elif dmg_at_char_level and "1" in dmg_at_char_level: # default parsing level 1
-                damage_dice = dmg_at_char_level["1"]
+            elif dmg_at_char_level:
+                # Cantrip scaling: find highest threshold <= character level
+                char_level = actor.data.get("level", 1)
+                if isinstance(char_level, str):
+                    char_level = int(char_level) if char_level.isdigit() else 1
+                best_key = "1"
+                for k in sorted(dmg_at_char_level.keys(), key=lambda x: int(x)):
+                    if int(k) <= char_level:
+                        best_key = k
+                damage_dice = dmg_at_char_level[best_key]
             elif "damage_dice" in damage_info:
                  damage_dice = damage_info["damage_dice"]
 
@@ -251,6 +264,10 @@ class GameEngine:
                         dmg += crit_roll["total"]
                         detail += f" + {crit_roll['detail']} [CRIT]"
                         result_data["message"] += " **CRITICAL HIT!**"
+
+                    if params.get("damage_resistance"):
+                        dmg = dmg // 2
+                        detail += " [HALVED - RESISTANT]"
 
                     result_data["damage_total"] = dmg
                     result_data["damage_detail"] = detail
@@ -304,6 +321,10 @@ class GameEngine:
                 else:
                     result_data["message"] += "**Failed!**"
 
+                if params.get("damage_resistance"):
+                    dmg = dmg // 2
+                    detail += " [HALVED - RESISTANT]"
+
                 result_data["damage_total"] = dmg
                 result_data["damage_detail"] = detail
 
@@ -333,6 +354,8 @@ class GameEngine:
         elif damage_dice and target:
              dmg_roll = Dice.roll(damage_dice)
              dmg = dmg_roll["total"]
+             if params.get("damage_resistance"):
+                 dmg = dmg // 2
              target.take_damage(dmg)
              result_data["damage_total"] = dmg
              result_data["damage_detail"] = dmg_roll["detail"]

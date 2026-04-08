@@ -1,6 +1,7 @@
 import socketio
 import json
 import logging
+import re
 from uuid import uuid4
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,22 +18,7 @@ from app.services.ai_service import AIService
 from app.services.chat_service import ChatService
 from app.services.command_service import CommandService
 
-
-
-def log_debug(message):
-    import re
-    # Also log to standard logger
-    logging.getLogger(__name__).debug(str(message))
-
-    sanitized_message = re.sub(r"('api_key':\s*')[^']+'", r"\1REDACTED'", str(message))
-    sanitized_message = re.sub(r'("api_key":\s*")[^"]+"', r'\1REDACTED"', sanitized_message)
-    try:
-        with open("debug_chat.log", "a") as f:
-            import datetime
-            timestamp = datetime.datetime.now().isoformat()
-            f.write(f"[{timestamp}] {sanitized_message}\n")
-    except Exception as e:
-        logging.getLogger(__name__).error(f"Failed to log: {e}")
+logger = logging.getLogger(__name__)
 
 
 # Handlers
@@ -82,12 +68,12 @@ dm_busy_status = {}
 
 @socket_event_handler
 async def handle_chat_message(sid, data, sio, connected_users):
-    log_debug(f"Received chat_message from {sid}: {data}")
+    logger.debug(f"Received chat_message from {sid}: {data}")
 
     # Check session/user
     user_data = connected_users.get(sid)
     if not user_data:
-        log_debug(f"User data not found for sid {sid}")
+        logger.debug(f"User data not found for sid {sid}")
         return
 
     campaign_id = user_data['campaign_id']
@@ -100,7 +86,7 @@ async def handle_chat_message(sid, data, sio, connected_users):
 
     # 1. Check DM Busy State for Commands
     if is_command and dm_busy_status.get(campaign_id, False):
-        log_debug(f"Rejecting command from {sender_name} because DM is busy: {content}")
+        logger.debug(f"Rejecting command from {sender_name} because DM is busy: {content}")
         await sio.emit('command_rejected', {
             'content': content,
             'reason': "The DM is currently narrating the scene. Wait a moment to see what happens."
@@ -136,10 +122,9 @@ async def handle_chat_message(sid, data, sio, connected_users):
 
 
         # 4. Trigger AI Characters via @Mention
-        import re
         mentions = re.findall(r"@(\w+)", content)
         if mentions:
-            log_debug(f"DEBUG: Found mentions in chat: {mentions}")
+            logger.debug(f"DEBUG: Found mentions in chat: {mentions}")
             unique_mentions = set(mentions)
             for mentioned_name in unique_mentions:
                 async with AsyncSessionLocal() as db:
@@ -155,7 +140,7 @@ async def handle_chat_message(sid, data, sio, connected_users):
                                     target_char = char
                                     break
                                 else:
-                                    log_debug(f"DEBUG: {char.name} matched but is NOT AI.")
+                                    logger.debug(f"DEBUG: {char.name} matched but is NOT AI.")
 
                         # If not found in party, maybe check NPCs?
                         # The original code only checked 'party' from state_data.
@@ -171,7 +156,7 @@ async def handle_chat_message(sid, data, sio, connected_users):
                                     break
 
                 if target_char:
-                    log_debug(f"DEBUG: triggering AI response for {target_char.name}")
+                    logger.debug(f"DEBUG: triggering AI response for {target_char.name}")
                     await sio.emit('typing_indicator', {'sender_id': target_char.id, 'is_typing': True}, room=campaign_id)
 
                     try:
@@ -204,7 +189,7 @@ async def handle_chat_message(sid, data, sio, connected_users):
                                 await db.rollback()
                             except Exception:
                                 pass
-                        log_debug(f"Error in Mention generation: {e}")
+                        logger.debug(f"Error in Mention generation: {e}")
                         await sio.emit('chat_message', {'sender_id': 'system', 'sender_name': 'System', 'content': f"🚫 {target_char.name} Agent Error: {e}", 'timestamp': "Just now", 'is_system': True, 'message_type': 'system'}, room=campaign_id)
 
                     await sio.emit('typing_indicator', {'sender_id': target_char.id, 'is_typing': False}, room=campaign_id)

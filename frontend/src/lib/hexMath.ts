@@ -15,8 +15,8 @@ export const HEX_PATH = `
 
 // Calculate pixel coordinates from axial coordinates (q, r)
 export const hexToPixel = (q: number, r: number) => {
-    const x = HEX_SIZE * (3 / 2) * q;
-    const y = HEX_SIZE * Math.sqrt(3) * (r + q / 2);
+    const x = HEX_SIZE * (3 / 2 * q);
+    const y = HEX_SIZE * (Math.sqrt(3) / 2 * q + Math.sqrt(3) * r);
     return { x, y };
 };
 
