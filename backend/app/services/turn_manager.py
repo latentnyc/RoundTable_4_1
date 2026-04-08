@@ -191,17 +191,30 @@ class TurnManager:
                                 break
 
                             # Use shared DB if available to ensure we see uncommitted changes (Isolation)
-                            if db:
-                                 new_state = await TurnManager.execute_ai_turn(campaign_id, active_char, game_state, sio, db, commit=False)
-                                 if new_state:
-                                      game_state = new_state
-                                      pending_changes = True
-                            else:
-                                async with AsyncSessionLocal() as session:
-                                    new_state = await TurnManager.execute_ai_turn(campaign_id, active_char, game_state, sio, session, commit=False)
-                                    if new_state:
-                                         game_state = new_state
-                                         pending_changes = True
+                            # Timeout prevents hung turns if Gemini API is slow/down
+                            try:
+                                if db:
+                                     new_state = await asyncio.wait_for(
+                                         TurnManager.execute_ai_turn(campaign_id, active_char, game_state, sio, db, commit=False),
+                                         timeout=45.0
+                                     )
+                                     if new_state:
+                                          game_state = new_state
+                                          pending_changes = True
+                                else:
+                                    async with AsyncSessionLocal() as session:
+                                        new_state = await asyncio.wait_for(
+                                            TurnManager.execute_ai_turn(campaign_id, active_char, game_state, sio, session, commit=False),
+                                            timeout=45.0
+                                        )
+                                        if new_state:
+                                             game_state = new_state
+                                             pending_changes = True
+                            except asyncio.TimeoutError:
+                                logger.warning(f"AI turn timed out for {active_char.name} ({active_id}), skipping")
+                                await sio.emit('system_message', {
+                                    'content': f"*{active_char.name}'s turn timed out and was skipped.*"
+                                }, room=campaign_id)
                                          
                             # Save state after AI action BEFORE dropping lock for next sleep
                             if pending_changes and game_state:
@@ -254,23 +267,23 @@ class TurnManager:
         if is_actor_party:
              # Party members (and their pets/summons) target enemies + hostile NPCs
              targets = list(game_state.enemies)
-             hostile_npcs = [n for n in game_state.npcs if n.data.get('hostile') == True]
+             hostile_npcs = [n for n in game_state.npcs if n.hostile]
              targets.extend(hostile_npcs)
 
         elif any(n.id == actor.id for n in game_state.npcs):
              # NPC Logic
-             is_hostile = actor.data.get('hostile') == True
-             is_ally = actor.data.get('ally') == True or actor.data.get('friendly') == True
+             is_hostile = actor.hostile
+             is_ally = actor.ally or actor.friendly
 
              if is_hostile:
                  # Hostile NPCs attack Party + Allied NPCs
                  targets = list(game_state.party)
-                 allied_npcs = [n for n in game_state.npcs if n.data.get('ally') == True or n.data.get('friendly') == True]
+                 allied_npcs = [n for n in game_state.npcs if n.ally or n.friendly]
                  targets.extend(allied_npcs)
              elif is_ally:
                  # Allied NPCs attack Enemies + Hostile NPCs
                  targets = list(game_state.enemies)
-                 hostile_npcs = [n for n in game_state.npcs if n.data.get('hostile') == True]
+                 hostile_npcs = [n for n in game_state.npcs if n.hostile]
                  targets.extend(hostile_npcs)
              else:
                  # Neutral NPCs target nothing (they will pass)
@@ -280,7 +293,7 @@ class TurnManager:
         else:
              # Default Enemies target Party + Allied NPCs
              targets = list(game_state.party)
-             allied_npcs = [n for n in game_state.npcs if n.data.get('ally') == True or n.data.get('friendly') == True]
+             allied_npcs = [n for n in game_state.npcs if n.ally or n.friendly]
              targets.extend(allied_npcs)
 
         valid_targets = [t for t in targets if t.hp_current > 0]

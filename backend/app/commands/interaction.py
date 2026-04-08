@@ -1,6 +1,5 @@
 from typing import List
 from .base import Command, CommandContext
-from app.services.game_service import GameService
 from app.services.loot_service import LootService
 from app.services.chat_service import ChatService
 from app.services.narrator_service import NarratorService

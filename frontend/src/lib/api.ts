@@ -284,4 +284,22 @@ export const settingsApi = {
     }
 };
 
+// Dev-only endpoints (only active when Firebase emulators are running)
+export const devApi = {
+    quickjoin: async (campaignId: string): Promise<{
+        status: string;
+        character_id: string;
+        character_name: string;
+        campaign_id: string;
+        url: string;
+    }> => {
+        const response = await api.post(`/dev/quickjoin/${campaignId}`);
+        return response.data;
+    },
+    getTestCampaignId: async (): Promise<{ campaign_id: string }> => {
+        const response = await api.get('/dev/test-campaign-id');
+        return response.data;
+    }
+};
+
 export default api;

@@ -652,18 +652,26 @@ export default function BattlemapPanel() {
 
                                 {/* Tokens Layer */}
                                 <g className="tokens">
-                                    {/* NPCs */}
-                                    {npcs.map(npc => (
+                                    {/* NPCs — color by hostility */}
+                                    {npcs.map(npc => {
+                                        const npcData = (npc as any).data || {};
+                                        const npcColor = (npc as any).hostile || npcData.hostile
+                                            ? "#ef4444"  // red — hostile
+                                            : (npc as any).friendly || npcData.friendly || (npc as any).ally || npcData.ally
+                                                ? "#22c55e"  // green — friendly/allied
+                                                : "#f59e0b"; // amber — neutral
+                                        return (
                                         <Token
                                             key={npc.id}
                                             entity={npc}
-                                            color="#f59e0b" // amber-500
+                                            color={npcColor}
                                             dx={entityOffsets[npc.id]?.dx}
                                             dy={entityOffsets[npc.id]?.dy}
                                             animatingPath={animatingPaths[npc.id]}
                                             onAnimationComplete={() => setAnimatingPaths(p => { const next = { ...p }; delete next[npc.id]; return next; })}
                                         />
-                                    ))}
+                                        );
+                                    })}
 
                                     {/* Enemies */}
                                     {enemies.map(enemy => {

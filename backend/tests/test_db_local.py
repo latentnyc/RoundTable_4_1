@@ -8,6 +8,8 @@ from db.session import engine, AsyncSessionLocal
 
 import pytest
 
+pytestmark = pytest.mark.integration
+
 # Define DATABASE_URL for local testing if not already defined
 # This assumes a local PostgreSQL database named 'test_db'
 # You might need to adjust this based on your local setup

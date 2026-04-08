@@ -171,6 +171,7 @@ class LogEntry(BaseModel):
 
 class GameState(BaseModel):
     session_id: str
+    version: int = 0
     turn_index: int = 0
     phase: Literal["combat", "exploration", "social"] = "exploration"
     active_entity_id: Optional[str] = None

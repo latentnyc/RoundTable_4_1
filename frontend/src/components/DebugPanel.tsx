@@ -36,9 +36,6 @@ export default function DebugPanel({ campaignId }: DebugPanelProps) {
             .catch(e => console.error("Failed to fetch logs:", e));
     }, [campaignId, isConnected, token]);
 
-    // Health Check State
-    // const [healthStatus, setHealthStatus] = useState<'idle' | 'checking' | 'online' | 'offline' | 'error'>('idle'); // Removed in favor of direct prop usage
-    // const [healthMessage, setHealthMessage] = useState<string>(''); // Replaced by lastPing
     const [showClearConfirm, setShowClearConfirm] = useState(false);
 
     const openLogPopup = () => {

@@ -36,13 +36,16 @@ class NarratorService:
             # If we need history, we fetch it here
             recent_history = await ChatService.get_chat_history(campaign_id, limit=5, db=db)
 
-            narration = await AIService.generate_dm_narration(
-                campaign_id=campaign_id,
-                context=context,
-                history=recent_history,
-                db=db,
-                mode=mode,
-                sid=sid
+            narration = await asyncio.wait_for(
+                AIService.generate_dm_narration(
+                    campaign_id=campaign_id,
+                    context=context,
+                    history=recent_history,
+                    db=db,
+                    mode=mode,
+                    sid=sid
+                ),
+                timeout=30.0
             )
 
             if narration:

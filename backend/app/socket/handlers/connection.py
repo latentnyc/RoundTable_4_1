@@ -35,8 +35,18 @@ async def handle_connect(sid, environ, auth, connected_users):
 async def handle_disconnect(sid, connected_users):
     if sid in connected_users:
         user = connected_users[sid]
+        campaign_id = user.get('campaign_id')
 
         del connected_users[sid]
+
+        # If no other clients are in this campaign, clear the cached state
+        # to prevent stale diffs when someone rejoins later
+        if campaign_id:
+            remaining = [u for u in connected_users.values() if u.get('campaign_id') == campaign_id]
+            if not remaining:
+                from app.services.state_service import StateService
+                StateService._last_broadcasted_state.pop(campaign_id, None)
+                logger.info(f"Cleared cached state for campaign {campaign_id} (last client disconnected)")
 
 @socket_event_handler
 async def handle_test_connection(sid, connected_users):

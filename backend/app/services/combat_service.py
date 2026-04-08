@@ -252,12 +252,12 @@ class CombatService:
             new_hp = action_result.get("target_hp_remaining")
             target_char.hp_current = new_hp
 
-            # Hostility
+            # Hostility — attacking a non-hostile NPC makes it hostile
             is_npc = any(n.id == getattr(target_char, 'id', None) for n in game_state.npcs)
-            if is_npc:
-                # Check current hostility
-                if 'hostile' not in getattr(target_char, 'data', {}) or not target_char.data['hostile']:
-                    target_char.data['hostile'] = True # Update local state object too
+            if is_npc and not getattr(target_char, 'hostile', False):
+                target_char.hostile = True
+                if hasattr(target_char, 'data') and isinstance(target_char.data, dict):
+                    target_char.data['hostile'] = True
 
             # Barks & Death Logic
             bark_msg = None
@@ -395,11 +395,11 @@ class CombatService:
             new_hp = action_result["target_hp_remaining"]
             target_char.hp_current = new_hp
 
-            # Hostility Aggro if target is NPC and the spell dealt damage or hostile effect
-            # We assume for now targeting them with a spell = hostile
+            # Hostility — casting on a non-hostile NPC makes it hostile
             is_npc = any(n.id == getattr(target_char, 'id', None) for n in game_state.npcs)
-            if is_npc:
-                if 'hostile' not in getattr(target_char, 'data', {}) or not target_char.data['hostile']:
+            if is_npc and not getattr(target_char, 'hostile', False):
+                target_char.hostile = True
+                if hasattr(target_char, 'data') and isinstance(target_char.data, dict):
                     target_char.data['hostile'] = True
 
             # Death Processing (identical to attack)
@@ -433,7 +433,7 @@ class CombatService:
             return False, "", game_state
 
         living_enemies = [e for e in game_state.enemies if getattr(e, 'hp_current', 0) > 0]
-        hostile_npcs = [n for n in game_state.npcs if getattr(n, 'hp_current', 0) > 0 and (getattr(n, 'hostile', False) or getattr(n, 'data', {}).get('hostile') == True)]
+        hostile_npcs = [n for n in game_state.npcs if n.hp_current > 0 and n.hostile]
         all_hostiles = living_enemies + hostile_npcs
 
         if not all_hostiles:
@@ -538,7 +538,7 @@ class CombatService:
             game_state.turn_order.remove(target_id_str)
 
         # Combat End Check
-        hostile_npcs = [n for n in game_state.npcs if getattr(n, 'hp_current', 0) > 0 and getattr(n, 'data', {}).get('hostile') == True]
+        hostile_npcs = [n for n in game_state.npcs if n.hp_current > 0 and n.hostile]
         if not game_state.enemies and not hostile_npcs:
             game_state.phase = 'exploration'
             game_state.turn_order = []

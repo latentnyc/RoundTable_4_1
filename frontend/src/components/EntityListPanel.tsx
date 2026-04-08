@@ -144,7 +144,15 @@ export default function EntityListPanel({ onCharacterClick }: { onCharacterClick
                     <div className="flex items-center gap-2 min-w-0">
                         <div className={cn(
                             "w-2 h-2 rounded-full shrink-0",
-                            entity.is_ai ? "bg-purple-500" : "bg-blue-500"
+                            type === 'npc'
+                                ? ((entity as any).hostile || (entity as any).data?.hostile
+                                    ? "bg-red-500"
+                                    : (entity as any).friendly || (entity as any).data?.friendly || (entity as any).ally || (entity as any).data?.ally
+                                        ? "bg-green-500"
+                                        : "bg-amber-500")
+                                : type === 'enemy'
+                                    ? "bg-red-500"
+                                    : entity.is_ai ? "bg-purple-500" : "bg-blue-500"
                         )} />
                         <span className={cn(
                             "text-sm font-semibold truncate transition-colors",

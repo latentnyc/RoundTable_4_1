@@ -640,7 +640,10 @@
                 "r": -3,
                 "s": 3
             },
-            "secrets": []
+            "secrets": [],
+            "hostile": true,
+            "friendly": false,
+            "ally": false
         },
         {
             "id": "npc_goblin_north_1",
@@ -722,7 +725,10 @@
                 "romance_eligible": false,
                 "player_affinity": -10
             },
-            "secrets": []
+            "secrets": [],
+            "hostile": true,
+            "friendly": false,
+            "ally": false
         },
         {
             "id": "npc_goblin_north_2",
@@ -804,7 +810,10 @@
                 "romance_eligible": false,
                 "player_affinity": -10
             },
-            "secrets": []
+            "secrets": [],
+            "hostile": true,
+            "friendly": false,
+            "ally": false
         }
     ],
     "monsters": [

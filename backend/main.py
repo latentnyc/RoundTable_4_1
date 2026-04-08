@@ -12,7 +12,7 @@ fastapi_app = FastAPI(title=settings.PROJECT_NAME, version=settings.VERSION)
 logger.warning("FastAPI app initialized")
 
 # Import Routers
-from app.routers import game, auth, characters, settings as settings_router, items, compendium, campaigns, users, chat
+from app.routers import game, auth, characters, settings as settings_router, items, compendium, campaigns, users, chat, dev
 logger.info("Routers imported")
 
 from app.socket_manager import sio
@@ -76,6 +76,7 @@ fastapi_app.include_router(compendium.router, dependencies=[Depends(verify_token
 fastapi_app.include_router(settings_router.router, prefix="/api/settings", dependencies=[Depends(verify_token)])
 fastapi_app.include_router(users.router, dependencies=[Depends(verify_token)])
 fastapi_app.include_router(chat.router, prefix="/chat", dependencies=[Depends(verify_token)])
+fastapi_app.include_router(dev.router, dependencies=[Depends(verify_token)])
 
 @fastapi_app.get("/")
 async def health_check():

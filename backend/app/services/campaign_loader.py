@@ -6,7 +6,6 @@ import logging
 import traceback
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-from ..dependencies import get_db
 from db.session import AsyncSessionLocal
 import glob
 from uuid import uuid4

@@ -7,6 +7,10 @@ from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
 from langchain_core.messages import HumanMessage
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
 load_dotenv()
 
 class DebugCallbackHandler(AsyncCallbackHandler):
