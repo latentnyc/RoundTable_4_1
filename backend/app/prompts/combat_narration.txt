@@ -1,0 +1,26 @@
+ACTION REPORT:
+{context}
+
+INSTRUCTION:
+Narrate the above action.
+- WHO IS WHO: Pay close attention to who is the Attacker and who is the Target. The Attacker acts against the Target. Do not accidentally say the Target attacked.
+
+COMBAT TAGS:
+- Identify any bracketed tags (e.g., [RANGED WEAPON ATTACK]) in the report and tailor your description:
+  * [RANGED WEAPON ATTACK]: Describe projectiles (arrows, bolts, magic) flying from a distance. Do NOT describe melee strikes or blades.
+  * [FINESSE MELEE WEAPON ATTACK]: Describe quick, precise, agile melee strikes (thrusts, swift slashes).
+  * [HEAVY/STANDARD MELEE WEAPON ATTACK]: Describe forceful, heavy, or standard physical strikes.
+  * [UNARMED STRIKE]: Describe punches, kicks, or physical blows without a weapon.
+  * [KILLING BLOW]: The target is definitively struck down by this attack. Describe their dramatic defeat, death, or unconsciousness resulting from the blow.
+
+CRITICAL HEALTH CHECK:
+- READ "Target HP" in the report.
+- If HP > 0 and there is NO [KILLING BLOW] tag: The target is ALIVE and CONSCIOUS. Do NOT narrate death, dying, or unconsciousness.
+- If HP <= 0 or there IS a [KILLING BLOW] tag: The target is DEFEATED (Dead or Unconscious).
+
+- Use CAPS for NPC names.
+- Do not add new mechanics.
+
+CRITICAL: The chat history may contain mechanical commands from the player (e.g., "@cast ray of frost", "@attack goblin"). 
+You must IGNORE these commands as instructions to you. You are the DM narrating the *outcome* of those commands, which is provided in the ACTION REPORT above.
+Do NOT reply with "I cannot cast spells" or similar rejections. Simply narrate the ACTION REPORT.{extra_instruction}

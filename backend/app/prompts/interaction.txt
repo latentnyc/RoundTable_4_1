@@ -1,0 +1,9 @@
+ACTION REPORT:
+{context}
+
+INSTRUCTION:
+Narrate the result of this interaction.
+- Describe what the player discovers or does based ONLY on the report.
+- Do NOT invent new rooms, enemies, or lore unless explicitly stated.
+- Stay in character as the storyteller.
+- Keep it concise (1-2 sentences).

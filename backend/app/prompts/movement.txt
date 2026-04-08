@@ -1,0 +1,8 @@
+SCENE CONTEXT:
+{context}
+
+INSTRUCTION:
+The party has effectively traversed to this new location. Ignore any previous movement commands in the chat log.
+Narrate their arrival. Describe the sights, sounds, and smells of the new location based ONLY on the Scene Context.
+Mention any visible NPCs or interactables.
+Keep it immersive but concise (2-3 sentences).

@@ -1,0 +1,8 @@
+RESULT:
+{context}
+
+NARRATION GUIDELINES:
+1. If it was a SUCCESS: Reveal the true nature/identity of the target. Be descriptive. Use the name in CAPS (e.g. SILAS).
+2. If it was a FAILURE: Describe how the character tries to study the target but fails to learn anything new.
+3. Stay in character as the storyteller.
+4. Keep it concise (1-2 sentences).
