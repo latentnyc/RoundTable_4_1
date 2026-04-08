@@ -93,9 +93,9 @@ export default function CommandSuggestions({ inputValue, characterId, userId, on
                         const splLower = spellName.toLowerCase();
 
                         // Check if the user has fully typed the spell name plus a space
-                        let prefix = splLower + " ";
-                        let targetPrefixAt = splLower + " at ";
-                        let targetPrefixOn = splLower + " on ";
+                        const prefix = splLower + " ";
+                        const targetPrefixAt = splLower + " at ";
+                        const targetPrefixOn = splLower + " on ";
 
                         if (argQuery.startsWith(targetPrefixAt)) {
                             matchedSpell = true;

@@ -29,7 +29,7 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Lint
-        run: npm run lint
+        run: npx eslint . --max-warnings 100
 
       - name: Build
         run: npx vite build
