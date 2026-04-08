@@ -181,7 +181,7 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                     # Preserve transient state
                     new_p.hp_current = old_p.hp_current
                     new_p.position = old_p.position
-                    new_p.status_effects = old_p.status_effects
+                    new_p.conditions = old_p.conditions
                     new_p.initiative = old_p.initiative
                 else:
                     # New character joining. Assign a spawn hex if available.

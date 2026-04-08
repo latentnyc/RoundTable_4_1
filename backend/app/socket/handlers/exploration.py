@@ -53,6 +53,12 @@ async def handle_move_entity(sid, data, sio, connected_users):
                 # We could broadcast an error to the user here
                 return
 
+            # Condition restrictions (Grappled, Restrained)
+            from app.services.condition_service import has_speed_zero
+            if has_speed_zero(entity):
+                await sio.emit('system_message', {'content': f"🚫 {entity.name} cannot move (speed is 0)!"}, room=sid)
+                return
+
             # Combat restrictions
             if game_state.phase == 'combat':
                 if game_state.active_entity_id != entity.id:

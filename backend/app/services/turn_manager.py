@@ -68,6 +68,13 @@ class TurnManager:
          if not active_char:
              return None
 
+         # Check if entity is incapacitated by a condition (Stunned, Paralyzed, etc.)
+         from app.services.condition_service import should_skip_turn
+         if should_skip_turn(active_char):
+             skip_msg = f"⏭️ **{active_char.name}** is incapacitated and loses their turn!"
+             await sio.emit('system_message', {'content': skip_msg}, room=campaign_id)
+             return active_char, True  # Treat as AI turn so the loop auto-advances
+
          is_ai = TurnManager._is_character_ai(game_state, active_id)
 
          if not is_ai:

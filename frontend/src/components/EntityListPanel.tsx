@@ -160,6 +160,34 @@ export default function EntityListPanel({ onCharacterClick }: { onCharacterClick
                         )}>
                             {entity.name}{entity.is_ai ? " - AI" : ""}
                         </span>
+                        {/* Condition badges */}
+                        {(entity as any).conditions?.length > 0 && (() => {
+                            const condDescs: Record<string, string> = {
+                                Blinded: 'Disadvantage on attacks. Attacks against have advantage.',
+                                Charmed: 'Cannot attack the charmer.',
+                                Frightened: 'Disadvantage on attacks and checks.',
+                                Grappled: 'Speed is 0.',
+                                Incapacitated: 'Cannot take actions.',
+                                Invisible: 'Advantage on attacks. Hard to hit.',
+                                Paralyzed: 'Cannot act. Auto-crit on melee.',
+                                Petrified: 'Cannot act. Resists all damage.',
+                                Poisoned: 'Disadvantage on attacks and checks.',
+                                Prone: 'Disadvantage on attacks.',
+                                Restrained: 'Speed 0. Disadvantage on attacks.',
+                                Stunned: 'Cannot act. Easy to hit.',
+                                Unconscious: 'Cannot act. Melee auto-crits.',
+                            };
+                            return (
+                                <div className="flex gap-0.5 ml-1 shrink-0">
+                                    {((entity as any).conditions as { name: string }[]).map(cond => (
+                                        <span key={cond.name} className="text-[8px] px-1 py-0 rounded bg-red-500/20 text-red-300 border border-red-500/30 leading-tight cursor-help"
+                                            title={`${cond.name}: ${condDescs[cond.name] || 'Active condition'}`}>
+                                            {cond.name.slice(0, 3)}
+                                        </span>
+                                    ))}
+                                </div>
+                            );
+                        })()}
                     </div>
                     <div className="flex gap-2">
                         {isCombat && (

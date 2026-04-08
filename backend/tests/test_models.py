@@ -101,7 +101,7 @@ class TestEntityValidation:
     def test_entity_defaults(self, player_factory):
         p = player_factory()
         assert p.inventory == []
-        assert p.status_effects == []
+        assert p.conditions == []
         assert p.initiative == 0
         assert p.speed == 30
 

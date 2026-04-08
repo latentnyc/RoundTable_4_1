@@ -121,6 +121,14 @@ class CombatService:
         game_state.has_moved_this_turn = False
         game_state.has_acted_this_turn = False
 
+        # Tick conditions at the start of the new active entity's turn
+        from app.services.condition_service import tick_conditions
+        active_entity = GameService._find_char_by_name(game_state, game_state.active_entity_id)
+        if active_entity and hasattr(active_entity, 'conditions') and active_entity.conditions:
+            expired = tick_conditions(active_entity)
+            if expired:
+                logger.info(f"Conditions expired on {active_entity.name}: {expired}")
+
         if commit:
             await StateService.save_game_state(campaign_id, game_state, db)
 
@@ -152,6 +160,16 @@ class CombatService:
             print(f"DEBUG: attacker_id={attacker_id}, actor_char={actor_char}, target_name={target_name}, target_char={target_char}")
             for n in game_state.enemies: print(f"DEBUG: ENEMY: {n.name}")
             return {"success": False, "message": f"Could not find actor '{attacker_name}' or target '{target_name}'."}
+
+        # Check conditions for advantage/disadvantage
+        from app.services.condition_service import get_attack_modifiers, should_skip_turn
+        if should_skip_turn(actor_char):
+            return {"success": False, "message": f"{actor_char.name} is incapacitated and cannot attack."}
+
+        is_melee = True  # will be refined per-weapon below
+        atk_mods = get_attack_modifiers(actor_char, target_char, is_melee=is_melee)
+        if atk_mods.get("blocked"):
+            return {"success": False, "message": atk_mods["reason"]}
 
         # Engine Resolution
         engine = GameEngine()
@@ -216,6 +234,19 @@ class CombatService:
                     "message": f"**{actor_char.name}** tries to attack **{target_char.name}**, but is too far away. (Range: {max_hex_range} hexes)!"
                 })
                 continue
+
+            # Condition-based advantage/disadvantage (re-check per weapon for melee vs ranged)
+            is_melee_weapon = not params.get('is_ranged', False)
+            atk_mods = get_attack_modifiers(actor_char, target_char, is_melee=is_melee_weapon)
+            if atk_mods["advantage"]:
+                params["advantage"] = True
+            if atk_mods["disadvantage"]:
+                params["disadvantage"] = True
+            # Paralyzed/Unconscious targets: melee hits are auto-crits
+            from app.services.condition_service import get_active_effects
+            target_effects = get_active_effects(target_char)
+            if "melee_auto_crit" in target_effects and is_melee_weapon:
+                params["melee_auto_crit"] = True
 
             # Run synchronous engine logic for this attack
             res = await loop.run_in_executor(
@@ -322,47 +353,67 @@ class CombatService:
         if not actor_char:
             return {"success": False, "message": "You are not in the current active state."}
 
-        # Validate Spell is known
-        # In a real 5E game, we might check slots. For now, just check it's in the spellbook
+        # Validate spell is known by the actor
+        from app.services.spell_service import resolve_spell_for_cast, consume_spell_slot, init_spell_slots
+        import re
+
         spells = []
         if hasattr(actor_char, 'sheet_data') and 'spells' in actor_char.sheet_data:
             spells = actor_char.sheet_data['spells']
 
-        matched_spell = None
+        # Find the spell in the character's spell list
+        matched_ref = None
         for spl in spells:
             spl_name = spl.get('name', '').lower() if isinstance(spl, dict) else spl.lower()
             if spell_name.lower() in spl_name:
-                matched_spell = spl
+                matched_ref = spl
                 break
 
-        if not matched_spell:
+        if not matched_ref:
             return {"success": False, "message": f"{actor_char.name} does not know the spell '{spell_name}'."}
 
-        # Resolve Target (Optional for some spells, but required for most combat ones)
+        # Resolve spell ref to full engine-ready data via spell service
+        actor_class = getattr(actor_char, 'role', 'Fighter')
+        matched_spell = await resolve_spell_for_cast(matched_ref, actor_class, db)
+        if not matched_spell:
+            return {"success": False, "message": f"'{spell_name}' cannot be cast right now (not yet implemented)."}
+
+        # Spell slot consumption (cantrips are free)
+        spell_level = matched_spell.get("data", {}).get("level", 0)
+        if spell_level > 0 and hasattr(actor_char, 'sheet_data'):
+            init_spell_slots(actor_char.sheet_data, actor_class, getattr(actor_char, 'level', 1))
+            if not consume_spell_slot(actor_char.sheet_data, spell_level):
+                return {"success": False, "message": f"{actor_char.name} has no spell slots remaining for level {spell_level} spells."}
+
+        # Resolve Target
         target_char = None
         if target_name or target_id:
             target_char = GameService._find_char_by_name(game_state, target_name or "", target_id)
             if not target_char:
                 return {"success": False, "message": f"Could not find target '{target_name}'."}
 
-            # Distance Verification for Spell Targeting
+            # Range check — read from normalized spell data
             dist = actor_char.position.distance_to(target_char.position)
             spell_range_str = matched_spell.get('data', {}).get('range', 'Touch').lower()
-            max_hexes = 1 # Default touch/melee
-            
-            import re
+            max_hexes = 1  # Default touch/melee
+
             if 'feet' in spell_range_str or 'ft' in spell_range_str:
                 nums = re.findall(r'\d+', spell_range_str)
                 if nums:
                     max_hexes = max(1, int(nums[0]) // 5)
             elif 'mile' in spell_range_str:
-                max_hexes = 100 # Effectively limitless on a standard battlemap
+                max_hexes = 100
             elif 'self' in spell_range_str:
                 max_hexes = 0
 
-            # Allow casting on self if distance is 0, otherwise check bounds
             if dist > max_hexes:
                 return {"success": False, "message": f"**{actor_char.name}** tries to cast **{spell_name}** at **{target_char.name}**, but they are out of range ({max_hexes} hexes max)!"}
+
+        # Condition checks for spell casting
+        from app.services.condition_service import get_attack_modifiers, get_save_modifiers, should_skip_turn
+
+        if should_skip_turn(actor_char):
+            return {"success": False, "message": f"{actor_char.name} is incapacitated and cannot cast spells."}
 
         # Engine Resolution
         engine = GameEngine()
@@ -372,6 +423,27 @@ class CombatService:
         params = {
             "spell_data": matched_spell
         }
+
+        # Inject condition-based modifiers for spell attacks and saves
+        if target_char:
+            spell_data = matched_spell.get("data", {})
+            # For spell attack rolls: attacker advantage/disadvantage
+            if spell_data.get("attack_type"):
+                atk_mods = get_attack_modifiers(actor_char, target_char, is_melee=False)
+                if atk_mods.get("blocked"):
+                    return {"success": False, "message": atk_mods["reason"]}
+                if atk_mods["advantage"]:
+                    params["advantage"] = True
+                if atk_mods["disadvantage"]:
+                    params["disadvantage"] = True
+            # For saves: target auto-fail or disadvantage
+            if spell_data.get("save"):
+                save_stat = spell_data["save"].get("dc_type", {}).get("index", "dexterity")
+                save_mods = get_save_modifiers(target_char, save_stat)
+                if save_mods["auto_fail"]:
+                    params["save_auto_fail"] = True
+                if save_mods["disadvantage"]:
+                    params["save_disadvantage"] = True
 
         loop = asyncio.get_running_loop()
         action_result = await loop.run_in_executor(

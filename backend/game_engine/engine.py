@@ -65,14 +65,23 @@ class GameEngine:
         else:
             hit_mod = str_mod
 
-        # 1. Roll to Hit
-        roll = Dice.roll("1d20")
-        to_hit = roll["total"] + hit_mod
+        # 1. Roll to Hit (with advantage/disadvantage from conditions)
+        has_advantage = params.get("advantage", False)
+        has_disadvantage = params.get("disadvantage", False)
+        auto_crit = params.get("melee_auto_crit", False) and not is_ranged
 
+        if has_advantage and not has_disadvantage:
+            roll = Dice.roll("1d20 adv")
+        elif has_disadvantage and not has_advantage:
+            roll = Dice.roll("1d20 dis")
+        else:
+            roll = Dice.roll("1d20")
+
+        to_hit = roll["total"] + hit_mod
         ac = target.get_ac()
 
         is_hit = to_hit >= ac
-        is_crit = roll["total"] == 20
+        is_crit = roll["total"] == 20 or auto_crit
         is_fumble = roll["total"] == 1
 
         result_data = {
@@ -216,7 +225,14 @@ class GameEngine:
         # ----------------
         if requires_attack_roll and target:
             result_data["message"] += f"\n*Spell Attack Roll:* "
-            roll = Dice.roll("1d20")
+            has_adv = params.get("advantage", False)
+            has_dis = params.get("disadvantage", False)
+            if has_adv and not has_dis:
+                roll = Dice.roll("1d20 adv")
+            elif has_dis and not has_adv:
+                roll = Dice.roll("1d20 dis")
+            else:
+                roll = Dice.roll("1d20")
             to_hit = roll["total"] + spell_atk_mod
             ac = target.get_ac()
 
@@ -254,11 +270,24 @@ class GameEngine:
         # ----------------
         elif requires_saving_throw and target:
             result_data["message"] += f"\n*Saving Throw (DC {spell_save_dc} {dc_stat.upper()}):* "
-            target_save_mod = target.get_save(dc_stat)
-            roll = Dice.roll("1d20")
-            save_total = roll["total"] + target_save_mod
 
-            is_saved = save_total >= spell_save_dc
+            # Check condition-based save modifiers (auto-fail, disadvantage)
+            save_auto_fail = params.get("save_auto_fail", False)
+            save_disadvantage = params.get("save_disadvantage", False)
+
+            if save_auto_fail:
+                roll = {"total": 1, "detail": "1 [AUTO-FAIL]"}
+                save_total = 1
+                is_saved = False
+                result_data["message"] += f"**Auto-Fail!** (incapacitated) "
+            else:
+                target_save_mod = target.get_save(dc_stat)
+                if save_disadvantage:
+                    roll = Dice.roll("1d20 dis")
+                else:
+                    roll = Dice.roll("1d20")
+                save_total = roll["total"] + target_save_mod
+                is_saved = save_total >= spell_save_dc
             result_data["message"] += f"{target.name} rolls **{save_total}** ({roll['total']} + {target_save_mod}). "
 
             if damage_dice:
@@ -300,14 +329,17 @@ class GameEngine:
 
              result_data["message"] += f"Restored **{heal_amt}** HP ({heal_roll['detail']} + Mod). Target HP: {target.hp['current']}"
 
-        # 4. Other logic: Magic Missile, buffs, etc...
+        # 4. Auto-hit damage (Magic Missile)
         elif damage_dice and target:
-             # Auto hit damage like Magic Missile (which doesn't have an attack roll or save in basic parse)
              dmg_roll = Dice.roll(damage_dice)
              dmg = dmg_roll["total"]
              target.take_damage(dmg)
+             result_data["damage_total"] = dmg
+             result_data["damage_detail"] = dmg_roll["detail"]
              result_data["target_hp_remaining"] = target.hp["current"]
              result_data["message"] += f"\n🎯 **Auto-Hit!** Damage: **{dmg}** {damage_type_name} ({dmg_roll['detail']}). Target HP: {target.hp['current']}"
+             if target.hp["current"] <= 0:
+                  result_data["message"] += " [LETHAL]"
 
         # If no target provided but needed
         if not target and (requires_attack_roll or requires_saving_throw or damage_dice or heal_dice):

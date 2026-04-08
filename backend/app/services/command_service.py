@@ -2,7 +2,7 @@ import logging
 from db.session import AsyncSessionLocal
 from app.commands.registry import CommandRegistry, CommandContext
 from app.commands.combat import AttackCommand, CastCommand, EndTurnCommand
-from app.commands.exploration import MoveCommand, IdentifyCommand, EquipCommand, UnequipCommand
+from app.commands.exploration import MoveCommand, IdentifyCommand, EquipCommand, UnequipCommand, RestCommand, CheckCommand
 from app.commands.interaction import OpenCommand
 from app.commands.system import HelpCommand, DMCommand
 
@@ -20,6 +20,8 @@ class CommandService:
         registry.register(IdentifyCommand())
         registry.register(EquipCommand())
         registry.register(UnequipCommand())
+        registry.register(RestCommand())
+        registry.register(CheckCommand())
         registry.register(OpenCommand())
         registry.register(HelpCommand())
         registry.register(DMCommand())

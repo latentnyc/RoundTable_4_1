@@ -49,15 +49,9 @@ WIZARD_SHEET = {
         {"name": "Mage Armor", "type": "Armor", "data": {"type": "Light", "base_ac": 12}}
     ],
     "spells": [
-        {"id": "fire_bolt", "name": "Fire Bolt", "data": {
-            "level": 0, "school": "Evocation", "range": "120 feet",
-            "damage": {"damage_dice": "1d10"}, "description": "A mote of fire streaks toward a creature."}},
-        {"id": "magic_missile", "name": "Magic Missile", "data": {
-            "level": 1, "school": "Evocation", "range": "120 feet",
-            "damage": {"damage_dice": "1d4+1"}, "description": "Three darts of magical force strike targets."}},
-        {"id": "shield", "name": "Shield", "data": {
-            "level": 1, "school": "Abjuration", "range": "Self",
-            "description": "+5 AC until the start of your next turn."}}
+        {"id": "fire-bolt", "name": "Fire Bolt"},
+        {"id": "ray-of-frost", "name": "Ray of Frost"},
+        {"id": "magic-missile", "name": "Magic Missile"},
     ],
     "proficiency_bonus": 2,
     "saving_throws": ["int", "wis"],

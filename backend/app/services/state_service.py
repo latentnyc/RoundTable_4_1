@@ -313,6 +313,7 @@ class StateService:
             for field in ['hp_current', 'hp_max', 'identified', 'is_ai', 'hostile', 'friendly', 'ally']:
                  n.data[field] = getattr(n, field)
             n.data['position'] = n.position.model_dump()
+            n.data['conditions'] = [c.model_dump() for c in n.conditions] if n.conditions else []
 
             rec = {"b_id": n.id, "b_data": json.dumps(n.data)}
 

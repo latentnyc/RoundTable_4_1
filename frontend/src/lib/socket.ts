@@ -42,7 +42,7 @@ export interface Entity {
     speed: number;
     position: Coordinates;
     inventory: string[];
-    status_effects: string[];
+    conditions: { name: string; duration: number; source_id?: string }[];
 }
 
 // Reconciling with API Character

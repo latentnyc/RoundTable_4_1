@@ -135,6 +135,44 @@ const Token = ({ entity, color, isSelected, onClick, dx = 0, dy = 0, animatingPa
                     <rect x="-10" y="0" width={20 * (Math.max(0, entity.hp_current || 0) / entity.hp_max)} height="4" fill="#22c55e" rx="2" />
                 </g>
             )}
+
+            {/* Condition Indicators */}
+            {(entity as any).conditions?.length > 0 && (
+                <g transform={`translate(0, ${HEX_SIZE * 0.8 + 7})`}>
+                    {((entity as any).conditions as { name: string }[]).slice(0, 3).map((cond, i) => {
+                        const condColors: Record<string, string> = {
+                            Blinded: '#6b7280', Charmed: '#ec4899', Frightened: '#a855f7',
+                            Grappled: '#78716c', Incapacitated: '#374151', Invisible: '#93c5fd',
+                            Paralyzed: '#fbbf24', Petrified: '#9ca3af', Poisoned: '#22c55e',
+                            Prone: '#f59e0b', Restrained: '#b45309', Stunned: '#eab308',
+                            Unconscious: '#1f2937',
+                        };
+                        const condDescs: Record<string, string> = {
+                            Blinded: 'Disadvantage on attacks. Attacks against have advantage.',
+                            Charmed: 'Cannot attack the charmer. Charmer has advantage on social checks.',
+                            Deafened: 'Cannot hear. Fails hearing-based checks.',
+                            Frightened: 'Disadvantage on attacks and checks while source is visible.',
+                            Grappled: 'Speed is 0. Cannot move.',
+                            Incapacitated: 'Cannot take actions or reactions.',
+                            Invisible: 'Advantage on attacks. Attacks against have disadvantage.',
+                            Paralyzed: 'Cannot act. Auto-fail STR/DEX saves. Attacks have advantage, melee auto-crits.',
+                            Petrified: 'Cannot act. Resistance to all damage. Auto-fail STR/DEX saves.',
+                            Poisoned: 'Disadvantage on attacks and ability checks.',
+                            Prone: 'Disadvantage on attacks. Melee attacks against have advantage.',
+                            Restrained: 'Speed 0. Disadvantage on attacks and DEX saves. Attacks against have advantage.',
+                            Stunned: 'Cannot act. Auto-fail STR/DEX saves. Attacks against have advantage.',
+                            Unconscious: 'Cannot act. Auto-fail STR/DEX saves. Melee attacks auto-crit.',
+                        };
+                        const fill = condColors[cond.name] || '#ef4444';
+                        const offset = (i - Math.min((entity as any).conditions.length - 1, 2) / 2) * 6;
+                        return (
+                            <circle key={cond.name} cx={offset} cy="0" r="2.5" fill={fill} stroke="black" strokeWidth="0.5">
+                                <title>{cond.name}: {condDescs[cond.name] || 'Active condition'}</title>
+                            </circle>
+                        );
+                    })}
+                </g>
+            )}
         </g>
     );
 };

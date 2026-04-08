@@ -2,6 +2,16 @@ from pydantic import BaseModel, Field, model_validator
 from typing import List, Dict, Optional, Literal, Any
 from uuid import UUID, uuid4
 
+# --- Conditions ---
+class Condition(BaseModel):
+    """An active condition on an entity (Blinded, Stunned, etc.)."""
+    name: str                          # e.g. "Blinded", "Poisoned"
+    duration: int = -1                 # Rounds remaining. -1 = permanent, 0 = expired (remove)
+    expires_on: Literal["start", "end"] = "start"  # Expires at start or end of affected entity's turn
+    source_id: Optional[str] = None    # Who/what applied this condition
+    save_dc: Optional[int] = None      # DC for save to end early (if applicable)
+    save_stat: Optional[str] = None    # Ability to save with (e.g. "wisdom")
+
 # --- Fundamentals ---
 class Coordinates(BaseModel):
     q: int
@@ -66,7 +76,7 @@ class Entity(BaseModel):
     speed: int = 30
     position: Coordinates
     inventory: List[str] = []
-    status_effects: List[str] = []
+    conditions: List[Condition] = []
     barks: Optional[Dict[str, List[str]]] = None
     knowledge: List[Dict[str, Any]] = []
     loot: Optional[Dict[str, Any]] = None
@@ -86,7 +96,7 @@ class Entity(BaseModel):
             # Flatten 'data' for Enemies/NPCs
             data = values.get('data', {})
             if isinstance(data, dict):
-                for key in ['race', 'stats', 'voice', 'hostile', 'friendly', 'ally', 'type']:
+                for key in ['race', 'stats', 'voice', 'hostile', 'friendly', 'ally', 'type', 'conditions']:
                     if key in data and key not in values:
                         values[key] = data[key]
                         
@@ -96,6 +106,15 @@ class Entity(BaseModel):
                 for key in ['race', 'stats']:
                     if key in sheet_data and key not in values:
                         values[key] = sheet_data[key]
+
+            # Backward compat: migrate old status_effects: List[str] to conditions: List[Condition]
+            if 'status_effects' in values and 'conditions' not in values:
+                old_effects = values.pop('status_effects', [])
+                if old_effects and isinstance(old_effects, list):
+                    values['conditions'] = [
+                        {"name": e} if isinstance(e, str) else e
+                        for e in old_effects
+                    ]
         return values
 
 class Vessel(BaseModel):
