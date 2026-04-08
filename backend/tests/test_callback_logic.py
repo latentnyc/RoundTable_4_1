@@ -4,6 +4,10 @@ import os
 import sys
 from unittest.mock import MagicMock, AsyncMock
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
 # Ensure backend modules can be imported
 sys.path.append(os.getcwd())
 

@@ -12,6 +12,7 @@ import { useCreateCharacterStore } from '@/store/createCharacterStore';
 import CreateCharacterPage from '@/pages/CreateCharacter';
 import { Character } from '@/lib/api';
 import { ChevronLeft, Settings } from 'lucide-react';
+import ErrorBoundary from './ErrorBoundary';
 
 interface GameInterfaceProps {
     campaignId: string;
@@ -118,12 +119,16 @@ export default function GameInterface({ campaignId, campaignName, isAdmin, onBac
 
                     {/* Battlemap */}
                     <div className={`${activeTab === 'map' ? 'block' : 'hidden'} lg:block flex-1 min-h-0 lg:border-b lg:border-neutral-800`}>
-                        <BattlemapPanel />
+                        <ErrorBoundary label="Battlemap">
+                            <BattlemapPanel />
+                        </ErrorBoundary>
                     </div>
 
                     {/* Chat */}
                     <div className={`${activeTab === 'chat' ? 'block' : 'hidden'} lg:block flex-1 min-h-0`}>
-                        <ChatInterface campaignId={campaignId} characterId={activeCharacterId || undefined} />
+                        <ErrorBoundary label="Chat">
+                            <ChatInterface campaignId={campaignId} characterId={activeCharacterId || undefined} />
+                        </ErrorBoundary>
                     </div>
 
                     {/* Mobile Only Views */}
@@ -168,12 +173,14 @@ export default function GameInterface({ campaignId, campaignName, isAdmin, onBac
                 </div>
 
                 <div className="flex-[2] overflow-hidden min-h-0">
+                    <ErrorBoundary label="Entity List">
                     <EntityListPanel
                         onCharacterClick={(char: Character) => {
                             useCreateCharacterStore.getState().loadCharacter(char);
                             setShowCharacterSheet(true);
                         }}
                     />
+                    </ErrorBoundary>
                 </div>
                 <div className="shrink-0">
                     <AIStatsPanel />

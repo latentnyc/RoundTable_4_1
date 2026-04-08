@@ -26,3 +26,7 @@ build/
 lint_report.txt
 *_report.txt
 list_models.py
+
+# Dev scripts runtime files
+scripts/.dev-logs/
+scripts/.dev-pids

@@ -78,7 +78,7 @@ class AttackCommand(Command):
                             if c.id == start_res['active_entity_id']:
                                 active_name = c.name
                                 break
-                        # await sio.emit('system_message', {'content': f"Initiative Rolled! It is **{active_name}**'s turn first."}, room=campaign_id)
+
 
                         # Trigger AI Turn if it's not the player
                         from app.services.turn_manager import TurnManager
@@ -96,6 +96,11 @@ class AttackCommand(Command):
                         active_name = c.name
                         break
                 await sio.emit('system_message', {'content': f"🚫 It is not your turn! It is **{active_name}**'s turn."}, room=campaign_id)
+                return
+
+            # Action economy: one action per turn
+            if getattr(game_state, 'has_acted_this_turn', False):
+                await sio.emit('system_message', {'content': "🚫 You have already used your action this turn. End your turn or move."}, room=campaign_id)
                 return
 
         # Resolve Attack
@@ -137,10 +142,10 @@ class AttackCommand(Command):
             'sender_id': 'system', 'sender_name': 'System', 'content': mech_msg, 'id': save_result['id'], 'timestamp': save_result['timestamp'], 'is_system': True
         }, room=campaign_id)
 
+        # Mark action used
+        result['game_state'].has_acted_this_turn = True
+
         await StateService.emit_state_update(campaign_id, result['game_state'], sio)
-        # Commit handled by caller or we should do it?
-        # CommandContext db is passed from caller.
-        # But wait, original code committed here.
         await db.commit()
 
         # Narration
@@ -157,8 +162,6 @@ class AttackCommand(Command):
             mode="combat_narration",
             sid=sid
         )
-        await db.commit()
-
         await db.commit()
 
         if was_out_of_combat and is_ranged:
@@ -251,7 +254,7 @@ class CastCommand(Command):
                     is_hostile_target = True
                 else:
                     for n in game_state.npcs:
-                        if n.id == target_char_for_combat_check.id and getattr(n, 'data', {}).get('hostile') == True:
+                        if n.id == target_char_for_combat_check.id and n.hostile:
                             is_hostile_target = True
                             break
 
@@ -264,6 +267,11 @@ class CastCommand(Command):
                         active_name = c.name
                         break
                 await sio.emit('system_message', {'content': f"🚫 It is not your turn! It is **{active_name}**'s turn."}, room=campaign_id)
+                return
+
+            # Action economy: one action per turn
+            if getattr(game_state, 'has_acted_this_turn', False):
+                await sio.emit('system_message', {'content': "🚫 You have already used your action this turn. End your turn or move."}, room=campaign_id)
                 return
 
         # Resolve Cast
@@ -281,8 +289,10 @@ class CastCommand(Command):
             'sender_id': 'system', 'sender_name': 'System', 'content': mech_msg, 'id': save_result['id'], 'timestamp': save_result['timestamp'], 'is_system': True
         }, room=campaign_id)
 
+        # Mark action used
         if 'game_state' in result:
-             await StateService.emit_state_update(campaign_id, result['game_state'], sio)
+            result['game_state'].has_acted_this_turn = True
+            await StateService.emit_state_update(campaign_id, result['game_state'], sio)
 
         await db.commit()
 
@@ -333,3 +343,37 @@ class CastCommand(Command):
             except Exception as e:
                 import traceback
                 logger.error(f"CRITICAL ERROR in advance_turn (cast): {e}\n{traceback.format_exc()}")
+
+
+class EndTurnCommand(Command):
+    name = "endturn"
+    aliases = ["end", "et", "pass", "skip"]
+    description = "End your turn without acting."
+    args_help = ""
+
+    async def execute(self, ctx: CommandContext, args: List[str]):
+        try:
+            async with LockService.acquire(ctx.campaign_id):
+                await self._execute_locked(ctx, args)
+        except TimeoutError:
+            await ctx.sio.emit('system_message', {'content': "🚫 Action blocked: Server is processing another request."}, room=ctx.sid)
+
+    async def _execute_locked(self, ctx: CommandContext, args: List[str]):
+        game_state = await GameService.get_game_state(ctx.campaign_id, ctx.db)
+        if not game_state:
+            return
+
+        if game_state.phase != 'combat':
+            await ctx.sio.emit('system_message', {'content': "You're not in combat."}, room=ctx.campaign_id)
+            return
+
+        if game_state.active_entity_id != ctx.sender_id:
+            await ctx.sio.emit('system_message', {'content': "🚫 It is not your turn."}, room=ctx.campaign_id)
+            return
+
+        await ctx.sio.emit('system_message', {
+            'content': f"⏭️ **{ctx.sender_name}** ends their turn."
+        }, room=ctx.campaign_id)
+
+        await TurnManager.advance_turn(ctx.campaign_id, ctx.sio, ctx.db, current_game_state=game_state)
+        await ctx.db.commit()

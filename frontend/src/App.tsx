@@ -11,6 +11,7 @@ import AuthGuard from "@/components/AuthGuard";
 import RootRedirector from "@/components/RootRedirector";
 import LogViewer from "@/pages/LogViewer";
 import { useAuthStore } from "@/store/authStore";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 function App() {
   const initialize = useAuthStore(state => state.initialize);
@@ -21,6 +22,7 @@ function App() {
   }, [initialize]);
 
   return (
+    <ErrorBoundary label="RoundTable">
     <BrowserRouter>
       <Routes>
         {/* Root Redirector */}
@@ -40,6 +42,7 @@ function App() {
         <Route path="/logs" element={<AuthGuard><LogViewer /></AuthGuard>} />
       </Routes>
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 

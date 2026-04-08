@@ -61,6 +61,9 @@ class StateService:
     async def save_game_state(campaign_id: str, game_state: GameState, db: AsyncSession):
         from datetime import datetime, timezone
 
+        # Auto-increment state version for client-side gap detection
+        game_state.version += 1
+
         # 1. Update Entities in their specific tables
         await StateService._save_party(game_state.party, campaign_id, db)
         await StateService._save_enemies(game_state.enemies, campaign_id, db)
@@ -307,7 +310,7 @@ class StateService:
         updates, inserts = [], []
         for n in npcs_list:
             if not n.data: n.data = {}
-            for field in ['hp_current', 'hp_max', 'identified', 'is_ai']:
+            for field in ['hp_current', 'hp_max', 'identified', 'is_ai', 'hostile', 'friendly', 'ally']:
                  n.data[field] = getattr(n, field)
             n.data['position'] = n.position.model_dump()
 

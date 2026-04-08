@@ -3,7 +3,7 @@ import { useCharacterStore } from '@/store/characterStore';
 import { useAuthStore } from '@/store/authStore';
 import { useCampaignStore } from '@/store/campaignStore';
 import { useEffect, useState, useCallback } from 'react';
-import { campaignApi, characterApi, settingsApi, Character, Campaign, CampaignParticipant } from '@/lib/api';
+import { campaignApi, characterApi, settingsApi, devApi, Character, Campaign, CampaignParticipant } from '@/lib/api';
 import { useNavigate, Link } from 'react-router-dom';
 import { Trash2, User, Bot, Ghost, Play, Settings, Loader2, Check, X, Shield, Users } from 'lucide-react';
 
@@ -20,7 +20,6 @@ export default function CampaignDash() {
     const [showSettings, setShowSettings] = useState(false);
     const [currentCampaign, setCurrentCampaign] = useState<Campaign | null>(null);
     const [modelList, setModelList] = useState<string[]>([]);
-    // Datasets & Templates removed from settings UI
 
     const [isTesting, setIsTesting] = useState(false);
     const [testStatus, setTestStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -104,15 +103,6 @@ export default function CampaignDash() {
             setCurrentCampaign(camp);
             setShowSettings(true);
             setTestStatus('idle');
-
-            // Datasets/Templates fetching removed
-            // try {
-            //     const [dList, tList] = await Promise.all([
-            //         settingsApi.getDatasets(),
-            //         settingsApi.getGameTemplates()
-            //     ]);
-            //     ...
-            // } catch (e) { ... }
 
             // Also update our top-level status
             setApiKeyPresent(!!camp.api_key_verified);
@@ -370,6 +360,34 @@ export default function CampaignDash() {
                     </button>
                 </div>
             </div>
+
+            {/* Dev Quick Join — skip character creation wizard */}
+            {characters.length === 0 && id && import.meta.env.VITE_API_URL?.includes('localhost') && (
+                <div className="mb-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl flex items-center justify-between">
+                    <div>
+                        <p className="text-yellow-300 font-bold text-sm">Dev Mode</p>
+                        <p className="text-yellow-200/70 text-xs">Create a pre-built Fighter and jump straight in — no wizard needed.</p>
+                    </div>
+                    <button
+                        onClick={async () => {
+                            try {
+                                const result = await devApi.quickjoin(id);
+                                // Refresh character list
+                                const chars = await characterApi.getUserCharacters(profile?.uid || '', id);
+                                setCharacters(chars);
+                                // Re-run status checks
+                                fetchStatusChecks();
+                            } catch (e: any) {
+                                console.error('Quickjoin failed:', e);
+                                alert('Quick join failed: ' + (e?.response?.data?.detail || e.message));
+                            }
+                        }}
+                        className="px-4 py-2 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 rounded-lg text-sm font-bold transition-colors whitespace-nowrap"
+                    >
+                        Quick Join
+                    </button>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {characters.map(char => {

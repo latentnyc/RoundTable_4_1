@@ -6,6 +6,10 @@ from db.session import AsyncSessionLocal
 from app.services.campaign_loader import instantiate_campaign
 from uuid import uuid4
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
 async def verify_instantiation():
     async with AsyncSessionLocal() as db:
         try:

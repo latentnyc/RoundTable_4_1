@@ -32,10 +32,8 @@ export default function CampaignStart() {
     const [isDeleting, setIsDeleting] = useState(false);
 
     // Creation State
-    // const [isCreating, setIsCreating] = useState(false); // Unused
     const [newCampaignName, setNewCampaignName] = useState("");
     const [selectedTemplate, setSelectedTemplate] = useState<string>("");
-    // const [apiKey, setApiKey] = useState(""); // Removed per request
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 

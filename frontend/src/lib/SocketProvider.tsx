@@ -28,6 +28,8 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const socketRef = useRef<Socket | null>(null);
     const [socketVal, setSocketVal] = React.useState<Socket | null>(null);
     const connectPromiseRef = useRef<Promise<void> | null>(null);
+    const patchFailureCount = useRef(0);
+    const campaignIdRef = useRef<string | null>(null);
 
     const token = useAuthStore(state => state.token);
     const user = useAuthStore(state => state.user);
@@ -67,6 +69,8 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         if (socketRef.current?.connected) {
             return Promise.resolve();
         }
+
+        campaignIdRef.current = campaignId;
 
         connectPromiseRef.current = new Promise((resolve, reject) => {
             try {
@@ -121,6 +125,7 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
                 // Bind State Event Handlers
                 newSocket.on('game_state_update', (state) => {
+                    patchFailureCount.current = 0; // Reset on full state
                     useSocketStore.getState().setGameState(state);
                 });
 
@@ -131,11 +136,40 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                             // Fourth argument is 'mutateDocument'. We must set it to false so Zustand detects a new object reference.
                             const result = applyPatch(state, patch, false, false);
                             useSocketStore.getState().setGameState(result.newDocument);
+                            patchFailureCount.current = 0;
                         } catch (e) {
                             console.error("Failed to apply game state patch:", e);
+                            patchFailureCount.current++;
+
+                            if (patchFailureCount.current >= 3) {
+                                // Too many failures — force full reconnection
+                                console.warn("3 consecutive patch failures, forcing reconnection...");
+                                patchFailureCount.current = 0;
+                                newSocket.disconnect();
+                                newSocket.connect();
+                            } else if (user?.uid && campaignIdRef.current) {
+                                // Request fresh full state
+                                console.warn("Patch failed, requesting full state resync...");
+                                newSocket.emit('join_campaign', {
+                                    user_id: user.uid,
+                                    campaign_id: campaignIdRef.current
+                                });
+                            }
                         }
                     } else {
                         console.warn("Received patch but no base game state exists yet.");
+                    }
+                });
+
+                // On reconnect, request fresh full state
+                newSocket.io.on('reconnect', () => {
+                    console.info("Socket reconnected, requesting full state...");
+                    patchFailureCount.current = 0;
+                    if (user?.uid && campaignIdRef.current) {
+                        newSocket.emit('join_campaign', {
+                            user_id: user.uid,
+                            campaign_id: campaignIdRef.current
+                        });
                     }
                 });
 

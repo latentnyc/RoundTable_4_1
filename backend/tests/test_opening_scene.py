@@ -12,6 +12,10 @@ from app.socket.handlers.game_state import handle_join_campaign
 from db.session import AsyncSessionLocal
 from sqlalchemy import text
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
 # Mock Logic
 async def run_test():
     campaign_id = f"test_camp_{uuid.uuid4()}"

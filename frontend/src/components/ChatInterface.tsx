@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useSocketStore } from '@/lib/socket';
 import { useSocketContext } from '@/lib/SocketProvider';
 import { useAuthStore } from '@/store/authStore';
-import { Send, User, Bot, Sparkles, Loader2 } from 'lucide-react';
+import { Send, User, Bot, Sparkles, Loader2, SkipForward } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Character } from '@/lib/api';
 import CommandSuggestions from './CommandSuggestions';
@@ -272,6 +272,35 @@ export default function ChatInterface({ characterId }: ChatInterfaceProps) {
                         setInputValue(newText);
                     }}
                 />
+
+                {/* End Turn button — visible during combat on player's turn */}
+                {(() => {
+                    const gs = useSocketStore.getState().gameState;
+                    const userId = profile?.id || user?.uid;
+                    const party = (gs?.party || []) as Character[];
+                    const myChar = characterId
+                        ? party.find(p => p.id === characterId)
+                        : party.find(p => p.user_id === userId);
+                    const isMyTurn = gs?.phase === 'combat' && myChar && gs?.active_entity_id === myChar.id;
+
+                    return isMyTurn ? (
+                        <button
+                            onClick={() => {
+                                if (socket) {
+                                    socket.emit('chat_message', {
+                                        content: '@endturn',
+                                        sender_name: myChar.name,
+                                        sender_id: myChar.id,
+                                    });
+                                }
+                            }}
+                            className="mb-2 w-full flex items-center justify-center gap-2 px-3 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-lg text-sm font-semibold transition-colors"
+                        >
+                            <SkipForward className="w-4 h-4" />
+                            End Turn
+                        </button>
+                    ) : null;
+                })()}
 
                 <div className="relative">
                     <input

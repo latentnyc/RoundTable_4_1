@@ -15,6 +15,10 @@ from app.models import GameState, Player, NPC, Location, Coordinates
 from app.socket.handlers.chat import handle_chat_message
 from db.session import engine, AsyncSessionLocal
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
 # Mock Services to avoid Side Effects (LLM calls)
 # We need to patch them where they are IMPORTED in the modules we test
 # or globally if possible.
