@@ -52,24 +52,28 @@ async def login(token_data: dict = Depends(verify_token), db: AsyncSession = Dep
 
             # Create new profile
             try:
-                # check if this is the FIRST real user (ignoring the auto-generated test user)
-                res = await db.execute(text("SELECT COUNT(*) as count FROM profiles WHERE id != 'local_auth_dev_id'"))
+                # Check if this is the FIRST real user (ignoring seeded test users)
+                from app.services.test_campaign_setup import TEST_USER_ID
+                res = await db.execute(
+                    text("SELECT COUNT(*) as count FROM profiles WHERE id NOT IN (:test_id)"),
+                    {"test_id": TEST_USER_ID}
+                )
                 count_row = res.mappings().fetchone()
                 is_first = count_row["count"] == 0
 
-                is_admin = is_first # First user is admin
+                is_admin = is_first  # First user is admin
 
                 # First user gets 'active' status, others 'interested'
                 status = "active" if is_first else "interested"
 
                 await db.execute(text("INSERT INTO profiles (id, username, is_admin, status) VALUES (:id, :username, :is_admin, :status)"),
                                  {"id": uid, "username": token_username, "is_admin": is_admin, "status": status})
-                                 
+
                 if is_first:
-                    logger.info(f"Transferring Test Campaign ownership to the first user: {token_username}")
-                    await db.execute(text("UPDATE campaigns SET gm_id = :uid WHERE gm_id = 'local_auth_dev_id'"), {"uid": uid})
-                    await db.execute(text("UPDATE campaign_participants SET user_id = :uid WHERE user_id = 'local_auth_dev_id'"), {"uid": uid})
-                    await db.execute(text("UPDATE characters SET user_id = :uid WHERE user_id = 'local_auth_dev_id'"), {"uid": uid})
+                    logger.info(f"First user login: {token_username} — promoted to admin, transferring test campaign ownership")
+                    await db.execute(text("UPDATE campaigns SET gm_id = :uid WHERE gm_id = :test_id"), {"uid": uid, "test_id": TEST_USER_ID})
+                    await db.execute(text("UPDATE campaign_participants SET user_id = :uid WHERE user_id = :test_id"), {"uid": uid, "test_id": TEST_USER_ID})
+                    await db.execute(text("UPDATE characters SET user_id = :uid WHERE user_id = :test_id"), {"uid": uid, "test_id": TEST_USER_ID})
                     
             except SQLAlchemyError as e:
                 logger.error("Database error creating profile: %s", str(e))
@@ -83,6 +87,5 @@ async def login(token_data: dict = Depends(verify_token), db: AsyncSession = Dep
         logger.error("Database error in login: %s", str(e))
         raise HTTPException(status_code=500, detail="Login failed due to database error.")
     except Exception as e:
-        import logging
-        logging.error(f"Unhandled Error: {e}", exc_info=True)
+        logger.error(f"Unhandled error in login: {e}", exc_info=True)
         raise e
