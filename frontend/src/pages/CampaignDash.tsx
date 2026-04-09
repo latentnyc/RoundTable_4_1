@@ -362,7 +362,7 @@ export default function CampaignDash() {
             </div>
 
             {/* Dev Quick Join — skip character creation wizard */}
-            {characters.length === 0 && id && import.meta.env.VITE_API_URL?.includes('localhost') && (
+            {characters.length === 0 && id && (import.meta.env.VITE_API_URL?.includes('localhost') || import.meta.env.VITE_API_URL?.includes('127.0.0.1')) && (
                 <div className="mb-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl flex items-center justify-between">
                     <div>
                         <p className="text-yellow-300 font-bold text-sm">Dev Mode</p>
