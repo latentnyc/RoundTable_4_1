@@ -285,6 +285,16 @@ class CombatService:
             new_hp = action_result.get("target_hp_remaining")
             target_char.hp_current = new_hp
 
+            # Concentration check on damage
+            damage_dealt = action_result.get("damage_total", 0)
+            if damage_dealt > 0 and getattr(target_char, 'concentrating_on', None):
+                from app.services.condition_service import check_concentration_save, break_concentration
+                if not check_concentration_save(target_char, damage_dealt):
+                    broken_spell = break_concentration(target_char, game_state)
+                    if broken_spell:
+                        conc_msg = f"\n💔 **{target_char.name}** lost concentration on **{broken_spell}**!"
+                        action_result["message"] = action_result.get("message", "") + conc_msg
+
             # Hostility — attacking a non-hostile NPC makes it hostile
             is_npc = any(n.id == getattr(target_char, 'id', None) for n in game_state.npcs)
             if is_npc and not getattr(target_char, 'hostile', False):
@@ -466,8 +476,28 @@ class CombatService:
         if not action_result.get("success"):
             return action_result
 
-        # Apply state changes (HP drops, death)
+        # Apply state changes (HP drops, conditions, concentration, death)
         death_msg = None
+
+        # Apply condition from spell (e.g., Blindness/Deafness → Blinded)
+        if target_char and action_result.get("apply_condition"):
+            from app.services.condition_service import apply_condition, start_concentration
+            cond = action_result["apply_condition"]
+            apply_condition(
+                target_char,
+                condition_name=cond["name"],
+                duration=cond.get("duration", -1),
+                source_id=actor_id,
+            )
+
+            # Start concentration if spell requires it
+            spell_data = matched_spell.get("data", {})
+            if spell_data.get("concentration"):
+                target_id_for_conc = getattr(target_char, 'id', None) if target_char else None
+                broken = start_concentration(actor_char, matched_spell.get("name", ""), target_id_for_conc, game_state)
+                if broken:
+                    action_result["message"] = action_result.get("message", "") + f"\n*(Lost concentration on {broken})*"
+
         if target_char and "target_hp_remaining" in action_result:
             new_hp = action_result["target_hp_remaining"]
             target_char.hp_current = new_hp
@@ -571,6 +601,11 @@ class CombatService:
         target_id_str = target_char.id
         if isinstance(target_id_str, dict):
             target_id_str = target_id_str.get('id')
+
+        # Break concentration on death
+        if getattr(target_char, 'concentrating_on', None):
+            from app.services.condition_service import break_concentration
+            break_concentration(target_char, game_state)
 
         action_result_updates = {}
 

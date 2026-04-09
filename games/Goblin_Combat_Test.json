@@ -556,76 +556,128 @@
     ],
     "npcs": [
         {
-            "id": "npc_goblin",
-            "name": "Grimtooth",
-            "target_id": "grimtooth",
-            "unidentified_name": "Goblin Skirmisher",
-            "unidentified_description": "A small, green-skinned humanoid crouching in the shadows.",
-            "llm_description": "A small, wirey goblin with sickly green skin. He wears patchwork, stained leather armor. His most defining feature is a single, massively oversized jagged lower canine protruding past his upper lip. He crouches aggressively in the torchlight, gripping a rusted scimitar.",
-            "description": "A small, scowling goblin with a jagged tooth.",
+            "id": "npc_lizardfolk",
+            "name": "Ssarketh",
+            "target_id": "ssarketh",
+            "unidentified_name": "Lizardfolk Warrior",
+            "unidentified_description": "A muscular reptilian humanoid with dull green scales and cold, calculating eyes.",
+            "llm_description": "A powerfully built lizardfolk standing just over six feet tall. Its mottled green-brown scales are scarred from many battles. It wears crude bone armor and carries a heavy wooden club studded with obsidian shards. A thick tail sways behind it as it studies you with unblinking amber eyes, forked tongue tasting the air.",
+            "description": "A muscular lizardfolk warrior with a heavy club and sharp teeth.",
             "role": "Enemy",
-            "race": "Goblin",
+            "race": "Lizardfolk",
             "stats": {
-                "str": 8,
-                "dex": 14,
-                "con": 10,
-                "int": 10,
-                "wis": 8,
-                "cha": 8
+                "str": 15,
+                "dex": 10,
+                "con": 13,
+                "int": 7,
+                "wis": 12,
+                "cha": 7,
+                "hp": 22,
+                "ac": 13
             },
+            "actions": [
+                {
+                    "name": "Multiattack",
+                    "multiattack_type": "actions",
+                    "desc": "The lizardfolk makes two melee attacks: one with its bite and one with its heavy club.",
+                    "damage": [],
+                    "actions": [
+                        {
+                            "action_name": "Bite",
+                            "count": "1",
+                            "type": "melee"
+                        },
+                        {
+                            "action_name": "Heavy Club",
+                            "count": "1",
+                            "type": "melee"
+                        }
+                    ]
+                },
+                {
+                    "name": "Bite",
+                    "desc": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 5 (1d6 + 2) piercing damage.",
+                    "attack_bonus": 4,
+                    "damage": [
+                        {
+                            "damage_type": {
+                                "name": "Piercing"
+                            },
+                            "damage_dice": "1d6+2"
+                        }
+                    ]
+                },
+                {
+                    "name": "Heavy Club",
+                    "desc": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 5 (1d6 + 2) bludgeoning damage.",
+                    "attack_bonus": 4,
+                    "damage": [
+                        {
+                            "damage_type": {
+                                "name": "Bludgeoning"
+                            },
+                            "damage_dice": "1d6+2"
+                        }
+                    ]
+                },
+                {
+                    "name": "Javelin",
+                    "desc": "Melee or Ranged Weapon Attack: +4 to hit, reach 5 ft. or range 30/120 ft., one target. Hit: 5 (1d6 + 2) piercing damage.",
+                    "attack_bonus": 4,
+                    "damage": [
+                        {
+                            "damage_type": {
+                                "name": "Piercing"
+                            },
+                            "damage_dice": "1d6+2"
+                        }
+                    ]
+                }
+            ],
             "voice": {
-                "tone": "Scratchy, aggressive, menacing.",
+                "tone": "Deep, hissing, cold.",
                 "samples": [
-                    "Shiny things! Mine!",
-                    "You die now!"
+                    "Warm-blood... you trespass.",
+                    "The tribe will feast tonight."
                 ],
                 "barks": {
                     "aggro": [
-                        "You pay for that!",
-                        "Gah! Sharp!"
+                        "Hsss! You bleed!",
+                        "Weak flesh tears easy!"
                     ],
                     "death": [
-                        "My shinies...",
-                        "Darkness..."
+                        "Cold... so cold...",
+                        "The swamp... calls..."
                     ],
                     "victory": [
-                        "Hehe! Loot time!",
-                        "Stupid longshanks."
+                        "Good meat. Fresh.",
+                        "The tribe grows stronger."
                     ]
                 }
             },
             "knowledge": [
                 {
-                    "id": "fact_goblin_ambush",
-                    "description": "Grimtooth was waiting for a caravan, not an adventurer.",
+                    "id": "fact_lizardfolk_scouting",
+                    "description": "Ssarketh was scouting this dungeon for the tribe's expansion.",
                     "revealed": false,
-                    "dc": 10
+                    "dc": 12
                 }
             ],
             "loot": {
-                "guaranteed": [
-                    "item_scimitar"
-                ],
+                "guaranteed": [],
                 "random": [
                     {
-                        "item_id": "item_leather_armor",
-                        "chance": 0.5
-                    },
-                    {
                         "item_id": "item_gold_coin",
-                        "chance": 0.8
+                        "chance": 0.6
                     }
                 ]
             },
-            "equipment": [
-                "item_scimitar",
-                "item_leather_armor"
-            ],
+            "equipment": [],
             "schedule": [
                 {
                     "time": "00:00-24:00",
                     "location": "loc_room",
-                    "activity": "waiting to ambush"
+                    "activity": "guarding territory"
                 }
             ],
             "disposition": {

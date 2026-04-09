@@ -230,3 +230,75 @@ def tick_conditions(entity) -> List[str]:
         logger.debug(f"Condition {name} expired on {entity.name}")
 
     return expired
+
+
+# ── Concentration ──
+
+def break_concentration(caster, game_state=None) -> Optional[str]:
+    """Break concentration, removing the spell's effect from the target.
+
+    Returns the spell name that was broken, or None if not concentrating.
+    """
+    if not getattr(caster, 'concentrating_on', None):
+        return None
+
+    spell_name = caster.concentrating_on
+    target_id = getattr(caster, 'concentration_target_id', None)
+
+    # Remove the condition from the target
+    if target_id and game_state:
+        all_entities = list(getattr(game_state, 'party', [])) + \
+                       list(getattr(game_state, 'enemies', [])) + \
+                       list(getattr(game_state, 'npcs', []))
+        target = next((e for e in all_entities if e.id == target_id), None)
+        if target:
+            # Remove conditions applied by this caster
+            target.conditions = [
+                c for c in target.conditions
+                if c.source_id != caster.id
+            ]
+
+    caster.concentrating_on = None
+    caster.concentration_target_id = None
+
+    logger.info(f"{caster.name} lost concentration on {spell_name}")
+    return spell_name
+
+
+def start_concentration(caster, spell_name: str, target_id: str = None,
+                        game_state=None) -> Optional[str]:
+    """Start concentrating on a spell. Breaks existing concentration first.
+
+    Returns the name of the previously concentrated spell if one was broken,
+    or None if this is the first concentration.
+    """
+    broken = None
+    if getattr(caster, 'concentrating_on', None):
+        broken = break_concentration(caster, game_state)
+
+    caster.concentrating_on = spell_name
+    caster.concentration_target_id = target_id
+    logger.debug(f"{caster.name} now concentrating on {spell_name}")
+    return broken
+
+
+def check_concentration_save(caster, damage: int) -> bool:
+    """Check if caster maintains concentration after taking damage.
+
+    DC = max(10, damage // 2). Returns True if concentration held.
+    """
+    if not getattr(caster, 'concentrating_on', None):
+        return True  # Not concentrating, nothing to check
+
+    from game_engine.character_sheet import CharacterSheet
+    from game_engine.dice import Dice
+
+    dc = max(10, damage // 2)
+    sheet = CharacterSheet(caster.model_dump() if hasattr(caster, 'model_dump') else {})
+    save_mod = sheet.get_save("constitution")
+    roll = Dice.roll("1d20")
+    total = roll["total"] + save_mod
+
+    held = total >= dc
+    logger.debug(f"Concentration save: {caster.name} rolled {total} vs DC {dc} — {'held' if held else 'BROKEN'}")
+    return held

@@ -223,3 +223,76 @@ class TestBackwardCompat:
         assert len(e.conditions) == 1
         assert e.conditions[0].name == "Stunned"
         assert e.conditions[0].duration == 2
+
+
+class TestConcentration:
+    """Tests for concentration tracking."""
+
+    def test_start_concentration(self, player_factory, enemy_factory):
+        from app.services.condition_service import start_concentration, apply_condition
+        p = player_factory(name="Wizard")
+        e = enemy_factory(name="Goblin")
+        apply_condition(e, "Paralyzed", duration=10, source_id=p.id)
+        broken = start_concentration(p, "Hold Person", target_id=e.id)
+        assert broken is None
+        assert p.concentrating_on == "Hold Person"
+        assert p.concentration_target_id == e.id
+
+    def test_new_concentration_breaks_old(self, player_factory, enemy_factory, game_state_factory):
+        from app.services.condition_service import start_concentration, apply_condition
+        p = player_factory(name="Wizard")
+        e1 = enemy_factory(name="Goblin1")
+        e2 = enemy_factory(name="Goblin2")
+        gs = game_state_factory(players=[p], enemies=[e1, e2])
+
+        # First concentration
+        apply_condition(e1, "Paralyzed", duration=10, source_id=p.id)
+        start_concentration(p, "Hold Person", target_id=e1.id, game_state=gs)
+
+        # Second concentration should break the first
+        apply_condition(e2, "Frightened", duration=10, source_id=p.id)
+        broken = start_concentration(p, "Fear", target_id=e2.id, game_state=gs)
+
+        assert broken == "Hold Person"
+        assert p.concentrating_on == "Fear"
+        # First target should have lost their condition
+        assert not any(c.name == "Paralyzed" for c in e1.conditions)
+
+    def test_break_concentration_removes_condition(self, player_factory, enemy_factory, game_state_factory):
+        from app.services.condition_service import start_concentration, break_concentration, apply_condition
+        p = player_factory(name="Wizard")
+        e = enemy_factory(name="Goblin")
+        gs = game_state_factory(players=[p], enemies=[e])
+
+        apply_condition(e, "Restrained", duration=-1, source_id=p.id)
+        start_concentration(p, "Entangle", target_id=e.id)
+
+        broken = break_concentration(p, gs)
+        assert broken == "Entangle"
+        assert p.concentrating_on is None
+        assert not any(c.name == "Restrained" for c in e.conditions)
+
+    def test_concentration_save_easy(self, player_factory):
+        """Low damage should be easy to save (DC 10)."""
+        from app.services.condition_service import check_concentration_save
+        p = player_factory(name="Wizard")
+        p.concentrating_on = "Hold Person"
+
+        # Run many times — with CON mod and DC 10, should succeed sometimes
+        results = [check_concentration_save(p, 5) for _ in range(20)]
+        assert any(results), "Should pass DC 10 at least once in 20 tries"
+
+    def test_concentration_save_hard(self, player_factory):
+        """Massive damage should be hard to save (DC = damage/2)."""
+        from app.services.condition_service import check_concentration_save
+        p = player_factory(name="Wizard")
+        p.concentrating_on = "Hold Person"
+
+        # DC = 50/2 = 25, impossible with d20 + any reasonable mod
+        results = [check_concentration_save(p, 50) for _ in range(10)]
+        assert not any(results), "Should never pass DC 25"
+
+    def test_not_concentrating_always_passes(self, player_factory):
+        from app.services.condition_service import check_concentration_save
+        p = player_factory()
+        assert check_concentration_save(p, 100) is True

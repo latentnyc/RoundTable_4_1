@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import random
 import re
 from app.services.combat_service import CombatService
 from app.services.ai_service import AIService
@@ -44,6 +45,63 @@ class AITurnService:
                 closest = h
                 
         return closest or hostiles[0]
+
+    @staticmethod
+    def _get_multiattack_actions(actor) -> list:
+        """Parse a monster's multiattack data and return list of attack action dicts.
+
+        Returns empty list if no multiattack (single attack only).
+        Each item is an SRD action dict with name, attack_bonus, damage, desc.
+        """
+        data = getattr(actor, 'data', {})
+        if not isinstance(data, dict):
+            return []
+
+        actions = data.get('actions', [])
+        if not actions:
+            return []
+
+        # Find the Multiattack action
+        multi_action = None
+        for a in actions:
+            if isinstance(a, dict) and 'multiattack' in a.get('name', '').lower():
+                multi_action = a
+                break
+
+        if not multi_action:
+            return []
+
+        # Build a lookup of available attack actions by name
+        attack_lookup = {}
+        for a in actions:
+            if isinstance(a, dict) and a.get('damage') and 'multiattack' not in a.get('name', '').lower():
+                attack_lookup[a['name']] = a
+
+        attack_sequence = []
+
+        # Format 1: "actions" list — flat list of {action_name, count, type}
+        if multi_action.get('multiattack_type') == 'actions' and multi_action.get('actions'):
+            for entry in multi_action['actions']:
+                action_name = entry.get('action_name', '')
+                count = int(entry.get('count', 1))
+                if action_name in attack_lookup:
+                    for _ in range(count):
+                        attack_sequence.append(attack_lookup[action_name])
+
+        # Format 2: "action_options" — pick one option set randomly
+        elif multi_action.get('multiattack_type') == 'action_options' and multi_action.get('action_options'):
+            options = multi_action['action_options'].get('from', {}).get('options', [])
+            if options:
+                chosen = random.choice(options)
+                items = chosen.get('items', [])
+                for item in items:
+                    action_name = item.get('action_name', '')
+                    count = int(item.get('count', 1))
+                    if action_name in attack_lookup:
+                        for _ in range(count):
+                            attack_sequence.append(attack_lookup[action_name])
+
+        return attack_sequence
 
     @staticmethod
     def _format_combat_log(actor, target, action_result):
@@ -255,7 +313,38 @@ class AITurnService:
             spell_name = use_spell.get('name', '') if isinstance(use_spell, dict) else str(use_spell)
             result = await CombatService.resolution_cast(campaign_id, actor.id, actor.name, spell_name, target.name, db, commit=commit, target_id=str(target.id))
         else:
-            result = await CombatService.resolution_attack(campaign_id, actor.id, actor.name, target.name, db, current_state=game_state, commit=commit, target_id=str(target.id))
+            # Check for multiattack (monsters with multiple attacks per turn)
+            multi_attacks = AITurnService._get_multiattack_actions(actor)
+
+            if multi_attacks:
+                # Execute each attack in the multiattack sequence
+                all_results = []
+                current_state = game_state
+                for atk_action in multi_attacks:
+                    # Stop if target is dead
+                    target_entity = next((e for e in (current_state.party + current_state.enemies + current_state.npcs) if e.id == target.id), None)
+                    if target_entity and target_entity.hp_current <= 0:
+                        break
+
+                    atk_result = await CombatService.resolution_attack(
+                        campaign_id, actor.id, actor.name, target.name, db,
+                        current_state=current_state, commit=False, target_id=str(target.id)
+                    )
+                    all_results.append(atk_result)
+                    if atk_result.get('game_state'):
+                        current_state = atk_result['game_state']
+
+                # Save once after all attacks
+                if commit:
+                    await StateService.save_game_state(campaign_id, current_state, db)
+                    await db.commit()
+
+                # Use last result for state, combine messages
+                result = all_results[-1] if all_results else {"success": False, "message": "No attacks resolved."}
+                if len(all_results) > 1:
+                    result['game_state'] = current_state
+            else:
+                result = await CombatService.resolution_attack(campaign_id, actor.id, actor.name, target.name, db, current_state=game_state, commit=commit, target_id=str(target.id))
 
         if not result.get("success"):
             err_msg = result.get("message", f"**{actor.name}** fails to attack **{target.name}**.")
@@ -263,12 +352,12 @@ class AITurnService:
             await sio.emit('chat_message', {
                 'sender_id': 'system', 'sender_name': 'System', 'content': err_msg, 'id': save_result['id'], 'timestamp': save_result['timestamp'], 'is_system': True, 'message_type': 'system'
             }, room=campaign_id)
-            
+
             # Save the new state anyways (the movement still happened)
             if commit and result.get('game_state'):
                 await StateService.save_game_state(campaign_id, result['game_state'], db)
                 await db.commit()
-                
+
             return result.get('game_state', game_state)
 
         # Mechanics Log

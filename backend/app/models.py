@@ -77,6 +77,8 @@ class Entity(BaseModel):
     position: Coordinates
     inventory: List[str] = []
     conditions: List[Condition] = []
+    concentrating_on: Optional[str] = None  # Spell name being concentrated on
+    concentration_target_id: Optional[str] = None  # Entity affected by concentration spell
     barks: Optional[Dict[str, List[str]]] = None
     knowledge: List[Dict[str, Any]] = []
     loot: Optional[Dict[str, Any]] = None

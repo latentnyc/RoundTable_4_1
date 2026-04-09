@@ -25,7 +25,7 @@ After startup, a "Dev Test — Goblin Combat" campaign is auto-seeded with the G
    - **Elara Nightwhisper** — High Elf Wizard (you, human-controlled) with Fire Bolt, Magic Missile, Shield
    - **Theron Swiftwind** — Wood Elf Ranger (AI) with Longbow + Shortsword
    - **Bruna Stonefist** — Human Fighter (AI) with Greataxe + Shield + Chain Mail
-4. Click **"Enter Campaign"** — you're in a room with a hostile goblin and two doors
+4. Click **"Enter Campaign"** — you're in a room with a hostile Lizardfolk warrior (multiattack: Bite + Heavy Club) and two doors
 
 Use `--reset-db` to wipe everything and start fresh: `./scripts/dev-start.sh --reset-db`
 

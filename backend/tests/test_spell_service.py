@@ -20,11 +20,11 @@ class TestTierAWhitelist:
     def test_fireball_not_tier_a(self):
         assert not is_tier_a("fireball")
 
-    def test_hold_person_not_tier_a(self):
-        assert not is_tier_a("hold-person")
+    def test_hold_person_is_tier_a(self):
+        assert is_tier_a("hold-person")
 
     def test_tier_a_count(self):
-        assert len(TIER_A_SPELLS) == 16
+        assert len(TIER_A_SPELLS) == 35
 
 
 class TestNormalizeSpell:
@@ -223,3 +223,73 @@ class TestDamageExtraction:
             1, "test"
         )
         assert dice == "2d6"
+
+
+class TestExpandedTierA:
+    """Test that newly added spells normalize and resolve correctly."""
+
+    def test_tier_a_count(self):
+        assert len(TIER_A_SPELLS) == 35
+
+    def test_new_damage_cantrips(self):
+        assert is_tier_a("chill-touch")
+        assert is_tier_a("eldritch-blast")
+
+    def test_new_damage_spells(self):
+        assert is_tier_a("acid-arrow")
+        assert is_tier_a("disintegrate")
+
+    def test_condition_spells(self):
+        assert is_tier_a("blindness-deafness")
+        assert is_tier_a("command")
+        assert is_tier_a("charm-person")
+        assert is_tier_a("animal-friendship")
+
+    def test_blindness_deafness_has_condition_data(self):
+        spell = normalize_spell_for_engine({
+            "index": "blindness-deafness", "name": "Blindness/Deafness", "level": 2,
+            "range": "30 feet",
+            "dc": {"dc_type": {"index": "con", "name": "CON"}},
+        })
+        assert "applies_condition" in spell["data"]
+        assert spell["data"]["applies_condition"]["condition"] == "Blinded"
+        assert spell["data"]["applies_condition"]["duration"] == 10
+
+    def test_command_has_condition_data(self):
+        spell = normalize_spell_for_engine({
+            "index": "command", "name": "Command", "level": 1,
+            "range": "60 feet",
+            "dc": {"dc_type": {"index": "wis", "name": "WIS"}},
+        })
+        assert spell["data"]["applies_condition"]["condition"] == "Prone"
+        assert spell["data"]["applies_condition"]["duration"] == 1
+
+    def test_blindness_engine_applies_condition_on_failed_save(self):
+        """Blindness/Deafness should return apply_condition when save fails."""
+        spell = normalize_spell_for_engine({
+            "index": "blindness-deafness", "name": "Blindness/Deafness", "level": 2,
+            "range": "30 feet",
+            "dc": {"dc_type": {"index": "con", "name": "CON"}},
+        })
+        engine = GameEngine()
+        actor = {
+            "name": "Cleric", "role": "Cleric",
+            "stats": {"str": 10, "dex": 10, "con": 10, "int": 10, "wis": 16, "cha": 10},
+            "hp_current": 20, "hp_max": 20, "level": 3, "equipment": [],
+            "saving_throws": ["wis", "cha"],
+        }
+        target = {
+            "name": "Goblin",
+            "stats": {"str": 8, "dex": 14, "con": 10, "int": 10, "wis": 8, "cha": 8},
+            "hp_current": 7, "hp_max": 7, "ac": 15, "equipment": [],
+        }
+        # Run 20 times to statistically guarantee at least one failure
+        got_condition = False
+        for _ in range(20):
+            result = engine.resolve_action(actor, "cast", target, {"spell_data": spell})
+            if result.get("apply_condition"):
+                got_condition = True
+                assert result["apply_condition"]["name"] == "Blinded"
+                assert result["apply_condition"]["duration"] == 10
+                break
+        assert got_condition, "Blindness/Deafness never applied Blinded in 20 attempts"

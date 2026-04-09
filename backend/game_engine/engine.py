@@ -307,19 +307,20 @@ class GameEngine:
                 is_saved = save_total >= spell_save_dc
             result_data["message"] += f"{target.name} rolls **{save_total}** ({roll['total']} + {target_save_mod}). "
 
+            if is_saved:
+                result_data["message"] += "**Saved!**"
+            else:
+                result_data["message"] += "**Failed!**"
+
             if damage_dice:
                 dmg_roll = Dice.roll(damage_dice)
                 dmg = dmg_roll["total"]
                 detail = dmg_roll["detail"]
 
-                # Check half damage on save
-                # SRD spells usually have 'save_success: half' or 'none' but it's nested or missing in our simpler parse
-                # Most damage spells save for half, let's default to half if saving throw is used for damage
+                # Most damage spells save for half
                 if is_saved:
                     dmg = dmg // 2
-                    result_data["message"] += "**Saved!** (Half damage)."
-                else:
-                    result_data["message"] += "**Failed!**"
+                    result_data["message"] += " (Half damage)."
 
                 if params.get("damage_resistance"):
                     dmg = dmg // 2
@@ -333,6 +334,19 @@ class GameEngine:
                 result_data["message"] += f"\n🩸 Damage: **{dmg}** {damage_type_name} ({detail}). Target HP: {target.hp['current']}"
                 if target.hp["current"] <= 0:
                      result_data["message"] += " [LETHAL]"
+
+            # Apply condition on failed save
+            condition_info = s_data.get("applies_condition")
+            if condition_info and not is_saved:
+                cond_name = condition_info.get("condition", "")
+                cond_duration = condition_info.get("duration", -1)
+                result_data["apply_condition"] = {
+                    "name": cond_name,
+                    "duration": cond_duration,
+                }
+                result_data["message"] += f"\n🔮 **{target.name}** is now **{cond_name}**!"
+            elif condition_info and is_saved:
+                result_data["message"] += f" (Resisted {condition_info.get('condition', 'effect')}.)"
 
         # ----------------
         # 3. Healing & Buffs

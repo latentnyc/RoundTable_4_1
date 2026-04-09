@@ -15,17 +15,25 @@ logger = logging.getLogger(__name__)
 
 # ── Tier A Whitelist ──
 # These are the only spells exposed to players. Each can be fully resolved
-# by the engine: attack roll + damage, save + damage, auto-hit, or healing.
+# by the engine: attack roll + damage, save + damage, auto-hit, healing,
+# or condition application.
 TIER_A_SPELLS = {
     # Attack roll + damage
-    "fire-bolt", "ray-of-frost", "shocking-grasp", "guiding-bolt", "inflict-wounds",
+    "fire-bolt", "ray-of-frost", "shocking-grasp", "chill-touch", "eldritch-blast",
+    "guiding-bolt", "inflict-wounds", "acid-arrow",
     # Save + damage
     "sacred-flame", "poison-spray", "vicious-mockery", "hellish-rebuke",
-    "blight", "harm", "finger-of-death",
+    "blight", "harm", "finger-of-death", "disintegrate",
     # Auto-hit damage (special case)
     "magic-missile",
     # Healing
     "cure-wounds", "healing-word", "heal",
+    # Condition-applying (save or be affected)
+    "blindness-deafness", "command", "charm-person", "animal-friendship",
+    # Concentration + condition (save or be affected, breaks on caster damage)
+    "hold-person", "hold-monster", "entangle", "hideous-laughter",
+    "phantasmal-killer", "banishment", "dominate-beast", "dominate-person",
+    "dominate-monster", "eyebite", "flesh-to-stone",
 }
 
 
@@ -71,6 +79,7 @@ def normalize_spell_for_engine(srd_spell: dict) -> dict:
         "school": srd_spell.get("school", {}).get("name", "") if isinstance(srd_spell.get("school"), dict) else srd_spell.get("school", ""),
         "range": srd_spell.get("range", "Touch"),
         "casting_time": srd_spell.get("casting_time", "1 action"),
+        "concentration": srd_spell.get("concentration", False),
     }
 
     # Attack type
@@ -96,6 +105,29 @@ def normalize_spell_for_engine(srd_spell: dict) -> dict:
     srd_heal = srd_spell.get("heal_at_slot_level")
     if srd_heal:
         data["heal_at_slot_level"] = srd_heal
+
+    # Condition-applying spells: attach condition metadata for the engine
+    SPELL_CONDITIONS = {
+        # Non-concentration
+        "blindness-deafness": {"condition": "Blinded", "duration": 10},
+        "command": {"condition": "Prone", "duration": 1},
+        "charm-person": {"condition": "Charmed", "duration": -1},
+        "animal-friendship": {"condition": "Charmed", "duration": -1},
+        # Concentration (condition lasts while caster concentrates, up to 10 rounds)
+        "hold-person": {"condition": "Paralyzed", "duration": 10},
+        "hold-monster": {"condition": "Paralyzed", "duration": 10},
+        "entangle": {"condition": "Restrained", "duration": 10},
+        "hideous-laughter": {"condition": "Prone", "duration": 10},
+        "phantasmal-killer": {"condition": "Frightened", "duration": 10},
+        "banishment": {"condition": "Incapacitated", "duration": 10},
+        "dominate-beast": {"condition": "Charmed", "duration": 10},
+        "dominate-person": {"condition": "Charmed", "duration": 10},
+        "dominate-monster": {"condition": "Charmed", "duration": 10},
+        "eyebite": {"condition": "Frightened", "duration": 10},
+        "flesh-to-stone": {"condition": "Restrained", "duration": 10},
+    }
+    if index in SPELL_CONDITIONS:
+        data["applies_condition"] = SPELL_CONDITIONS[index]
 
     # Magic Missile special case: auto-hit, 3 darts of 1d4+1
     if index == "magic-missile":
