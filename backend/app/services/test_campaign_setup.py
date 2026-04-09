@@ -167,7 +167,7 @@ async def create_test_campaign(db: AsyncSession):
             status="active",
             api_key=api_key,
             api_key_verified=bool(api_key),
-            model="gemini-2.5-flash",
+            model="gemini-3-flash-preview",
             system_prompt="You are a dramatic and concise Dungeon Master for a D&D 5e combat test. Keep narration to 1-2 sentences.",
             template_id=template_id,
         ))
