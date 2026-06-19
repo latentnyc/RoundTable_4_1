@@ -40,3 +40,20 @@ def test_rules_engine_chunks_loaded():
     assert any("COMBAT" in cat for cat in categories)
     assert any("CONDITIONS" in cat for cat in categories)
     assert any("NARRATION" in cat for cat in categories)
+
+    # Hierarchical and structural checks
+    for chunk in rules_engine.chunks:
+        title = chunk["title"]
+        content = chunk["content"]
+        
+        # Verify title path format (e.g. [PERSONA > H1 > H2])
+        assert title.startswith("[") and title.endswith("]")
+        assert " > " in title
+        assert content.startswith(title)
+        
+        # Extract body text and verify size limits
+        body = content[len(title):].strip()
+        assert len(body) > 0
+        # Check that combined rule body does not exceed 1500 chars (soft limit of 600 for combining)
+        assert len(body) < 1500
+

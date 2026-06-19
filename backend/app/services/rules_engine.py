@@ -37,25 +37,93 @@ class RulesEngine:
         self._parse_markdown(os.path.join(base_dir, "data", "dm_rules", "narration_guide.md"), "NARRATION")
 
     def _parse_markdown(self, filepath, prefix):
-        """Chunks the markdown files into memory."""
+        """
+        Hierarchical Markdown Chunker:
+        1. Tracks the active H1 and H2 headers.
+        2. Splits the content by double newlines or lines to isolate paragraphs/lists.
+        3. Prepends the hierarchy path (e.g. [PREFIX > H1 > H2]) to each block.
+        4. Combines consecutive blocks under the same hierarchy up to max 600 characters.
+        """
         try:
             with open(filepath, "r", encoding="utf-8") as f:
                 content = f.read()
         except FileNotFoundError as e:
             logger.warning(f"RulesEngine document missing: {filepath}")
             return
+
+        # Split content into lines to parse headers and accumulate paragraphs
+        lines = content.split('\n')
+        
+        current_h1 = "Overview"
+        current_h2 = ""
+        
+        blocks = []
+        current_block_lines = []
+        
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith('# '):
+                # Save previous block if any
+                if current_block_lines:
+                    blocks.append((current_h1, current_h2, '\n'.join(current_block_lines).strip()))
+                    current_block_lines = []
+                current_h1 = stripped[2:].strip()
+                current_h2 = "" # Reset H2 when H1 changes
+            elif stripped.startswith('## '):
+                # Save previous block if any
+                if current_block_lines:
+                    blocks.append((current_h1, current_h2, '\n'.join(current_block_lines).strip()))
+                    current_block_lines = []
+                current_h2 = stripped[3:].strip()
+            else:
+                if stripped:
+                    current_block_lines.append(line)
+                else:
+                    # Empty line acts as a paragraph separator
+                    if current_block_lines:
+                        blocks.append((current_h1, current_h2, '\n'.join(current_block_lines).strip()))
+                        current_block_lines = []
+                        
+        if current_block_lines:
+            blocks.append((current_h1, current_h2, '\n'.join(current_block_lines).strip()))
+
+        # Now, combine consecutive blocks under the same hierarchy path up to 600 characters
+        temp_content = []
+        temp_h1 = None
+        temp_h2 = None
+        
+        def flush_temp():
+            if temp_content:
+                # Build hierarchy path string
+                path_parts = [prefix]
+                if temp_h1:
+                    path_parts.append(temp_h1)
+                if temp_h2:
+                    path_parts.append(temp_h2)
+                
+                path_header = f"[{' > '.join(path_parts)}]"
+                body = '\n\n'.join(temp_content)
+                full_content = f"{path_header}\n{body}"
+                
+                self.chunks.append({
+                    "title": path_header,
+                    "content": full_content,
+                    "embedding": None
+                })
+                temp_content.clear()
+
+        for h1, h2, text in blocks:
+            if not text:
+                continue
+            # If hierarchy changes or combining exceeds 600 characters, flush and start a new chunk
+            current_len = sum(len(t) for t in temp_content) + len(text) + (2 * len(temp_content) if temp_content else 0)
+            if (h1 != temp_h1 or h2 != temp_h2) or (current_len > 600):
+                flush_temp()
+                temp_h1 = h1
+                temp_h2 = h2
+            temp_content.append(text)
             
-        sections = re.split(r'\n## ', content)
-        for i, section in enumerate(sections):
-            if not section.strip(): continue
-            lines = section.split('\n')
-            title = lines[0].strip()
-            if i == 0 and not section.startswith('##'):
-                title = "Overview"
-            title = f"[{prefix}] {title.replace('#', '').strip()}"
-            body = '\n'.join(lines[1:]).strip()
-            if body:
-                self.chunks.append({"title": title, "content": f"{title}\n{body}", "embedding": None})
+        flush_temp()
 
     async def _ensure_document_embeddings(self, llm: LLMProvider):
         """Lazy-loads document embeddings using the active provider key."""
