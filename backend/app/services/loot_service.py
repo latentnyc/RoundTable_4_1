@@ -49,7 +49,7 @@ class LootService:
         Unlocks/Opens a vessel by name and returns its contents. Also handles doors and chests.
         """
         from app.services.game_service import GameService
-        from app.services.combat_service import CombatService
+        from app.services.opportunity_service import OpportunityService
         from app.models import Vessel, Coordinates
 
         game_state = await StateService.get_game_state(campaign_id, db)
@@ -157,7 +157,7 @@ class LootService:
                     return {"success": False, "message": f"**{actor_name}** tries to search {target_vessel.name}, but they are too far away. They must move adjacent to it.", "out_of_range": True, "target_name": target_vessel.name}
 
         # 3. Handle incoming Opportunity Attacks now that we know the action is valid and in range!
-        interrupted, opp_msg, latest_state = await CombatService._handle_opportunity_attack(campaign_id, actor_name, f"open {vessel_name}", db, game_state)
+        interrupted, opp_msg, latest_state = await OpportunityService.handle_opportunity_attack(campaign_id, actor_name, f"open {vessel_name}", db, game_state)
         if interrupted:
             return {"success": False, "message": opp_msg, "game_state": latest_state}
             

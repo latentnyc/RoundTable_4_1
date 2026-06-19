@@ -2,6 +2,7 @@
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from app.services.combat_service import CombatService
+from app.services.death_service import DeathService
 from app.models import GameState, Coordinates
 
 
@@ -89,7 +90,7 @@ class TestNextTurn:
 
 
 class TestHandleEntityDeath:
-    """Tests for CombatService._handle_entity_death."""
+    """Tests for DeathService.handle_entity_death."""
 
     @pytest.mark.asyncio
     async def test_creates_vessel_on_death(self, game_state_factory, player_factory, enemy_factory, coords, mock_db):
@@ -100,7 +101,7 @@ class TestHandleEntityDeath:
         gs = game_state_factory(phase="combat", players=[p], enemies=[e])
         gs.turn_order = [p.id, e.id]
 
-        death_msg, updates = await CombatService._handle_entity_death(
+        death_msg, updates = await DeathService.handle_entity_death(
             "test_camp", e, gs, is_npc=False, db=mock_db, commit=False
         )
 
@@ -118,7 +119,7 @@ class TestHandleEntityDeath:
         gs = game_state_factory(phase="combat", players=[p], enemies=[e])
         gs.turn_order = [p.id, e.id]
 
-        death_msg, updates = await CombatService._handle_entity_death(
+        death_msg, updates = await DeathService.handle_entity_death(
             "test_camp", e, gs, is_npc=False, db=mock_db, commit=False
         )
 
@@ -136,7 +137,7 @@ class TestHandleEntityDeath:
         gs.turn_order = [p.id, e.id]
 
         # Simulate player death
-        death_msg, updates = await CombatService._handle_entity_death(
+        death_msg, updates = await DeathService.handle_entity_death(
             "test_camp", p, gs, is_npc=False, db=mock_db, commit=False
         )
 
@@ -158,7 +159,7 @@ class TestHostilityInCombat:
         gs.turn_order = [p.id, hostile_npc.id]
 
         hostile_npc.hp_current = 0
-        death_msg, updates = await CombatService._handle_entity_death(
+        death_msg, updates = await DeathService.handle_entity_death(
             "test_camp", hostile_npc, gs, is_npc=True, db=mock_db, commit=False
         )
 
@@ -177,7 +178,7 @@ class TestHostilityInCombat:
         gs.turn_order = [p.id, npc1.id, npc2.id]
 
         npc1.hp_current = 0
-        death_msg, updates = await CombatService._handle_entity_death(
+        death_msg, updates = await DeathService.handle_entity_death(
             "test_camp", npc1, gs, is_npc=True, db=mock_db, commit=False
         )
 

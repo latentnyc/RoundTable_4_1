@@ -1,4 +1,4 @@
-from app.services.combat_service import CombatService
+from app.services.opportunity_service import OpportunityService
 import json
 import asyncio
 import functools
@@ -215,7 +215,7 @@ class GameService:
         if not game_state:
             return {"success": False, "message": "No active game state."}
 
-        interrupted, opp_msg, latest_state = await CombatService._handle_opportunity_attack(campaign_id, actor_name, "move", db, game_state)
+        interrupted, opp_msg, latest_state = await OpportunityService.handle_opportunity_attack(campaign_id, actor_name, "move", db, game_state)
         if interrupted:
             return {"success": False, "message": opp_msg, "game_state": latest_state}
 

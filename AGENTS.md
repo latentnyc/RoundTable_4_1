@@ -1,3 +1,19 @@
+---
+{
+  "id": "file_7yr2mp1x",
+  "filetype": "document",
+  "filename": "AGENTS",
+  "created_at": "2026-06-19T14:03:24.490Z",
+  "updated_at": "2026-06-19T14:03:24.490Z",
+  "meta": {
+    "location": "/",
+    "tags": [],
+    "categories": [],
+    "description": "",
+    "source": "markdown"
+  }
+}
+---
 # RoundTable 4.1 — Agent Guide
 
 This document is written for AI coding agents. It summarizes the project architecture, conventions, and workflows as they actually exist in the codebase. When in doubt, prefer the files referenced here over general assumptions.

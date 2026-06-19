@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db.schema import locations
 from app.models import GameState, Location
 from app.services.state_service import StateService
-from app.services.combat_service import CombatService
+from app.services.opportunity_service import OpportunityService
 from app.utils.grid_utils import hex_distance, get_neighbors
 
 class MovementService:
@@ -15,7 +15,7 @@ class MovementService:
         if not game_state:
             return {"success": False, "message": "No active game state."}
 
-        interrupted, opp_msg, latest_state = await CombatService._handle_opportunity_attack(campaign_id, actor_name, "move", db, game_state)
+        interrupted, opp_msg, latest_state = await OpportunityService.handle_opportunity_attack(campaign_id, actor_name, "move", db, game_state)
         if interrupted:
             return {"success": False, "message": opp_msg, "game_state": latest_state}
 
