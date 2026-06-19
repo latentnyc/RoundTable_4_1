@@ -9,24 +9,25 @@ class TestAgentTools:
     @pytest.mark.asyncio
     async def test_attack_tool_execution(self, game_state_factory, player_factory, enemy_factory, coords, mock_db):
         """AttackTool executes a real combat resolution using the database session."""
-        p = player_factory(name="Fighter", hp=20, position=coords(0, 0))
-        e = enemy_factory(name="Goblin", hp=10, position=coords(1, 0))
-        
-        # Give Fighter a weapon so resolution_attack can pull statistics
-        p.sheet_data = {
-            "stats": {"strength": 16, "dexterity": 12},
-            "equipment": [
-                {
-                    "name": "Longsword",
-                    "type": "Weapon",
-                    "data": {
-                        "type": "Melee Weapon",
-                        "damage": {"damage_dice": "1d8"}
+        p = player_factory(
+            name="Fighter",
+            hp=20,
+            position=coords(0, 0),
+            sheet_data={
+                "stats": {"strength": 16, "dexterity": 12},
+                "equipment": [
+                    {
+                        "name": "Longsword",
+                        "type": "Weapon",
+                        "data": {
+                            "type": "Melee Weapon",
+                            "damage": {"damage_dice": "1d8"}
+                        }
                     }
-                }
-            ]
-        }
-        
+                ]
+            }
+        )
+        e = enemy_factory(name="Goblin", hp=10, position=coords(1, 0))
         gs = game_state_factory(phase="combat", players=[p], enemies=[e])
         tool = AttackTool()
 
@@ -47,10 +48,13 @@ class TestAgentTools:
     @pytest.mark.asyncio
     async def test_check_tool_execution(self, game_state_factory, player_factory, coords, mock_db):
         """CheckTool executes a real ability check using the character's database statistics."""
-        p = player_factory(name="Fighter", position=coords(0, 0))
-        p.sheet_data = {
-            "stats": {"strength": 16, "dexterity": 10}
-        }
+        p = player_factory(
+            name="Fighter",
+            position=coords(0, 0),
+            sheet_data={
+                "stats": {"strength": 16, "dexterity": 10}
+            }
+        )
         gs = game_state_factory(players=[p])
         tool = CheckTool()
 
