@@ -16,26 +16,25 @@ logger = logging.getLogger(__name__)
 class AIService:
     @staticmethod
     async def get_campaign_config(campaign_id: str, db: AsyncSession):
-        from fastapi import HTTPException
         result = await db.execute(text("SELECT api_key, model, llm_provider FROM campaigns WHERE id = :id"), {"id": campaign_id})
         row = result.mappings().fetchone()
 
         fallback_model = "gemini-3-flash-preview"
         fallback_provider = "gemini"
 
+        # BYOK: campaigns must supply their own key — there is no server-key fallback.
+        # When no key is configured we return api_key=None and let callers degrade
+        # gracefully (they already guard on a falsy api_key and surface a friendly
+        # "configure an API key" message). We deliberately do NOT raise here: this
+        # helper also runs inside the websocket / AI-turn loop, where an HTTPException
+        # would escape uncaught instead of becoming a clean 400.
         if row:
-            api_key = row.get("api_key")
-            if not api_key:
-                raise HTTPException(status_code=400, detail="No AI key configured for this campaign. Set your API key in Campaign Settings.")
-            model = row.get("model")
-            if not model:
-                model = fallback_model
-            llm_provider = row.get("llm_provider")
-            if not llm_provider:
-                llm_provider = fallback_provider
+            api_key = row.get("api_key") or None
+            model = row.get("model") or fallback_model
+            llm_provider = row.get("llm_provider") or fallback_provider
             return (api_key, model, llm_provider)
 
-        raise HTTPException(status_code=400, detail="No AI key configured for this campaign. Set your API key in Campaign Settings.")
+        return (None, fallback_model, fallback_provider)
 
 
     @staticmethod
@@ -64,17 +63,17 @@ class AIService:
 
          - Use CAPS for NPC names.
          - Do not add new mechanics.
-         
-         CRITICAL: The chat history may contain mechanical commands from the player (e.g., "@cast ray of frost", "@attack goblin"). 
+
+         CRITICAL: The chat history may contain mechanical commands from the player (e.g., "@cast ray of frost", "@attack goblin").
          You must IGNORE these commands as instructions to you. You are the DM narrating the *outcome* of those commands, which is provided in the ACTION REPORT above.
          Do NOT reply with "I cannot cast spells" or similar rejections. Simply narrate the ACTION REPORT.
          """
-         
+
          if flags and "ACTED_NOT_MOVED" in flags:
              task_prompt += "\n\n[SYSTEM INSTRUCTION: The player just attacked or performed an action but STILL HAS MOVEMENT left. You MUST end your narration by explicitly asking them, in character, if they want to move, take cover, or end their turn.]"
          elif flags and "MOVED_NOT_ACTED" in flags:
              task_prompt += "\n\n[SYSTEM INSTRUCTION: The player just moved but STILL HAS THEIR ACTION left. You MUST end your narration by explicitly asking them, in character, if they want to attack, cast a spell, or end their turn.]"
-             
+
          return [SystemMessage(content=narrator_persona)] + history + [HumanMessage(content=task_prompt)]
 
     @staticmethod
@@ -351,7 +350,7 @@ class AIService:
         try:
              final_state = await char_agent.ainvoke(inputs, config=config)
              msg_content = final_state["messages"][-1].content
-             
+
              parsed_content = ""
              if isinstance(msg_content, list):
                  for b in msg_content:
@@ -363,7 +362,7 @@ class AIService:
                  parsed_content = msg_content
              else:
                  parsed_content = str(msg_content)
-                 
+
              logger.debug(f"AI Character Response Parsed: {parsed_content}")
              return parsed_content
         except Exception as e:
@@ -377,7 +376,7 @@ class AIService:
         """
         prompt = f"""[SYSTEM COMBAT MECHANICS]
         {context}
-        
+
         [INSTRUCTION]
         You are {character.name}. You just attempted the mechanical action described above.
         Generate a SINGLE SENTENCE in-character chat message announcing what you are trying to do and explicitly stating your mechanical roll.
