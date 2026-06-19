@@ -49,6 +49,7 @@ async def init_db_async():
                 await conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS total_input_tokens INTEGER DEFAULT 0"))
                 await conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS total_output_tokens INTEGER DEFAULT 0"))
                 await conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS query_count INTEGER DEFAULT 0"))
+                await conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS llm_provider VARCHAR DEFAULT 'gemini'"))
             except SQLAlchemyError as e:
                 logger.warning(f"Migration Warning (campaign stats columns): {e}")
 

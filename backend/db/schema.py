@@ -47,6 +47,7 @@ campaigns = Table(
     Column("api_key", String, nullable=True),
     Column("api_key_verified", Boolean, server_default="0"),
     Column("model", String, nullable=True),
+    Column("llm_provider", String, server_default="gemini"),
     Column("system_prompt", Text, nullable=True),
     Column("total_input_tokens", Integer, server_default="0"),
     Column("total_output_tokens", Integer, server_default="0"),
