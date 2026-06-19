@@ -5,11 +5,11 @@ $REGION = "us-central1"
 $SERVICE_NAME = "roundtable-backend"
 
 # 1. Build Container
-echo "Building Container..."
+Write-Host "Building Container..."
 gcloud builds submit --tag gcr.io/$PROJECT_ID/$SERVICE_NAME "$PSScriptRoot"
 
 # 2. Deploy with CORS & Cloud SQL
-echo "Deploying to Cloud Run with CORS and Cloud SQL..."
+Write-Host "Deploying to Cloud Run with CORS and Cloud SQL..."
 
 # Load .env variables
 $envFile = "$PSScriptRoot\.env"
@@ -21,7 +21,7 @@ if (Test-Path $envFile) {
             [Environment]::SetEnvironmentVariable($name, $value, "Process")
         }
     }
-    echo "Loaded environment variables from .env"
+    Write-Host "Loaded environment variables from .env"
 }
 
 # Construct ALLOWED_ORIGINS (Firebase domains + Localhost)
@@ -98,10 +98,10 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-echo "----------------------------------------------------------------"
-echo "Deployment Complete!"
-echo "1. Database: Connected to Cloud SQL ($DB_INSTANCE)"
-echo "2. CORS: Allowed origins set to $ALLOWED_ORIGINS"
-echo "3. API URL: Check the output above for the Service URL."
-echo "   If the URL changed, update frontend/.env.production"
-echo "----------------------------------------------------------------"
+Write-Host "----------------------------------------------------------------"
+Write-Host "Deployment Complete!"
+Write-Host "1. Database: Connected to Cloud SQL ($DB_INSTANCE)"
+Write-Host "2. CORS: Allowed origins set to $ALLOWED_ORIGINS"
+Write-Host "3. API URL: Check the output above for the Service URL."
+Write-Host "   If the URL changed, update frontend/.env.production"
+Write-Host "----------------------------------------------------------------"

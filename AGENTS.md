@@ -119,7 +119,6 @@ Dependencies are declared in `frontend/package.json`.
 │   ├── dev-stop.sh          # Stop services
 │   ├── dev-status.sh        # Show running services
 │   └── dev-logs.sh          # Tail interleaved or per-service logs
-├── tests/                   # Root-level Python verification scripts (not pytest)
 ├── docker-compose.yml       # Postgres + backend + frontend
 ├── firebase.json            # Firebase hosting + emulator config
 ├── deploy_cloud.ps1         # Production deploy orchestrator
@@ -263,14 +262,14 @@ npm run frontend               # Run frontend dev server
 
 - There are no frontend tests in the repository yet. CI runs TypeScript type checking, ESLint, and a production build.
 
-### Root Verification Scripts
+### Backend Verification Scripts
 
-- `tests/verify_attack_npc.py`
-- `tests/verify_db_schema.py`
-- `tests/verify_npc_persistence.py`
-- `tests/verify_persistence_all.py`
+- `backend/scripts/verification/verify_attack_npc.py`
+- `backend/scripts/verification/verify_db_schema.py`
+- `backend/scripts/verification/verify_npc_persistence.py`
+- `backend/scripts/verification/verify_persistence_all.py`
 
-These are standalone diagnostic scripts, not part of the pytest suite.
+These are standalone diagnostic scripts located inside the backend scripts directory, not part of the pytest suite.
 
 ## 8. Security Considerations
 
