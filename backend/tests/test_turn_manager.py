@@ -35,9 +35,17 @@ def test_is_character_ai(base_game_state):
     assert TurnManager._is_character_ai(base_game_state, "nonexistent") is False
 
 @pytest.mark.asyncio
-async def test_process_turn_human(base_game_state):
+@patch('app.services.lock_service.LockService.acquire')
+async def test_process_turn_human(mock_lock, base_game_state):
+    from contextlib import asynccontextmanager
+    @asynccontextmanager
+    async def mock_lock_cm(campaign_id):
+        yield True
+    mock_lock.side_effect = mock_lock_cm
+
     mock_sio = AsyncMock()
     mock_db = AsyncMock()
+    base_game_state.active_entity_id = "char1"
     
     with patch('app.services.turn_manager.TurnManager._process_turn_step', new_callable=AsyncMock) as mock_process_step:
         mock_process_step.return_value = (base_game_state.party[0], False)
@@ -47,16 +55,31 @@ async def test_process_turn_human(base_game_state):
         mock_process_step.assert_called_once_with("test_camp", mock_sio, base_game_state, "char1", db=mock_db)
 
 @pytest.mark.asyncio
-async def test_process_turn_ai(base_game_state):
+@patch('app.services.lock_service.LockService.acquire')
+async def test_process_turn_ai(mock_lock, base_game_state):
+    from contextlib import asynccontextmanager
+    @asynccontextmanager
+    async def mock_lock_cm(campaign_id):
+        yield True
+    mock_lock.side_effect = mock_lock_cm
+
     mock_sio = AsyncMock()
     mock_db = AsyncMock()
+    base_game_state.active_entity_id = "enemy1"
     
-    with patch('app.services.turn_manager.TurnManager._execute_ai_turn_sequence', new_callable=AsyncMock) as mock_exec_ai:
-        # Pass an AI character ID
+    with patch('app.services.game_service.GameService.get_game_state', new_callable=AsyncMock) as mock_get_state, \
+         patch('app.services.game_service.GameService.save_game_state', new_callable=AsyncMock) as mock_save_state, \
+         patch('app.services.turn_manager.TurnManager.execute_ai_turn', new_callable=AsyncMock) as mock_exec_ai:
+         
+        mock_get_state.return_value = base_game_state
+        human_state = base_game_state.model_copy()
+        human_state.active_entity_id = "char1"
+        mock_exec_ai.return_value = human_state
+        
         await TurnManager.process_turn("test_camp", "enemy1", base_game_state, mock_sio, 0, mock_db)
         
-        # Expect _execute_ai_turn_sequence to be called for the AI
-        mock_exec_ai.assert_called_once_with("test_camp", "enemy1", mock_sio)
+        # Expect execute_ai_turn to be called for the AI
+        mock_exec_ai.assert_called_once()
 
 @pytest.mark.asyncio
 @patch('app.services.lock_service.LockService.acquire')

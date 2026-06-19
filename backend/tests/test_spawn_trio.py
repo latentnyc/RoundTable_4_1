@@ -11,6 +11,8 @@ from db.session import engine, AsyncSessionLocal
 from sqlalchemy import text
 from db.schema import metadata
 
+pytestmark = pytest.mark.integration
+
 async def override_verify_token():
     return {"uid": "test_user_uuid", "email": "test@test.com", "role": "player"}
 
