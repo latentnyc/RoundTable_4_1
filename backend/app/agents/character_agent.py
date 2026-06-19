@@ -5,11 +5,11 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
 
-from app.agents.models import AgentState, should_continue
+from app.agents.models import AgentState, should_continue, get_llm_instance
 
 logger = logging.getLogger(__name__)
 
-def get_character_graph(api_key: str, model_name: str, character_details: dict, campaign_id: str = None, db=None):
+def get_character_graph(api_key: str, model_name: str, character_details: dict, campaign_id: str = None, db=None, llm_provider: str = "gemini"):
     """
     Creates a LangGraph agent for a specific NPC/Character.
     character_details should include:
@@ -21,19 +21,19 @@ def get_character_graph(api_key: str, model_name: str, character_details: dict, 
     - context (optional campaign context)
     """
     try:
-        from langchain_google_genai import ChatGoogleGenerativeAI
         from app.ai_tools import create_interact_tool
 
         final_api_key = api_key
         if not final_api_key:
             return None
 
-        llm = ChatGoogleGenerativeAI(
-            model=model_name,
-            temperature=0.8, # Slightly higher for creativity
-            google_api_key=final_api_key,
-            thinking_level="low" # Keep character chat snappy
+        llm = get_llm_instance(
+            api_key=final_api_key,
+            model_name=model_name,
+            llm_provider=llm_provider,
+            temperature=0.8
         )
+
         char_tools = []
         if campaign_id and character_details.get('name'):
              char_tools.append(create_interact_tool(campaign_id, character_details['name'], db=db))

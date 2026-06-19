@@ -17,21 +17,26 @@ class AIService:
     @staticmethod
     async def get_campaign_config(campaign_id: str, db: AsyncSession):
         from fastapi import HTTPException
-        result = await db.execute(text("SELECT api_key, model FROM campaigns WHERE id = :id"), {"id": campaign_id})
+        result = await db.execute(text("SELECT api_key, model, llm_provider FROM campaigns WHERE id = :id"), {"id": campaign_id})
         row = result.mappings().fetchone()
 
         fallback_model = "gemini-3-flash-preview"
+        fallback_provider = "gemini"
 
         if row:
             api_key = row.get("api_key")
             if not api_key:
-                raise HTTPException(status_code=400, detail="No AI key configured for this campaign. Set your Gemini API key in Campaign Settings.")
+                raise HTTPException(status_code=400, detail="No AI key configured for this campaign. Set your API key in Campaign Settings.")
             model = row.get("model")
             if not model:
                 model = fallback_model
-            return (api_key, model)
+            llm_provider = row.get("llm_provider")
+            if not llm_provider:
+                llm_provider = fallback_provider
+            return (api_key, model, llm_provider)
 
-        raise HTTPException(status_code=400, detail="No AI key configured for this campaign. Set your Gemini API key in Campaign Settings.")
+        raise HTTPException(status_code=400, detail="No AI key configured for this campaign. Set your API key in Campaign Settings.")
+
 
     @staticmethod
     def _build_combat_narration_prompt(context: str, history: list, flags: list = None) -> list:
@@ -135,7 +140,7 @@ class AIService:
         logger = logging.getLogger(__name__)
         logger.debug(f"DEBUG: generate_dm_narration called with mode={mode}")
 
-        api_key, model = await AIService.get_campaign_config(campaign_id, db)
+        api_key, model, llm_provider = await AIService.get_campaign_config(campaign_id, db)
         if not api_key:
             logger.debug("DEBUG: No API Key found.")
             return None
@@ -165,11 +170,12 @@ class AIService:
              "campaign_id": campaign_id,
              "sender_name": sender_name,
              "api_key": api_key,
-             "mode": mode
+             "mode": mode,
+             "llm_provider": llm_provider
         }
 
         # Model overrides for narration? (Optional, stick to campaign config for now)
-        dm_graph, _ = get_dm_graph(api_key=api_key, model_name=model or 'gemini-3-flash-preview')
+        dm_graph, _ = get_dm_graph(api_key=api_key, model_name=model or 'gemini-3-flash-preview', llm_provider=llm_provider)
         if not dm_graph:
             logger.debug("DEBUG: Failed to get dm_graph.")
             return None
@@ -238,7 +244,7 @@ class AIService:
         """
         Generates a DM response for a chat message, handling memory and summarization.
         """
-        api_key, model = await AIService.get_campaign_config(campaign_id, db)
+        api_key, model, llm_provider = await AIService.get_campaign_config(campaign_id, db)
         if not api_key:
             return "The Campaign GM needs to configure an API Key in Campaign Settings per the AI to function."
 
@@ -255,7 +261,7 @@ class AIService:
             if memory_text:
                     summarization_context = [SystemMessage(content=f"PREVIOUS SUMMARY: {memory_text}")] + to_summarize
 
-            new_summary = await summarize_messages(summarization_context, api_key=api_key)
+            new_summary = await summarize_messages(summarization_context, api_key=api_key, llm_provider=llm_provider, model_name=model)
 
             if new_summary:
                 await AIService.save_memory(campaign_id, new_summary, db)
@@ -275,11 +281,12 @@ class AIService:
             "campaign_id": campaign_id,
             "sender_name": sender_name,
             "api_key": api_key,
-            "model_name": model or 'gemini-3-flash-preview'
+            "model_name": model or 'gemini-3-flash-preview',
+            "llm_provider": llm_provider
         }
 
         # Get DM Graph
-        dm_graph, error_msg = get_dm_graph(api_key=api_key, model_name=model or 'gemini-3-flash-preview')
+        dm_graph, error_msg = get_dm_graph(api_key=api_key, model_name=model or 'gemini-3-flash-preview', llm_provider=llm_provider)
         if not dm_graph:
                 return f"DM Agent is offline (Initialization Failed: {error_msg})."
 
@@ -303,7 +310,7 @@ class AIService:
         """
         Generates a response from a specific character.
         """
-        api_key, model = await AIService.get_campaign_config(campaign_id, db)
+        api_key, model, llm_provider = await AIService.get_campaign_config(campaign_id, db)
         if not api_key:
             return None
 
@@ -323,7 +330,8 @@ class AIService:
             api_key=api_key,
             model_name=model or 'gemini-3-flash-preview',
             character_details=char_details,
-            campaign_id=campaign_id
+            campaign_id=campaign_id,
+            llm_provider=llm_provider
         )
 
         if not char_agent:
@@ -385,7 +393,7 @@ class AIService:
         from google import genai
         from google.genai import types
 
-        api_key, _ = await AIService.get_campaign_config(campaign_id, db)
+        api_key, _, _ = await AIService.get_campaign_config(campaign_id, db)
         if not api_key:
             return None
 

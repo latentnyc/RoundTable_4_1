@@ -100,6 +100,7 @@ export interface Campaign {
     api_key_verified?: boolean;
     api_key_configured?: boolean;
     model?: string;
+    llm_provider?: string;
     system_prompt?: string;
     user_status?: string; // 'active', 'interested', 'banned', or undefined
     user_role?: string; // 'gm', 'player'
@@ -152,8 +153,8 @@ export const campaignApi = {
         const response = await api.put(`/campaigns/${id}/settings`, settings); // Using PUT for settings
         return response.data;
     },
-    testKey: async (apiKey: string): Promise<{ models: string[] }> => {
-        const response = await api.post(`/campaigns/test_key`, { api_key: apiKey, provider: "Gemini" });
+    testKey: async (apiKey: string, provider: string = "Gemini"): Promise<{ models: string[] }> => {
+        const response = await api.post(`/campaigns/test_key`, { api_key: apiKey, provider });
         return response.data;
     },
     delete: async (id: string): Promise<void> => {

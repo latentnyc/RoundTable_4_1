@@ -327,3 +327,15 @@ class OpenRouterProvider(OpenAIProvider):
         except Exception as e:
             logger.warning(f"OpenRouter embeddings failed: {e}. Falling back to zero-vector.")
             return [0.0] * 1536
+
+def get_llm_provider_instance(api_key: str, llm_provider: str) -> LLMProvider:
+    provider = (llm_provider or "gemini").lower()
+    if provider == "gemini":
+        return GeminiProvider(api_key=api_key)
+    elif provider == "openai":
+        return OpenAIProvider(api_key=api_key)
+    elif provider == "openrouter":
+        return OpenRouterProvider(api_key=api_key)
+    else:
+        raise ValueError(f"Unknown LLM provider: {llm_provider}")
+

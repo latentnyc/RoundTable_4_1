@@ -11,9 +11,9 @@ interface CampaignSettingsProps {
 export default function CampaignSettings({ campaignId, isOpen, onClose }: CampaignSettingsProps) {
     const [apiKey, setApiKey] = useState("");
     const [model, setModel] = useState("");
+    const [provider, setProvider] = useState("gemini");
     const [isTestSuccess, setIsTestSuccess] = useState(false);
 
-    // Fetch current settings on open
     // Fetch current settings on open
     useEffect(() => {
         const fetchSettings = async () => {
@@ -23,6 +23,7 @@ export default function CampaignSettings({ campaignId, isOpen, onClose }: Campai
                 // Only overwrite if not already set (or always overwrite on open? Let's overwrite)
                 if (campaign.api_key) setApiKey(campaign.api_key);
                 if (campaign.model) setModel(campaign.model);
+                if (campaign.llm_provider) setProvider(campaign.llm_provider);
             } catch (e) { console.error(e); }
         };
         fetchSettings();
@@ -40,13 +41,14 @@ export default function CampaignSettings({ campaignId, isOpen, onClose }: Campai
         setStatusMessage(null);
 
         try {
-            // 1. Update Settings with new Key
+            // 1. Update Settings with new Key and provider
             await campaignApi.updateSettings(campaignId, {
-                api_key: apiKey
+                api_key: apiKey,
+                llm_provider: provider
             });
 
             // 2. Test Key & Get Models
-            const response = await campaignApi.testKey(apiKey);
+            const response = await campaignApi.testKey(apiKey, provider);
             setAvailableModels(response.models);
 
             setIsTestSuccess(true);
@@ -69,7 +71,7 @@ export default function CampaignSettings({ campaignId, isOpen, onClose }: Campai
 
     const handleSaveModel = async () => {
         try {
-            await campaignApi.updateSettings(campaignId, { model });
+            await campaignApi.updateSettings(campaignId, { model, llm_provider: provider });
             setStatusMessage("Model Settings Saved!");
             setTimeout(onClose, 1000);
         } catch {
@@ -100,7 +102,26 @@ export default function CampaignSettings({ campaignId, isOpen, onClose }: Campai
 
                     <div className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-neutral-400 mb-1">OpenAI API Key</label>
+                            <label className="block text-sm font-medium text-neutral-400 mb-1">AI Provider</label>
+                            <select
+                                value={provider}
+                                onChange={(e) => {
+                                    setProvider(e.target.value);
+                                    setIsTestSuccess(false);
+                                    setAvailableModels([]);
+                                }}
+                                className="w-full bg-black border border-white/10 rounded-xl px-4 py-2.5 focus:outline-none focus:border-purple-500 text-white"
+                            >
+                                <option value="gemini">Gemini (Google)</option>
+                                <option value="openai">OpenAI</option>
+                                <option value="openrouter">OpenRouter</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-neutral-400 mb-1">
+                                {provider === "gemini" ? "Gemini API Key" : provider === "openai" ? "OpenAI API Key" : "OpenRouter API Key"}
+                            </label>
                             <div className="flex gap-2">
                                 <div className="relative flex-1">
                                     <Key className="absolute left-3 top-3 w-4 h-4 text-neutral-500" />
@@ -108,7 +129,13 @@ export default function CampaignSettings({ campaignId, isOpen, onClose }: Campai
                                         type="password"
                                         value={apiKey}
                                         onChange={(e) => setApiKey(e.target.value)}
-                                        placeholder="sk-... (Leave blank to use System Key)"
+                                        placeholder={
+                                            provider === "gemini" 
+                                                ? "AIzaSy... (Leave blank to use System Key)" 
+                                                : provider === "openai" 
+                                                    ? "sk-... (Leave blank to use System Key)" 
+                                                    : "sk-or-... (Leave blank to use System Key)"
+                                        }
                                         className="w-full bg-black border border-white/10 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:border-purple-500 transition-colors placeholder-neutral-700"
                                     />
                                 </div>

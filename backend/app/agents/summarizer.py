@@ -1,12 +1,12 @@
 import os
 import logging
 from typing import List
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
+from app.agents.models import get_llm_instance
 
 logger = logging.getLogger(__name__)
 
-async def summarize_messages(messages: List[BaseMessage], api_key: str = None) -> str | None:
+async def summarize_messages(messages: List[BaseMessage], api_key: str = None, llm_provider: str = "gemini", model_name: str = "gemini-3-flash-preview") -> str | None:
     """
     Summarizes a list of messages into a concise paragraph using a cheap model.
     """
@@ -15,12 +15,13 @@ async def summarize_messages(messages: List[BaseMessage], api_key: str = None) -
         if not final_api_key:
             return None
 
-        # Use Flash for speed/cost
-        llm = ChatGoogleGenerativeAI(
-            model="gemini-3-flash-preview",
-            temperature=0.3, # Low temp for factual summary
-            google_api_key=final_api_key
+        llm = get_llm_instance(
+            api_key=final_api_key,
+            model_name=model_name,
+            llm_provider=llm_provider,
+            temperature=0.3
         )
+
 
         # Convert messages to string
         transcript = ""

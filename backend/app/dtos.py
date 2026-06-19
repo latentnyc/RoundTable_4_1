@@ -69,6 +69,7 @@ class CampaignCreateRequest(BaseModel):
     gm_id: str
     api_key: str | None = None
     model: str | None = None
+    llm_provider: str | None = "gemini"
     system_prompt: str | None = None
     template_id: str | None = None
 
@@ -88,6 +89,7 @@ class CampaignResponse(BaseModel):
     template_id: str | None = None
     api_key_verified: bool = False
     api_key_configured: bool = False
+    llm_provider: Optional[str] = "gemini"
 
 class CampaignDetailsResponse(CampaignResponse):
     api_key: Optional[str] = None
@@ -123,6 +125,7 @@ class UpdateCampaignRequest(BaseModel):
     api_key: Optional[str] = None
     api_key_verified: Optional[bool] = None
     model: Optional[str] = None
+    llm_provider: Optional[str] = None
     system_prompt: Optional[str] = None
 
 class ImageGenerationRequest(BaseModel):
