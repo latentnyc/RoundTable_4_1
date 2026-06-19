@@ -30,3 +30,9 @@ list_models.py
 # Dev scripts runtime files
 scripts/.dev-logs/
 scripts/.dev-pids
+
+# Local editor / MCP server configs (machine-specific)
+.mcp.json
+.cursor/
+.codex/
+.vscode/mcp.json
