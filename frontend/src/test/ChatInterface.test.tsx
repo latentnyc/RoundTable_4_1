@@ -23,7 +23,8 @@ vi.mock('../store/authStore', () => ({
       profile: { id: 'player-1', username: 'Gimli' },
       user: { uid: 'user-123' },
     }
-    return selector(state)
+    // Component calls useAuthStore() without a selector; support both styles.
+    return selector ? selector(state) : state
   }),
 }))
 
@@ -70,7 +71,7 @@ describe('ChatInterface', () => {
     render(<ChatInterface campaignId="campaign-abc" />)
 
     const input = screen.getByPlaceholderText(/What do you do\?/i) as HTMLInputElement
-    const sendButton = screen.getByRole('button')
+    const sendButton = screen.getByRole('button', { name: /send message/i })
 
     // Simulate typing
     fireEvent.change(input, { target: { value: 'Hello DM!' } })
