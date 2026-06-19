@@ -14,12 +14,7 @@ load_dotenv()
 async def test_llm_structure():
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        print("No GEMINI_API_KEY found in env.")
-        # Try to read from a file or hardcode for test if needed, but improved env loading is better
-        # For this environment, I'll rely on the existing .env or user provided key if I can find one.
-        # But I can't ask user for key here.
-        # I'll check if the app has a way to get it.
-        pass
+        pytest.skip("No GEMINI_API_KEY found in env.")
 
     print(f"Using API Key: {api_key[:5]}..." if api_key else "No API Key")
 

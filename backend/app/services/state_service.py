@@ -2,7 +2,7 @@ import json
 import logging
 from uuid import uuid4
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, insert, desc, bindparam
+from sqlalchemy import select, update, insert, delete, desc, bindparam
 from db.schema import game_states, characters, monsters, npcs
 from app.models import GameState, Player, Enemy, NPC, Vessel
 
@@ -14,6 +14,10 @@ class StateService:
     Extracted from GameService to adhere to the Single Responsibility Principle.
     """
     _last_broadcasted_state = {}
+
+    @classmethod
+    def clear_campaign_state(cls, campaign_id: str):
+        cls._last_broadcasted_state.pop(campaign_id, None)
 
     @staticmethod
     async def emit_state_update(campaign_id: str, game_state: 'GameState', sio):
@@ -84,6 +88,22 @@ class StateService:
             updated_at=datetime.now(timezone.utc)
         )
         await db.execute(stmt)
+
+        # 3. Prune old game states: keep only the 10 most recent states for this campaign
+        select_stmt = (
+            select(game_states.c.id)
+            .where(game_states.c.campaign_id == campaign_id)
+            .order_by(desc(game_states.c.updated_at), desc(game_states.c.id))
+        )
+        select_result = await db.execute(select_stmt)
+        all_ids = [r[0] for r in select_result.fetchall()]
+        if len(all_ids) > 10:
+            ids_to_delete = all_ids[10:]
+            delete_stmt = (
+                delete(game_states)
+                .where(game_states.c.id.in_(ids_to_delete))
+            )
+            await db.execute(delete_stmt)
 
     @staticmethod
     async def _hydrate_party(party_ids: list, db: AsyncSession) -> list['Player']:

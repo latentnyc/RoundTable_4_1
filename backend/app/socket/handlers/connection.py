@@ -45,7 +45,7 @@ async def handle_disconnect(sid, connected_users):
             remaining = [u for u in connected_users.values() if u.get('campaign_id') == campaign_id]
             if not remaining:
                 from app.services.state_service import StateService
-                StateService._last_broadcasted_state.pop(campaign_id, None)
+                StateService.clear_campaign_state(campaign_id)
                 logger.info(f"Cleared cached state for campaign {campaign_id} (last client disconnected)")
 
 @socket_event_handler

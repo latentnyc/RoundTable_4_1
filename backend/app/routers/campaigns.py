@@ -36,8 +36,6 @@ async def test_api_key(
 
     try:
         api_key_to_use = req.api_key
-        if not api_key_to_use:
-             api_key_to_use = os.getenv("GEMINI_API_KEY")
 
         models = SystemService.validate_api_key(api_key_to_use, req.provider)
         return ModelListResponse(models=models)
@@ -79,7 +77,7 @@ async def list_campaigns(
         query = select(
             campaigns.c.id, campaigns.c.name, campaigns.c.gm_id,
             campaigns.c.status, campaigns.c.created_at,
-            campaigns.c.api_key_verified, campaigns.c.api_key
+            campaigns.c.api_key_verified, campaigns.c.api_key, campaigns.c.llm_provider
         ).order_by(desc(campaigns.c.created_at))
 
         result = await db.execute(query)
@@ -92,7 +90,8 @@ async def list_campaigns(
                 status=row.status,
                 created_at=row.created_at,
                 api_key_verified=row.api_key_verified,
-                api_key_configured=bool(row.api_key or os.getenv("GEMINI_API_KEY"))
+                api_key_configured=bool(row.api_key),
+                llm_provider=row.llm_provider
             )
             for row in rows
         ]
@@ -114,8 +113,6 @@ async def create_campaign(
 
     # Resolve API Key
     api_key_to_use = req.api_key
-    if not api_key_to_use:
-        api_key_to_use = os.getenv("GEMINI_API_KEY")
 
     # Verify API Key if provided
     is_verified = False
@@ -147,6 +144,7 @@ async def create_campaign(
             api_key=api_key_to_use,
             api_key_verified=is_verified,
             model=model_to_use,
+            llm_provider=req.llm_provider or "gemini",
             system_prompt=req.system_prompt,
             template_id=req.template_id
         )
@@ -307,7 +305,8 @@ async def create_campaign(
         created_at="Just now",
         api_key_verified=is_verified,
         api_key_configured=bool(req.api_key),
-        template_id=req.template_id
+        template_id=req.template_id,
+        llm_provider=req.llm_provider or "gemini"
     )
 
 @router.patch("/{campaign_id}", response_model=CampaignDetailsResponse)
@@ -341,6 +340,8 @@ async def update_campaign(
 
     if req.model:
         values["model"] = req.model
+    if req.llm_provider:
+        values["llm_provider"] = req.llm_provider
     if req.system_prompt:
         values["system_prompt"] = req.system_prompt
 
@@ -368,9 +369,10 @@ async def update_campaign(
         created_at=row.created_at,
         api_key=None, # NEVER expose to frontend
         api_key_verified=row.api_key_verified,
-        api_key_configured=bool(row.api_key or os.getenv("GEMINI_API_KEY")),
+        api_key_configured=bool(row.api_key),
         model=row.model,
-        system_prompt=row.system_prompt
+        system_prompt=row.system_prompt,
+        llm_provider=row.llm_provider
     )
 
 @router.put("/{campaign_id}/settings")
@@ -392,12 +394,15 @@ async def update_campaign_settings(
 
     api_key = settings.get("api_key")
     model = settings.get("model")
+    llm_provider = settings.get("llm_provider") or settings.get("provider")
 
     values = {}
     if api_key is not None:
         values["api_key"] = api_key
     if model is not None:
         values["model"] = model
+    if llm_provider is not None:
+        values["llm_provider"] = llm_provider
 
     if not values:
         return {"status": "no changes"}
@@ -451,14 +456,15 @@ async def get_campaign(
         created_at=row.created_at,
         api_key=None, # NEVER expose to frontend
         api_key_verified=row.api_key_verified,
-        api_key_configured=bool(row.api_key or os.getenv("GEMINI_API_KEY")),
+        api_key_configured=bool(row.api_key),
         model=row.model,
         system_prompt=row.system_prompt,
         user_status=user_status,
         user_role=user_role,
         total_input_tokens=row.total_input_tokens or 0,
         total_output_tokens=row.total_output_tokens or 0,
-        query_count=row.query_count or 0
+        query_count=row.query_count or 0,
+        llm_provider=row.llm_provider
     )
 
 @router.post("/{campaign_id}/join")

@@ -64,22 +64,26 @@ export default function GameInterface({ campaignId, campaignName, isAdmin, onBac
             {showCharacterSheet && (
                 <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur flex items-center justify-center p-0 lg:p-10 pointer-events-auto">
                     <div className="w-full h-full max-w-7xl bg-neutral-950 lg:rounded-2xl shadow-2xl overflow-hidden border border-neutral-800 flex flex-col animate-in slide-in-from-bottom-4 zoom-in-95">
-                        <CreateCharacterPage
-                            onClose={() => setShowCharacterSheet(false)}
-                            embedded={true}
-                            forceEditMode={true}
-                        />
+                        <ErrorBoundary label="Character Sheet">
+                            <CreateCharacterPage
+                                onClose={() => setShowCharacterSheet(false)}
+                                embedded={true}
+                                forceEditMode={true}
+                            />
+                        </ErrorBoundary>
                     </div>
                 </div>
             )}
 
             {/* Loot Modal */}
             {activeVessel && (
-                <LootModal
-                    vessel={activeVessel}
-                    campaignId={campaignId}
-                    onClose={() => setActiveVessel(null)}
-                />
+                <ErrorBoundary label="Loot Modal">
+                    <LootModal
+                        vessel={activeVessel}
+                        campaignId={campaignId}
+                        onClose={() => setActiveVessel(null)}
+                    />
+                </ErrorBoundary>
             )}
 
 
@@ -139,7 +143,9 @@ export default function GameInterface({ campaignId, campaignName, isAdmin, onBac
                     </div>
 
                     <div className={`${activeTab === 'debug' ? 'block' : 'hidden'} lg:hidden h-full`}>
-                        <DebugPanel campaignId={campaignId} />
+                        <ErrorBoundary label="Debug Panel">
+                            <DebugPanel campaignId={campaignId} />
+                        </ErrorBoundary>
                     </div>
                 </div>
             </div>
@@ -183,7 +189,9 @@ export default function GameInterface({ campaignId, campaignName, isAdmin, onBac
                     </ErrorBoundary>
                 </div>
                 <div className="shrink-0">
-                    <AIStatsPanel />
+                    <ErrorBoundary label="AI Stats Panel">
+                        <AIStatsPanel />
+                    </ErrorBoundary>
                 </div>
             </div>
         </div>

@@ -4,12 +4,107 @@ import { cn } from '@/lib/utils';
 import { useSocketContext } from '@/lib/SocketProvider';
 
 interface FullCharacterSheetProps {
-    character: Character;
+    character?: Character;
+    isLoading?: boolean;
     onClose?: () => void;
 }
 
-export default function FullCharacterSheet({ character, onClose }: FullCharacterSheetProps) {
+export default function FullCharacterSheet({ character, isLoading = false, onClose }: FullCharacterSheetProps) {
     const { socket } = useSocketContext();
+
+    if (isLoading || !character) {
+        return (
+            <div className="w-full h-full bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden flex flex-col relative shadow-2xl animate-pulse">
+                {/* Close Button */}
+                {onClose && (
+                    <button
+                        onClick={onClose}
+                        className="absolute top-4 right-4 p-2 bg-neutral-950/50 rounded-full text-neutral-600 z-10 cursor-not-allowed"
+                        disabled
+                    >
+                        <X className="w-5 h-5" />
+                    </button>
+                )}
+
+                {/* Header Banner */}
+                <div className="h-48 bg-gradient-to-r from-neutral-950 via-neutral-900 to-neutral-950 relative flex-shrink-0 border-b border-neutral-800/50">
+                    <div className="absolute -bottom-12 left-8 flex items-end gap-6">
+                        <div className="w-32 h-32 rounded-full bg-neutral-900 border-4 border-neutral-800 flex items-center justify-center shadow-xl overflow-hidden">
+                            <div className="w-full h-full bg-neutral-800 flex items-center justify-center" />
+                        </div>
+                        <div className="mb-4 space-y-2">
+                            <div className="h-8 w-48 bg-neutral-800 rounded" />
+                            <div className="h-4 w-32 bg-neutral-800 rounded" />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Content Area */}
+                <div className="flex-1 overflow-y-auto p-6 pt-16 grid grid-cols-1 lg:grid-cols-12 gap-6 custom-scrollbar">
+                    {/* Left Column: Stats & Vitals (3 cols) */}
+                    <div className="lg:col-span-3 space-y-6">
+                        {/* Vitals */}
+                        <div className="bg-neutral-950/50 p-4 rounded-xl border border-neutral-800 space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="bg-neutral-900 h-12 rounded border border-neutral-800" />
+                                <div className="bg-neutral-900 h-12 rounded border border-neutral-800" />
+                            </div>
+                            <div className="bg-neutral-900 h-12 rounded border border-neutral-800" />
+                            <div className="h-4 w-20 bg-neutral-800 rounded mx-auto" />
+                        </div>
+
+                        {/* Ability Scores */}
+                        <div className="bg-neutral-950/50 p-4 rounded-xl border border-neutral-800 space-y-2">
+                            <div className="h-4 w-24 bg-neutral-800 rounded mb-3" />
+                            {[1, 2, 3, 4, 5, 6].map((i) => (
+                                <div key={i} className="h-8 bg-neutral-900 rounded border border-neutral-800" />
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Center Column: Roleplay & Feats (5 cols) */}
+                    <div className="lg:col-span-5 space-y-6">
+                        <div className="bg-neutral-950/50 p-6 rounded-xl border border-neutral-800 space-y-3">
+                            <div className="h-4 w-32 bg-neutral-800 rounded mb-2" />
+                            <div className="h-3 w-full bg-neutral-900 rounded" />
+                            <div className="h-3 w-5/6 bg-neutral-900 rounded" />
+                            <div className="h-3 w-4/5 bg-neutral-900 rounded" />
+                        </div>
+
+                        {/* Feats List */}
+                        <div className="bg-neutral-950/50 p-6 rounded-xl border border-neutral-800 space-y-3">
+                            <div className="h-4 w-32 bg-neutral-800 rounded mb-2" />
+                            {[1, 2].map((i) => (
+                                <div key={i} className="bg-neutral-900 border border-neutral-800 rounded p-4 space-y-2">
+                                    <div className="h-4 w-24 bg-neutral-800 rounded" />
+                                    <div className="h-3 w-full bg-neutral-850 rounded" />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Right Column: Inventory & Spells (4 cols) */}
+                    <div className="lg:col-span-4 space-y-6">
+                        <div className="bg-neutral-950/50 p-4 rounded-xl border border-neutral-800 space-y-3">
+                            <div className="h-4 w-24 bg-neutral-800 rounded" />
+                            <div className="grid grid-cols-2 gap-3">
+                                {[1, 2, 3, 4].map((i) => (
+                                    <div key={i} className="h-16 bg-neutral-900 rounded border border-neutral-800" />
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="bg-neutral-950/50 p-4 rounded-xl border border-neutral-800 space-y-2">
+                            <div className="h-4 w-24 bg-neutral-800 rounded" />
+                            <div className="h-10 bg-neutral-900 rounded border border-neutral-800" />
+                            <div className="h-10 bg-neutral-900 rounded border border-neutral-800" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     const sheet = character.sheet_data || {};
     const stats = sheet.stats || {};
     const equipment = (sheet.equipment || []) as Item[];

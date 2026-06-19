@@ -5,39 +5,40 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
 
-from app.agents.models import AgentState, should_continue
+from app.agents.models import AgentState, should_continue, get_llm_instance
+from app.services.llm_provider import get_llm_provider_instance
 from game_engine.tools import game_tools
 
 logger = logging.getLogger(__name__)
 
-# Cache for compiled graphs: (api_key, model_name) -> compiled_graph
+# Cache for compiled graphs: (api_key, model_name, llm_provider) -> compiled_graph
 _dm_graph_cache = {}
 
-def get_dm_graph(api_key: str = None, model_name: str = "gemini-3-flash-preview"):
+def get_dm_graph(api_key: str = None, model_name: str = "gemini-3-flash-preview", llm_provider: str = "gemini"):
     # Check cache first
-    final_api_key = api_key or os.getenv("GEMINI_API_KEY")
-    cache_key = (final_api_key, model_name)
+    final_api_key = api_key
+    cache_key = (final_api_key, model_name, llm_provider)
 
     if cache_key in _dm_graph_cache:
         return _dm_graph_cache[cache_key], None
 
     # Re-initialize LLM ensuring it attaches to current loop if needed
     try:
-        from langchain_google_genai import ChatGoogleGenerativeAI
         if not final_api_key:
             logger.error("Error: No API Key provided for DM Agent.")
             return None, "No API Key"
 
-        llm = ChatGoogleGenerativeAI(
-            model=model_name,
-            temperature=0.7,
-            google_api_key=final_api_key,
-            thinking_level="low" # Disable extensive reasoning for faster generic turns
+        llm = get_llm_instance(
+            api_key=final_api_key,
+            model_name=model_name,
+            llm_provider=llm_provider,
+            temperature=0.7
         )
         llm_with_tools = llm.bind_tools(game_tools)
     except Exception as e:
         logger.error(f"Error initializing LLM: {e}")
         return None, str(e)
+
 
     # Redefine node using the local llm_with_tools
     async def call_model_local(state: AgentState, config: RunnableConfig):
@@ -46,10 +47,44 @@ def get_dm_graph(api_key: str = None, model_name: str = "gemini-3-flash-preview"
         # Ensure mode is retrieved safely; defaults to 'chat'
         mode = state.get("mode", "chat")
 
+        request_api_key = state.get("api_key") or api_key
+        request_llm_provider = state.get("llm_provider") or llm_provider
+
+        # RAG Rules Engine Retrieval
+        retrieved_rules = []
+        try:
+            from app.services.rules_engine import rules_engine
+            
+            # Find the query text from the last human message or last message
+            query_text = ""
+            for msg in reversed(messages):
+                if isinstance(msg, HumanMessage):
+                    query_text = msg.content
+                    break
+            if not query_text and messages:
+                query_text = messages[-1].content
+            if not isinstance(query_text, str):
+                query_text = str(query_text)
+                
+            provider_inst = get_llm_provider_instance(request_api_key, request_llm_provider)
+            retrieved_rules = await rules_engine.retrieve(provider_inst, query_text, top_k=3)
+        except Exception as rag_err:
+            logger.warning(f"RAG rules retrieval failed: {rag_err}", exc_info=True)
+
+        rules_block = ""
+        if retrieved_rules:
+            rules_block = "\n\n=== RETRIEVED DM RULES ===\n" + "\n---\n".join(retrieved_rules) + "\n=========================="
+
         # --- SPECIAL MODES (Narration) ---
         if mode != "chat":
              logger.debug(f"invoking llm in special mode: {mode} with {len(messages)} messages")
-             response = await llm_with_tools.ainvoke(messages, config=config)
+             local_messages = list(messages)
+             if rules_block and local_messages:
+                 if isinstance(local_messages[0], SystemMessage):
+                     local_messages[0] = SystemMessage(content=local_messages[0].content + rules_block)
+                 else:
+                     local_messages.insert(0, SystemMessage(content=rules_block.strip()))
+             response = await llm_with_tools.ainvoke(local_messages, config=config)
              return {"messages": [response]}
 
         # --- STANDARD CHAT MODE ---
@@ -107,6 +142,9 @@ def get_dm_graph(api_key: str = None, model_name: str = "gemini-3-flash-preview"
             **SYSTEM MESSAGES**
             You will see messages from "System" containing the results of commands. Use these as the absolute truth.
             """
+
+        if rules_block:
+            system_prompt_content += rules_block
 
         system_prompt = SystemMessage(content=system_prompt_content)
 

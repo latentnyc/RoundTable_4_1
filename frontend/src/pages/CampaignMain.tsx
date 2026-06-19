@@ -73,11 +73,13 @@ export default function CampaignMain() {
 
             {/* Settings Modal (Admin Only) */}
             {isAdmin && isSettingsOpen && (
-                <CampaignSettings
-                    campaignId={id}
-                    isOpen={isSettingsOpen}
-                    onClose={() => setIsSettingsOpen(false)}
-                />
+                <ErrorBoundary label="Campaign Settings">
+                    <CampaignSettings
+                        campaignId={id}
+                        isOpen={isSettingsOpen}
+                        onClose={() => setIsSettingsOpen(false)}
+                    />
+                </ErrorBoundary>
             )}
         </div>
     );

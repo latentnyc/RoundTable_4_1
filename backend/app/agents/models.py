@@ -12,6 +12,7 @@ class AgentState(TypedDict):
     mode: str
     api_key: str
     model_name: str
+    llm_provider: str
 
 def should_continue(state: AgentState):
     from langgraph.graph import END
@@ -20,3 +21,38 @@ def should_continue(state: AgentState):
     if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
         return "tools"
     return END
+
+def get_llm_instance(api_key: str, model_name: str, llm_provider: str, temperature: float = 0.7):
+    provider = (llm_provider or "gemini").lower()
+    if provider == "gemini":
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        # Set default model name for Gemini if not provided or mismatched
+        model = model_name or "gemini-3-flash-preview"
+        if "gpt" in model or "claude" in model:
+            model = "gemini-3-flash-preview"
+        return ChatGoogleGenerativeAI(
+            model=model,
+            temperature=temperature,
+            google_api_key=api_key,
+            thinking_level="low"
+        )
+    elif provider == "openai":
+        from langchain_openai import ChatOpenAI
+        model = model_name or "gpt-4o"
+        return ChatOpenAI(
+            model=model,
+            temperature=temperature,
+            api_key=api_key
+        )
+    elif provider == "openrouter":
+        from langchain_openai import ChatOpenAI
+        model = model_name or "openai/gpt-4o"
+        return ChatOpenAI(
+            model=model,
+            temperature=temperature,
+            api_key=api_key,
+            base_url="https://openrouter.ai/api/v1"
+        )
+    else:
+        raise ValueError(f"Unknown LLM provider: {llm_provider}")
+
