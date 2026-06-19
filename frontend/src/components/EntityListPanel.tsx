@@ -83,8 +83,23 @@ export default function EntityListPanel({ onCharacterClick }: { onCharacterClick
     }, [isCombat, turnOrder, party, enemies, npcs]);
 
     if (!gameState) return (
-        <div className="flex flex-col h-full bg-neutral-900/40 backdrop-blur-md rounded-xl border border-white/5 overflow-hidden items-center justify-center text-neutral-500 text-xs">
-            Waiting for game state...
+        <div className="flex flex-col h-full bg-neutral-900/40 backdrop-blur-md rounded-xl border border-white/5 overflow-hidden p-4 space-y-4 animate-pulse">
+            <div className="h-6 w-1/3 bg-neutral-800 rounded-md mb-2" />
+            <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                    <div key={i} className="p-3 bg-neutral-800/40 rounded-xl border border-white/5 space-y-2">
+                        <div className="flex justify-between items-center">
+                            <div className="h-4 w-1/2 bg-neutral-800 rounded" />
+                            <div className="h-3 w-8 bg-neutral-800 rounded" />
+                        </div>
+                        <div className="h-1.5 w-full bg-neutral-800 rounded-full" />
+                        <div className="flex justify-between items-center">
+                            <div className="h-3 w-1/3 bg-neutral-800 rounded" />
+                            <div className="h-3 w-10 bg-neutral-800 rounded" />
+                        </div>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 

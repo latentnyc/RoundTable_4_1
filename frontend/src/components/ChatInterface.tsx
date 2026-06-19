@@ -22,6 +22,7 @@ export default function ChatInterface({ characterId }: ChatInterfaceProps) {
     const [targetMap, setTargetMap] = useState<Record<string, string>>({});
     const [showClearConfirm, setShowClearConfirm] = useState(false);
     const bottomRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
     const [isDmTyping, setIsDmTyping] = useState(false);
     const [chatFontSize, setChatFontSize] = useState<'text-sm' | 'text-base' | 'text-lg'>('text-base');
 
@@ -115,6 +116,7 @@ export default function ChatInterface({ characterId }: ChatInterfaceProps) {
         setInputValue('');
         // Clear target state after send
         setTargetMap({});
+        inputRef.current?.focus();
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -270,6 +272,7 @@ export default function ChatInterface({ characterId }: ChatInterfaceProps) {
                             setTargetMap(prev => ({ ...prev, [selectedText.toLowerCase()]: targetId }));
                         }
                         setInputValue(newText);
+                        inputRef.current?.focus();
                     }}
                 />
 
@@ -304,6 +307,7 @@ export default function ChatInterface({ characterId }: ChatInterfaceProps) {
 
                 <div className="relative">
                     <input
+                        ref={inputRef}
                         type="text"
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
