@@ -181,7 +181,14 @@ class AIService:
             return None
 
         callback_handler = SocketIOCallbackHandler(sid or "system", campaign_id, agent_name="Dungeon Master")
-        config = {"callbacks": [callback_handler], "recursion_limit": 10}
+        config = {
+            "callbacks": [callback_handler],
+            "recursion_limit": 10,
+            "configurable": {
+                "db": db,
+                "campaign_id": campaign_id
+            }
+        }
 
         try:
              final_state = await dm_graph.ainvoke(inputs, config=config)
@@ -290,10 +297,23 @@ class AIService:
         if not dm_graph:
                 return f"DM Agent is offline (Initialization Failed: {error_msg})."
 
-        config = {"recursion_limit": 10}
+        config = {
+            "recursion_limit": 10,
+            "configurable": {
+                "db": db,
+                "campaign_id": campaign_id
+            }
+        }
         if sid:
              callback_handler = SocketIOCallbackHandler(sid, campaign_id, agent_name="Dungeon Master")
-             config = {"callbacks": [callback_handler], "recursion_limit": 10}
+             config = {
+                 "callbacks": [callback_handler],
+                 "recursion_limit": 10,
+                 "configurable": {
+                     "db": db,
+                     "campaign_id": campaign_id
+                 }
+             }
 
         try:
              final_state = await dm_graph.ainvoke(inputs, config=config)

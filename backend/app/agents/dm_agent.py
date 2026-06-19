@@ -172,10 +172,47 @@ def get_dm_graph(api_key: str = None, model_name: str = "gemini-3-flash-preview"
         response = await llm_with_tools.ainvoke(final_messages, config=config)
         return {"messages": [response]}
 
+    async def execute_tools_local(state: AgentState, config: RunnableConfig):
+        db = config.get("configurable", {}).get("db")
+        campaign_id = config.get("configurable", {}).get("campaign_id")
+        
+        messages = state["messages"]
+        last_message = messages[-1]
+        
+        tool_messages = []
+        if last_message.tool_calls:
+            for tool_call in last_message.tool_calls:
+                # Find matching tool
+                tool = next((t for t in game_tools if t.name == tool_call["name"]), None)
+                if tool:
+                    try:
+                        if db and hasattr(tool, "execute_with_db"):
+                            result = await tool.execute_with_db(
+                                db=db,
+                                campaign_id=campaign_id or "dev-test-campaign-001",
+                                **tool_call["args"]
+                            )
+                        else:
+                            result = tool._run(**tool_call["args"])
+                    except Exception as err:
+                        logger.error(f"Error executing tool {tool.name}: {err}", exc_info=True)
+                        result = f"Error executing tool: {str(err)}"
+                else:
+                    result = f"Tool {tool_call['name']} not found."
+                
+                from langchain_core.messages import ToolMessage
+                tool_messages.append(ToolMessage(
+                    content=str(result),
+                    name=tool_call["name"],
+                    tool_call_id=tool_call["id"]
+                ))
+                
+        return {"messages": tool_messages}
+
     workflow = StateGraph(AgentState)
 
     workflow.add_node("agent", call_model_local)
-    workflow.add_node("tools", ToolNode(game_tools))
+    workflow.add_node("tools", execute_tools_local)
 
     workflow.set_entry_point("agent")
 
