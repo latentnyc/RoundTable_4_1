@@ -1,3 +1,19 @@
+---
+{
+  "id": "file_8irfije5",
+  "filetype": "document",
+  "filename": "architecture",
+  "created_at": "2026-06-19T12:37:47.652Z",
+  "updated_at": "2026-06-19T12:37:47.652Z",
+  "meta": {
+    "location": "/",
+    "tags": [],
+    "categories": [],
+    "description": "",
+    "source": "markdown"
+  }
+}
+---
 # RoundTable_4_1 Architecture & Design Document
 
 ## 1. High-Level Architecture Diagram
