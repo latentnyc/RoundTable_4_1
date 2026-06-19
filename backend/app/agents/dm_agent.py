@@ -1,4 +1,3 @@
-import os
 import logging
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
@@ -6,7 +5,7 @@ from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
 
 from app.agents.models import AgentState, should_continue, get_llm_instance
-from app.services.llm_provider import get_llm_provider_instance
+from app.services.dm_rules import RULES_BLOCK
 from game_engine.tools import game_tools
 
 logger = logging.getLogger(__name__)
@@ -47,33 +46,9 @@ def get_dm_graph(api_key: str = None, model_name: str = "gemini-3-flash-preview"
         # Ensure mode is retrieved safely; defaults to 'chat'
         mode = state.get("mode", "chat")
 
-        request_api_key = state.get("api_key") or api_key
-        request_llm_provider = state.get("llm_provider") or llm_provider
-
-        # RAG Rules Engine Retrieval
-        retrieved_rules = []
-        try:
-            from app.services.rules_engine import rules_engine
-            
-            # Find the query text from the last human message or last message
-            query_text = ""
-            for msg in reversed(messages):
-                if isinstance(msg, HumanMessage):
-                    query_text = msg.content
-                    break
-            if not query_text and messages:
-                query_text = messages[-1].content
-            if not isinstance(query_text, str):
-                query_text = str(query_text)
-                
-            provider_inst = get_llm_provider_instance(request_api_key, request_llm_provider)
-            retrieved_rules = await rules_engine.retrieve(provider_inst, query_text, top_k=3)
-        except Exception as rag_err:
-            logger.warning(f"RAG rules retrieval failed: {rag_err}", exc_info=True)
-
-        rules_block = ""
-        if retrieved_rules:
-            rules_block = "\n\n=== RETRIEVED DM RULES ===\n" + "\n---\n".join(retrieved_rules) + "\n=========================="
+        # DM rules are small, static behavioral guardrails — they must apply on every
+        # turn, so they are injected directly rather than semantically retrieved.
+        rules_block = RULES_BLOCK
 
         # --- SPECIAL MODES (Narration) ---
         if mode != "chat":
