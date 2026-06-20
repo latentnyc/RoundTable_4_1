@@ -32,6 +32,11 @@ class AIService:
             api_key = row.get("api_key") or None
             model = row.get("model") or fallback_model
             llm_provider = row.get("llm_provider") or fallback_provider
+            # Local providers (Ollama/LM Studio) need no API key — the server ignores it.
+            # Supply a placeholder so the downstream "no key → cannot function" gates pass
+            # and get_llm_instance can build the client.
+            if not api_key and (llm_provider or "").lower() in ("local", "ollama", "lmstudio"):
+                api_key = "local"
             return (api_key, model, llm_provider)
 
         return (None, fallback_model, fallback_provider)

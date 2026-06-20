@@ -298,11 +298,14 @@ async def handle_join_campaign(sid, data, sio, connected_users):
 
         if not msg_exists and not intro_started:
             # Get API Key, Context, and Model
-            key_res = await db.execute(text("SELECT api_key, model, system_prompt, description, template_id FROM campaigns WHERE id = :id"), {"id": campaign_id})
+            key_res = await db.execute(text("SELECT api_key, model, system_prompt, description, template_id, llm_provider FROM campaigns WHERE id = :id"), {"id": campaign_id})
             camp_row = key_res.mappings().fetchone()
 
-            if camp_row and camp_row['api_key']:
-                api_key = camp_row['api_key']
+            llm_provider = (camp_row['llm_provider'] if camp_row else None) or "gemini"
+            is_local = llm_provider.lower() in ("local", "ollama", "lmstudio")
+            # Local providers need no API key; use a placeholder so the intro can generate.
+            if camp_row and (camp_row['api_key'] or is_local):
+                api_key = camp_row['api_key'] or ("local" if is_local else None)
                 model_name = camp_row['model'] or "gemini-3-flash-preview"
                 camp_description = camp_row['description'] or "A fantasy adventure."
                 template_id = camp_row['template_id']
@@ -375,7 +378,7 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                         Keep it under 2 paragraphs. Be atmospheric and immersive.
                         """
 
-                        dm_graph, err = get_dm_graph(api_key=api_key, model_name=model_name)
+                        dm_graph, err = get_dm_graph(api_key=api_key, model_name=model_name, llm_provider=llm_provider)
                         if dm_graph:
                             await db.execute(
                                 text("INSERT INTO debug_logs (id, campaign_id, type, content, created_at) VALUES (:id, :cid, 'intro_graph', 'Graph initialized', :now)"),

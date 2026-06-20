@@ -34,7 +34,9 @@ export default function CampaignSettings({ campaignId, isOpen, onClose }: Campai
     const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
     const handleTestAndSave = async () => {
-        if (!apiKey) return;
+        // Local providers (Ollama/LM Studio) ignore the API key, so allow an empty key for them.
+        const isLocal = ["local", "ollama", "lmstudio"].includes(provider.toLowerCase());
+        if (!apiKey && !isLocal) return;
 
         setIsTesting(true);
         setError(null);

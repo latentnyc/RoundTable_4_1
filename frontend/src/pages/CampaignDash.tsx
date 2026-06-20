@@ -159,6 +159,7 @@ export default function CampaignDash() {
         try {
             await campaignApi.update(id, {
                 name: currentCampaign.name,
+                llm_provider: currentCampaign.llm_provider,
                 api_key: currentCampaign.api_key,
                 // If we successfully tested THIS key in THIS session, verify it.
                 // Otherwise if it was ALREADY verified and we didn't change it, it stays verified (handled by backend if we don't send false)
@@ -373,7 +374,7 @@ export default function CampaignDash() {
                             try {
                                 await devApi.quickjoin(id);
                                 // Refresh character list
-                                const chars = await characterApi.getUserCharacters(profile?.uid || '', id);
+                                const chars = await characterApi.list(profile?.id || '', id);
                                 setCharacters(chars);
                                 // Re-run status checks
                                 fetchStatusChecks();
@@ -531,7 +532,20 @@ export default function CampaignDash() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-neutral-400 mb-1">API Key</label>
+                                <label className="block text-sm font-medium text-neutral-400 mb-1">AI Provider</label>
+                                <select
+                                    value={currentCampaign.llm_provider || 'gemini'}
+                                    onChange={e => { setCurrentCampaign({ ...currentCampaign, llm_provider: e.target.value }); setTestStatus('idle'); setModelList([]); }}
+                                    className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white"
+                                >
+                                    <option value="gemini">Gemini (Google)</option>
+                                    <option value="openai">OpenAI</option>
+                                    <option value="openrouter">OpenRouter</option>
+                                    <option value="local">Local (Ollama / LM Studio)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-neutral-400 mb-1">{(currentCampaign.llm_provider || 'gemini').toLowerCase() === 'local' ? 'API Key (not required for Local)' : 'API Key'}</label>
                                 <div className="space-y-2">
                                     <input
                                         type="password"
@@ -542,11 +556,12 @@ export default function CampaignDash() {
                                     />
                                     <button
                                         onClick={async () => {
-                                            if (!currentCampaign.api_key) return;
+                                            const isLocal = (currentCampaign.llm_provider || 'gemini').toLowerCase() === 'local';
+                                            if (!currentCampaign.api_key && !isLocal) return;
                                             setIsTesting(true);
                                             setTestStatus('idle');
                                             try {
-                                                const res = await campaignApi.testKey(currentCampaign.api_key);
+                                                const res = await campaignApi.testKey(currentCampaign.api_key || '', currentCampaign.llm_provider || 'gemini');
                                                 setModelList(res.models);
                                                 setTestStatus('success');
                                             } catch (e) {
@@ -556,7 +571,7 @@ export default function CampaignDash() {
                                                 setIsTesting(false);
                                             }
                                         }}
-                                        disabled={!currentCampaign.api_key || isTesting}
+                                        disabled={(!currentCampaign.api_key && (currentCampaign.llm_provider || 'gemini').toLowerCase() !== 'local') || isTesting}
                                         className={`w-full text-white text-sm py-2 rounded-lg transition-all duration-300 flex items-center justify-center gap-2 ${testStatus === 'error'
                                             ? 'bg-red-500/20 border border-red-500/50 text-red-200'
                                             : 'bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50'
@@ -582,6 +597,11 @@ export default function CampaignDash() {
                                         modelList.map(m => (
                                             <option key={m} value={m}>{m}</option>
                                         ))
+                                    ) : (currentCampaign.llm_provider || 'gemini').toLowerCase() === 'local' ? (
+                                        <>
+                                            <option value={currentCampaign.model || 'qwen2.5:7b-instruct'}>{currentCampaign.model || 'qwen2.5:7b-instruct'}</option>
+                                            <option disabled>-- Test Connection to fetch installed models --</option>
+                                        </>
                                     ) : (
                                         <>
                                             <optgroup label="Advanced Models">
