@@ -115,12 +115,13 @@ export default function CampaignSettings({ campaignId, isOpen, onClose }: Campai
                                 <option value="gemini">Gemini (Google)</option>
                                 <option value="openai">OpenAI</option>
                                 <option value="openrouter">OpenRouter</option>
+                                <option value="local">Local (Ollama / KoboldCpp)</option>
                             </select>
                         </div>
 
                         <div>
                             <label className="block text-sm font-medium text-neutral-400 mb-1">
-                                {provider === "gemini" ? "Gemini API Key" : provider === "openai" ? "OpenAI API Key" : "OpenRouter API Key"}
+                                {provider === "gemini" ? "Gemini API Key" : provider === "openai" ? "OpenAI API Key" : provider === "openrouter" ? "OpenRouter API Key" : "API Key (not required for local)"}
                             </label>
                             <div className="flex gap-2">
                                 <div className="relative flex-1">
@@ -130,11 +131,13 @@ export default function CampaignSettings({ campaignId, isOpen, onClose }: Campai
                                         value={apiKey}
                                         onChange={(e) => setApiKey(e.target.value)}
                                         placeholder={
-                                            provider === "gemini" 
-                                                ? "AIzaSy... (Leave blank to use System Key)" 
-                                                : provider === "openai" 
-                                                    ? "sk-... (Leave blank to use System Key)" 
-                                                    : "sk-or-... (Leave blank to use System Key)"
+                                            provider === "gemini"
+                                                ? "AIzaSy... (Leave blank to use System Key)"
+                                                : provider === "openai"
+                                                    ? "sk-... (Leave blank to use System Key)"
+                                                    : provider === "openrouter"
+                                                        ? "sk-or-... (Leave blank to use System Key)"
+                                                        : "Not required — leave blank for local models"
                                         }
                                         className="w-full bg-black border border-white/10 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:border-purple-500 transition-colors placeholder-neutral-700"
                                     />

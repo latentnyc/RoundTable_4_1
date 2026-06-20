@@ -251,6 +251,16 @@ class AIService:
         memory_text, memory_date = await AIService.get_latest_memory(campaign_id, db)
         recent_messages = await AIService.get_messages_after(campaign_id, memory_date, db)
 
+        # Long-term memory (opt-in): load the current scene once for summary ingest +
+        # recall. Skipped entirely when the feature is off, so behavior is unchanged.
+        from app.services import memory_service
+        game_state = None
+        query_text = ""
+        if memory_service.is_enabled():
+            from app.services.state_service import StateService
+            game_state = await StateService.get_game_state(campaign_id, db)
+            query_text = str(getattr(recent_messages[-1], "content", "")) if recent_messages else ""
+
         # Summarization Check
         if len(recent_messages) > 30:
             to_summarize = recent_messages[:-10]
@@ -266,11 +276,22 @@ class AIService:
                 await AIService.save_memory(campaign_id, new_summary, db)
                 memory_text = new_summary
                 recent_messages = keep_messages
+                # Promote the aged-out summary into durable long-term memory.
+                await memory_service.ingest_episode_from_summary(
+                    campaign_id, new_summary,
+                    party_ids=memory_service.present_entity_ids(game_state) if game_state else [],
+                )
 
         # Construct History
         final_history = recent_messages
         if rich_context:
             final_history = [SystemMessage(content=f"SYSTEM CONTEXT (REFERENCE ONLY):\n{rich_context}")] + final_history
+
+        # Fenced, reference-only recall — placed ABOVE the live SYSTEM CONTEXT so the
+        # authoritative state always appears later in the prompt and wins.
+        recall = await memory_service.recall_block(campaign_id, db, game_state, query_text)
+        if recall:
+            final_history = [SystemMessage(content=recall)] + final_history
 
         if memory_text:
             final_history = [SystemMessage(content=f"STORY SO FAR: {memory_text}")] + final_history
@@ -336,8 +357,19 @@ class AIService:
         if not char_agent:
             return None
 
+        # Companions remember too (opt-in): fenced recall prepended to their context.
+        from app.services import memory_service
+        char_messages = history
+        if memory_service.is_enabled():
+            from app.services.state_service import StateService
+            cr_game_state = await StateService.get_game_state(campaign_id, db)
+            cr_query = str(getattr(history[-1], "content", "")) if history else ""
+            cr_recall = await memory_service.recall_block(campaign_id, db, cr_game_state, cr_query)
+            if cr_recall:
+                char_messages = [SystemMessage(content=cr_recall)] + history
+
         inputs = {
-            "messages": history,
+            "messages": char_messages,
             "campaign_id": campaign_id,
             "sender_name": "System" # Or whatever triggered it
         }

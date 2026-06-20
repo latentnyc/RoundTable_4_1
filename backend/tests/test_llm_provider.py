@@ -19,3 +19,11 @@ def test_get_llm_instance():
     assert isinstance(llm, ChatOpenAI)
     assert llm.model_name == "openai/gpt-4o"
     assert llm.openai_api_base == "https://openrouter.ai/api/v1"
+
+    # Local (Ollama / KoboldCpp / OpenAI-compatible) — no API key required, points at a local server.
+    # Base URL is env-configurable (LOCAL_LLM_BASE_URL), so assert the shape, not a specific port.
+    llm = get_llm_instance(api_key="", model_name="qwen2.5:14b-instruct", llm_provider="local")
+    assert isinstance(llm, ChatOpenAI)
+    assert llm.model_name == "qwen2.5:14b-instruct"
+    base = str(llm.openai_api_base)
+    assert ("localhost" in base or "127.0.0.1" in base) and "/v1" in base

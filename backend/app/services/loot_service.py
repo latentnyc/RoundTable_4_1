@@ -65,13 +65,13 @@ class LootService:
         interactables = loc_data.get('interactables', [])
 
         actor_char = next((p for p in game_state.party if p.name == actor_name), None)
-        
+
         # We need Coordinates to do distance calculations
         from app.models import Coordinates
-        
+
         target_interactable = None
         target_idx = -1
-        
+
         # Build list of matching interactables
         matches = []
         for i, item in enumerate(interactables):
@@ -80,7 +80,7 @@ class LootService:
                 break # Exact ID match wins instantly
             if vessel_name and (vessel_name.lower() in item.get('name', '').lower() or vessel_name.lower() in item.get('id', '').lower()):
                 matches.append((item, i))
-                
+
         # Resolve best match (closest)
         if matches:
             if actor_char and hasattr(actor_char, 'position'):
@@ -118,7 +118,7 @@ class LootService:
                       for v in game_state.vessels:
                           if vessel_name.lower() in v.name.lower():
                               v_matches.append(v)
-                              
+
             if v_matches:
                 if actor_char and hasattr(actor_char, 'position'):
                     best_vessel = None
@@ -160,7 +160,7 @@ class LootService:
         interrupted, opp_msg, latest_state = await CombatService._handle_opportunity_attack(campaign_id, actor_name, f"open {vessel_name}", db, game_state)
         if interrupted:
             return {"success": False, "message": opp_msg, "game_state": latest_state}
-            
+
         game_state = await StateService.get_game_state(campaign_id, db)  # Refresh state if not interrupted
 
         # 4. Process the interaction
@@ -220,7 +220,7 @@ class LootService:
                              await db.commit()
 
                 return {"success": True, "message": f"**{actor_name}** creaks open the {target_interactable['name']}{reveal_text}.", "game_state": game_state}
-                
+
             elif item_type == 'chest':
                 contents = target_interactable.get('contents', [])
                 currency = target_interactable.get('currency', {"pp": 0, "gp": 0, "sp": 0, "cp": 0})
@@ -328,6 +328,33 @@ class LootService:
         await StateService.save_game_state(campaign_id, game_state, db)
         await db.commit()
         await db.commit()
+
+        # Long-term memory: record notable recoveries (fail-open).
+        try:
+            if taken_items or taken_currency:
+                from app.services.memory_service import record_event
+                party_ids = [getattr(p, 'id', None) for p in game_state.party if getattr(p, 'id', None)]
+                desc_parts = []
+                if taken_items:
+                    desc_parts.append(f"{len(taken_items)} item(s)")
+                if taken_currency:
+                    coins = ", ".join(f"{amt} {c}" for c, amt in taken_currency.items() if amt)
+                    if coins:
+                        desc_parts.append(coins)
+                vessel_name = getattr(vessel, 'name', 'a container')
+                content = f"{actor.name} recovered {' and '.join(desc_parts) or 'loot'} from {vessel_name}."
+                refs = [{"kind": "player", "id": actor.id, "name": actor.name}]
+                refs += [{"kind": "item", "id": str(i)} for i in taken_items]
+                await record_event(
+                    campaign_id, "loot", content,
+                    facts={"item_ids": [str(i) for i in taken_items], "currency": taken_currency, "rarity": "common"},
+                    subject_refs=refs,
+                    witnessed_by=party_ids,
+                    source_ref=f"loot:{vessel_id}:{actor_id}:{getattr(game_state, 'turn_index', 0)}",
+                )
+        except Exception:
+            import logging
+            logging.getLogger("memory_hook").debug("loot memory hook failed", exc_info=True)
 
         return {
             "success": True,

@@ -36,3 +36,11 @@ scripts/.dev-pids
 .cursor/
 .codex/
 .vscode/mcp.json
+
+# Tomb of the Serpent Kings (CC BY-NC-SA): keep the converted .md + ATTRIBUTION;
+# ignore the heavy MinerU conversion artifacts (PDFs, extracted images, intermediate JSON).
+games/Tomb of the Serpent_Kings v4/*.pdf
+games/Tomb of the Serpent_Kings v4/images/
+games/Tomb of the Serpent_Kings v4/*_content_list*.json
+games/Tomb of the Serpent_Kings v4/*_middle.json
+games/Tomb of the Serpent_Kings v4/*_model.json

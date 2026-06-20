@@ -157,8 +157,11 @@ class CombatService:
         target_char = GameService._find_char_by_name(game_state, target_name, target_id)
 
         if not actor_char or not target_char:
-            print(f"DEBUG: attacker_id={attacker_id}, actor_char={actor_char}, target_name={target_name}, target_char={target_char}")
-            for n in game_state.enemies: print(f"DEBUG: ENEMY: {n.name}")
+            logger.debug(
+                "Attack resolution could not resolve actor/target: attacker_id=%s actor=%s target_name=%s target=%s; enemies=%s",
+                attacker_id, actor_char, target_name, target_char,
+                [getattr(n, 'name', '?') for n in game_state.enemies],
+            )
             return {"success": False, "message": f"Could not find actor '{attacker_name}' or target '{target_name}'."}
 
         # Check conditions for advantage/disadvantage and damage resistance
@@ -206,7 +209,7 @@ class CombatService:
                 for prop in properties:
                     if isinstance(prop, dict) and 'thrown' in (prop.get('name') or '').lower():
                         is_w_ranged = True
-                
+
                 if is_w_ranged:
                     params['is_ranged'] = True
 
@@ -217,7 +220,7 @@ class CombatService:
             # Range Limit Check
             dist = actor_char.position.distance_to(target_char.position)
             is_ranged_attack = params.get('is_ranged', False)
-            
+
             max_hex_range = 1
             if is_ranged_attack and weapon_data and 'data' in weapon_data:
                 range_data = weapon_data['data'].get('range', {})
@@ -528,7 +531,7 @@ class CombatService:
     @staticmethod
     async def _handle_opportunity_attack(campaign_id: str, actor_name: str, action_name: str, db: AsyncSession, game_state: 'GameState'):
         """
-        Checks if there are living enemies within 10 hexes and with Line of Sight. 
+        Checks if there are living enemies within 10 hexes and with Line of Sight.
         If so, a random valid enemy interrupts the action and attacks the actor.
         Returns (interrupted: bool, message: str)
         """
@@ -552,11 +555,11 @@ class CombatService:
         for hostile in all_hostiles:
             if not hostile.position:
                 continue
-            
+
             dist = hostile.position.distance_to(actor_char.position)
             if dist > 10:
                 continue
-                
+
             # Line of Sight check
             los_path = hostile.position.get_line_to(actor_char.position)
             has_los = True
@@ -564,7 +567,7 @@ class CombatService:
                 if (point.q, point.r, point.s) not in walkable_set:
                     has_los = False
                     break
-            
+
             if has_los:
                 valid_interrupters.append(hostile)
 
@@ -674,5 +677,25 @@ class CombatService:
             game_state.phase = 'exploration'
             death_msg += "\n\n**DEFEAT! The party has fallen. Game Over.**"
             action_result_updates['combat_end'] = 'defeat'
+
+        # Long-term memory: record the kill (fail-open, idempotent on the slain entity).
+        try:
+            from app.services.memory_service import record_event
+            was_hostile = (not is_npc) or bool(getattr(target_char, 'hostile', False))
+            party_ids = [getattr(p, 'id', None) for p in game_state.party if getattr(p, 'id', None)]
+            mem_content = f"{target_char.name} was slain in battle."
+            if action_result_updates.get('combat_end') == 'victory':
+                mem_content = f"The party prevailed in battle; {target_char.name} was struck down."
+            await record_event(
+                campaign_id, "death", mem_content,
+                facts={"was_hostile": was_hostile, "is_npc": is_npc,
+                       "combat_end": action_result_updates.get('combat_end')},
+                subject_refs=[{"kind": "npc" if is_npc else "enemy", "id": target_id_str, "name": target_char.name}],
+                witnessed_by=party_ids,
+                source_ref=f"death:{target_id_str}",
+            )
+        except Exception:
+            import logging
+            logging.getLogger("memory_hook").debug("death memory hook failed", exc_info=True)
 
         return death_msg, action_result_updates
