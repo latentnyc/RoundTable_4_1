@@ -82,6 +82,48 @@ async def init_db_async():
     except SQLAlchemyError as e:
         logger.critical(f"Database initialization failed: {e}")
         raise e
+
+    # --- SPRINT 1: LONG-TERM MEMORY (episodic) — isolated & fail-open ---
+    # Created via raw DDL only (intentionally NOT in schema.py metadata, so
+    # metadata.create_all never races it). A failure here must not crash startup:
+    # memory is strictly additive, so we log and continue.
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS memory_episodes (
+                    id                 VARCHAR PRIMARY KEY,
+                    campaign_id        VARCHAR NOT NULL,
+                    kind               VARCHAR NOT NULL DEFAULT 'summary',
+                    content            TEXT NOT NULL,
+                    facts              JSONB NOT NULL DEFAULT '{}',
+                    subject_refs       JSONB NOT NULL DEFAULT '[]',
+                    witnessed_by       JSONB NOT NULL DEFAULT '[]',
+                    importance         REAL NOT NULL DEFAULT 0.5,
+                    access_count       INTEGER NOT NULL DEFAULT 0,
+                    last_surfaced_turn INTEGER,
+                    session_no         INTEGER,
+                    src_from           TIMESTAMPTZ,
+                    src_to             TIMESTAMPTZ,
+                    created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+                )
+            """))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_mem_ep_camp_salience ON memory_episodes (campaign_id, importance DESC, created_at DESC)"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_mem_ep_subjects ON memory_episodes USING gin (subject_refs)"))
+            # 2-arg to_tsvector(regconfig, text) is IMMUTABLE, so it is index-safe.
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_mem_ep_fts ON memory_episodes USING gin (to_tsvector('english', content))"))
+            await conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS session_no INTEGER NOT NULL DEFAULT 1"))
+            await conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS embed_model VARCHAR"))
+            await conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS memory_rag_enabled BOOLEAN DEFAULT FALSE"))
+    except SQLAlchemyError as e:
+        logger.warning(f"Memory migration failed (non-fatal): {e}")
+
+    # items.rarity in its own transaction so a missing items table can't roll back the memory schema.
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("ALTER TABLE items ADD COLUMN IF NOT EXISTS rarity VARCHAR DEFAULT 'common'"))
+    except SQLAlchemyError as e:
+        logger.warning(f"items.rarity migration failed (non-fatal): {e}")
+
     logger.info("Database Initialized.")
 
 
