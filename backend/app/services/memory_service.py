@@ -114,12 +114,17 @@ def _rank_and_gate(
     # 1. cooldown
     pool = [c for c in candidates if not _on_cooldown(c["id"], recently, current_turn)]
 
-    # 2. presence gate — `summary` episodes (and any with no subjects) are ambient and always eligible
+    # 2. eligibility — keep an episode if it is ambient (a summary, or has no subjects),
+    #    topically relevant to the current query (a full-text hit), or about a
+    #    currently-present entity. Presence ALONE is too strict: it would block
+    #    "remember when you killed the LIZARDFOLK" once the lizardfolk is gone, even
+    #    when the player explicitly asks about it. Topical relevance covers that case.
     gated = []
     for c in pool:
         subj = set(_ref_ids(c.get("subject_refs")))
         ambient = c.get("kind") == "summary" or not subj
-        if ambient or (subj & present):
+        relevant = (c.get("fts_rank") or 0.0) > 0.0
+        if ambient or relevant or (subj & present):
             gated.append(c)
     if not gated:
         return []
@@ -240,7 +245,8 @@ _POOL_SQL = text("""
            extract(epoch FROM created_at) AS created_ts
     FROM memory_episodes
     WHERE campaign_id = :cid
-      AND (:window_ts IS NULL OR extract(epoch FROM created_at) < :window_ts)
+      AND (CAST(:window_ts AS double precision) IS NULL
+           OR extract(epoch FROM created_at) < CAST(:window_ts AS double precision))
       AND (importance >= :imp_floor
            OR (:q <> '' AND to_tsvector('english', content) @@ plainto_tsquery('english', :q)))
     ORDER BY importance DESC, created_at DESC

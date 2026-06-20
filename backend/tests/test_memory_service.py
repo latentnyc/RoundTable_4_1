@@ -63,7 +63,15 @@ def test_presence_gate_excludes_absent_subjects_but_keeps_ambient_summaries():
     ids = {e["id"] for e in ranked}
     assert "hit" in ids          # subject present → eligible
     assert "sum" in ids          # summary is ambient → always eligible
-    assert "absent" not in ids   # subject absent → gated out
+    assert "absent" not in ids   # subject absent AND no topical relevance → gated out
+
+
+def test_topically_relevant_episode_eligible_even_if_subject_absent():
+    # "remember when you killed the lizardfolk" — a full-text hit surfaces the memory
+    # even though the slain enemy is long gone from the scene.
+    ep = _ep("liz_death", kind="death", subjects=[{"id": "enemy_liz"}], fts=0.8, importance=0.85)
+    ranked = _rank_and_gate([ep], present_entity_ids=[])  # lizardfolk not present
+    assert len(ranked) == 1
 
 
 # ── cooldown ──────────────────────────────────────────────────────────────────
