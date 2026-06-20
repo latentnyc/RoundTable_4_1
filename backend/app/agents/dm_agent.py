@@ -33,7 +33,13 @@ def get_dm_graph(api_key: str = None, model_name: str = "gemini-3-flash-preview"
             llm_provider=llm_provider,
             temperature=0.7
         )
-        llm_with_tools = llm.bind_tools(game_tools)
+        # Local servers (KoboldCpp/LM Studio) have inconsistent tool-calling support, and
+        # the bound game_tools are narration stubs (real resolution is the @command pipeline),
+        # so skip tool-binding for local providers to keep the agent robust.
+        if (llm_provider or "").lower() in ("local", "ollama", "lmstudio"):
+            llm_with_tools = llm
+        else:
+            llm_with_tools = llm.bind_tools(game_tools)
     except Exception as e:
         logger.error(f"Error initializing LLM: {e}")
         return None, str(e)

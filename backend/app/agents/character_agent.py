@@ -35,9 +35,11 @@ def get_character_graph(api_key: str, model_name: str, character_details: dict, 
         )
 
         char_tools = []
-        if campaign_id and character_details.get('name'):
+        # Skip tool-binding for local providers (inconsistent tool-calling support).
+        is_local = (llm_provider or "").lower() in ("local", "ollama", "lmstudio")
+        if campaign_id and character_details.get('name') and not is_local:
              char_tools.append(create_interact_tool(campaign_id, character_details['name'], db=db))
-             
+
         # Bind the specific character tools
         if char_tools:
             llm_with_tools = llm.bind_tools(char_tools)
@@ -83,7 +85,7 @@ def get_character_graph(api_key: str, model_name: str, character_details: dict, 
 
     workflow = StateGraph(AgentState)
     workflow.add_node("agent", call_character_model)
-    
+
     if char_tools:
          workflow.add_node("tools", ToolNode(char_tools))
          workflow.add_conditional_edges("agent", should_continue, {"tools": "tools", END: END})
