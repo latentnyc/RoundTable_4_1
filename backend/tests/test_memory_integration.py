@@ -96,3 +96,34 @@ async def test_disabled_flag_is_a_noop(monkeypatch):
     async with AsyncSessionLocal() as db:
         assert await _count(db, cid) == 0
         assert await ms.retrieve(cid, db, query_text="anything") == []
+
+
+async def test_recall_block_surfaces_a_kill(enable_memory):
+    """End-to-end of the exact helper the AI service injects: record a kill, then
+    recall_block returns it fenced as reference-only when the foe is in the scene."""
+    from app.services import memory_service as ms
+    from db.session import AsyncSessionLocal
+    from types import SimpleNamespace
+
+    cid = f"itest-{uuid4().hex[:8]}"
+    try:
+        await ms.record_event(
+            cid, "death", "BRUNA slew the GOBLIN chieftain.",
+            facts={"was_hostile": True},
+            subject_refs=[{"kind": "enemy", "id": "gob_1", "name": "Goblin"}],
+            witnessed_by=["pc_a"], source_ref="death:gob_1",
+        )
+        gs = SimpleNamespace(
+            party=[SimpleNamespace(id="pc_a")],
+            enemies=[SimpleNamespace(id="gob_1")],
+            npcs=[], turn_index=3,
+        )
+        async with AsyncSessionLocal() as db:
+            block = await ms.recall_block(cid, db, gs, query_text="goblin")
+            assert "RELEVANT MEMORIES" in block
+            assert "GOBLIN chieftain" in block
+            assert "reference only" in block.lower()
+    finally:
+        async with AsyncSessionLocal() as db:
+            await db.execute(text("DELETE FROM memory_episodes WHERE campaign_id = :c"), {"c": cid})
+            await db.commit()

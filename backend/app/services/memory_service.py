@@ -54,6 +54,12 @@ def _enabled() -> bool:
     return os.getenv("MEMORY_RAG_ENABLED", "false").strip().lower() in ("1", "true", "yes", "on")
 
 
+def is_enabled() -> bool:
+    """Public flag check, so callers can skip all memory work (incl. extra DB reads)
+    when the feature is off."""
+    return _enabled()
+
+
 def _episode_id(campaign_id: str, kind: str, source_ref: str) -> str:
     return hashlib.sha256(f"{campaign_id}|{kind}|{source_ref}".encode("utf-8")).hexdigest()[:32]
 
@@ -218,13 +224,13 @@ async def ingest_episode_from_summary(
     campaign_id: str,
     summary_text: str,
     *,
-    src_to: str,
     party_ids: Optional[list] = None,
     session_no: Optional[int] = None,
 ) -> None:
     """Promote an aged-out rolling summary into durable episodic memory.
 
     Ambient (empty witnessed_by); subject_refs = the party so it stays reachable.
+    Idempotent on the summary text, so re-ingesting the same summary is a no-op.
     """
     await record_event(
         campaign_id,
@@ -233,7 +239,7 @@ async def ingest_episode_from_summary(
         subject_refs=[{"kind": "player", "id": pid} for pid in (party_ids or [])],
         witnessed_by=[],
         importance=BASE_SALIENCE["summary"],
-        source_ref=f"summary:{src_to}",
+        source_ref="",  # → record_event derives a stable id from the content
         session_no=session_no,
     )
 
@@ -313,3 +319,30 @@ def format_memory_block(episodes: list[dict]) -> str:
         "the authoritative PARTY STATUS / ENEMIES below win) ===\n"
         f"{lines}\n=== END MEMORIES ===\n"
     )
+
+
+def present_entity_ids(game_state) -> list:
+    """All entity ids currently in the scene (party + enemies + npcs)."""
+    ids = []
+    for coll in ("party", "enemies", "npcs"):
+        for e in (getattr(game_state, coll, None) or []):
+            eid = getattr(e, "id", None)
+            if eid:
+                ids.append(eid)
+    return ids
+
+
+async def recall_block(campaign_id: str, db, game_state, query_text: str, k: int = DEFAULT_TOP_K) -> str:
+    """Convenience: retrieve relevant memories for the current scene and return a
+    fenced, reference-only block ready to inject. Empty string if disabled, if there
+    is no state, or if nothing relevant surfaces."""
+    if not _enabled() or game_state is None:
+        return ""
+    eps = await retrieve(
+        campaign_id, db,
+        present_entity_ids=present_entity_ids(game_state),
+        query_text=query_text or "",
+        current_turn=getattr(game_state, "turn_index", None),
+        k=k,
+    )
+    return format_memory_block(eps)
