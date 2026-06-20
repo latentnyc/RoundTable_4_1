@@ -59,7 +59,15 @@ async def seed_tosk_campaign(db: AsyncSession, recreate: bool = True):
         await db.execute(text("DELETE FROM campaigns WHERE id=:c"), {"c": TOSK_CAMPAIGN_ID})
         await db.commit()
 
-    api_key = os.getenv("GEMINI_API_KEY", "")
+    # Provider is env-driven so the POC can run on a free LOCAL model (Ollama/LM Studio)
+    # or a cloud key. Set LLM_PROVIDER=local + LLM_MODEL=<ollama tag> in backend/.env.
+    provider = os.getenv("LLM_PROVIDER", "gemini").lower()
+    if provider in ("local", "ollama", "lmstudio"):
+        model = os.getenv("LLM_MODEL", "qwen2.5:14b-instruct")
+        api_key = os.getenv("LLM_API_KEY", "local")   # local servers ignore the key
+    else:
+        model = os.getenv("LLM_MODEL", "gemini-3-flash-preview")
+        api_key = os.getenv("GEMINI_API_KEY", "")
 
     if not (await db.execute(select(profiles.c.id).where(profiles.c.id == TOSK_GM_ID))).scalar():
         await db.execute(insert(profiles).values(
@@ -68,8 +76,8 @@ async def seed_tosk_campaign(db: AsyncSession, recreate: bool = True):
     await db.execute(insert(campaigns).values(
         id=TOSK_CAMPAIGN_ID, name="Tomb of the Serpent Kings — POC", gm_id=TOSK_GM_ID,
         status="active", api_key=api_key, api_key_verified=bool(api_key),
-        model="gemini-3-flash-preview", system_prompt=SYSTEM_PROMPT,
-        template_id=TOSK_TEMPLATE_ID, llm_provider="gemini"))
+        model=model, system_prompt=SYSTEM_PROMPT,
+        template_id=TOSK_TEMPLATE_ID, llm_provider=provider))
 
     await instantiate_campaign(db, TOSK_CAMPAIGN_ID, TOSK_TEMPLATE_ID)
 
@@ -130,7 +138,8 @@ async def seed_tosk_campaign(db: AsyncSession, recreate: bool = True):
     logger.info("Seeded ToSK POC: campaign=%s start=%s skeletons=%d",
                 TOSK_CAMPAIGN_ID, start_loc_id, len(initial_npcs))
     logger.info("  positions: %s", placed)
-    logger.info("  api_key configured: %s | dash: /campaign_dash/%s", bool(api_key), TOSK_CAMPAIGN_ID)
+    logger.info("  provider=%s model=%s api_key_set=%s | dash: /campaign_dash/%s",
+                provider, model, bool(api_key), TOSK_CAMPAIGN_ID)
 
 
 async def _main():

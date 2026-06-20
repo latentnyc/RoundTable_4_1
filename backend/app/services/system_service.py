@@ -8,12 +8,11 @@ class SystemService:
         Validates an API key and returns a list of available models.
         Raises Exception if validation fails.
         """
-        if not api_key:
-            raise ValueError("API Key is required")
-
         prov_lower = provider.lower()
-        if prov_lower not in ["gemini", "openai", "openrouter"]:
+        if prov_lower not in ["gemini", "openai", "openrouter", "local", "ollama", "lmstudio"]:
             raise ValueError(f"Unsupported provider: {provider}")
+        if prov_lower in ("gemini", "openai", "openrouter") and not api_key:
+            raise ValueError("API Key is required")
 
 
         if prov_lower == "gemini":
@@ -56,7 +55,7 @@ class SystemService:
                 else:
                     models = [m.id for m in res.data]
                 models.sort()
-                
+
                 # If list of models is empty, provide common fallback models
                 if not models:
                     if prov_lower == "openai":
@@ -67,3 +66,19 @@ class SystemService:
             except Exception as e:
                 raise ValueError(f"{provider} API Error: {str(e)}")
 
+        elif prov_lower in ("local", "ollama", "lmstudio"):
+            import os
+            import openai
+            base_url = os.getenv("LOCAL_LLM_BASE_URL", "http://localhost:11434/v1")
+            try:
+                client = openai.OpenAI(api_key=(api_key or "local"), base_url=base_url)
+                models = sorted([m.id for m in client.models.list().data])
+                if not models:
+                    raise ValueError("Local server is reachable but no models are loaded. "
+                                     "Pull one, e.g.  ollama pull qwen2.5:14b-instruct")
+                return models
+            except ValueError:
+                raise
+            except Exception as e:
+                raise ValueError(f"Could not reach the local LLM server at {base_url} ({e}). "
+                                 "Is Ollama (or your local server) running?")
