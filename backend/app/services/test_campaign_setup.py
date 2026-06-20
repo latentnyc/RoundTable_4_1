@@ -242,11 +242,14 @@ async def create_test_campaign(db: AsyncSession):
                         attitude = disposition.get('attitude', '').lower()
                         if any(h in attitude for h in ['hostile', 'aggressive', 'violent']):
                             n_data['hostile'] = True
+                        # Read the AUTHORED position, not a hardcoded (0,0,0), so multiple
+                        # NPCs in one starting room sit on their distinct hexes.
+                        pos = n_data.get('position') or {'q': 0, 'r': 0, 's': 0}
                         initial_npcs.append(NPC(
                             id=n_row.id, name=n_row.name, is_ai=True,
                             hp_current=hp, hp_max=hp, ac=ac,
                             role=n_row.role or "NPC",
-                            position=Coordinates(q=0, r=0, s=0),
+                            position=Coordinates(q=pos['q'], r=pos['r'], s=pos.get('s', -pos['q'] - pos['r'])),
                             barks=n_data.get('voice', {}).get('barks'),
                             knowledge=n_data.get('knowledge', []),
                             data=n_data,
