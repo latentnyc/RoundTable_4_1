@@ -3,7 +3,7 @@
 Mirrors test_campaign_setup, but for the ToSK POC and seeded at Room 6 (the
 skeleton ambush) per design_docs/tosk-poc-build-spec.md. It fixes the stock
 seeder's hardcoded (0,0,0) NPC spawn (test_campaign_setup.py:249) by reading each
-NPC's AUTHORED position, so the three skeletons sit on their coffin hexes instead
+NPC's AUTHORED position, so the three skeletons sit on their coffin cells instead
 of stacking at the origin.
 
 Run:  cd backend && venv/Scripts/python.exe -m app.services.tosk_setup
@@ -88,7 +88,7 @@ async def seed_tosk_campaign(db: AsyncSession, recreate: bool = True):
     # ── Build the first GameState at the starting room (Room 6) ──
     cfg = json.loads(tpl.config) if tpl.config else {}
     start_loc_id = cfg.get("starting_location")
-    initial_location = Location(name="Unknown", description="", walkable_hexes=[], party_locations=[])
+    initial_location = Location(name="Unknown", description="", walkable_cells=[], party_locations=[])
     initial_npcs = []
 
     if start_loc_id:
@@ -103,7 +103,7 @@ async def seed_tosk_campaign(db: AsyncSession, recreate: bool = True):
             initial_location = Location(
                 id=loc.id, source_id=start_loc_id, name=loc.name, description=dtext,
                 interactables=ld.get("interactables", []),
-                walkable_hexes=ld.get("walkable_hexes", []),
+                walkable_cells=ld.get("walkable_cells", []),
                 party_locations=ld.get("party_locations", []))
 
         rows = (await db.execute(
@@ -118,13 +118,13 @@ async def seed_tosk_campaign(db: AsyncSession, recreate: bool = True):
             att = nd.get("disposition", {}).get("attitude", "").lower()
             if any(h in att for h in ("hostile", "aggressive", "violent")):
                 nd["hostile"] = True
-            # PATCH (spec §8.i): read the AUTHORED position, not a hardcoded (0,0,0),
-            # so the three skeletons sit on their distinct coffin hexes.
-            pos = nd.get("position") or {"q": 0, "r": 0, "s": 0}
+            # PATCH (spec §8.i): read the AUTHORED position, not a hardcoded (0,0),
+            # so the three skeletons sit on their distinct coffin cells.
+            pos = nd.get("position") or {"x": 0, "y": 0}
             initial_npcs.append(NPC(
                 id=nr.id, name=nr.name, is_ai=True, hp_current=hp, hp_max=hp, ac=ac,
                 role=nr.role or "NPC",
-                position=Coordinates(q=pos["q"], r=pos["r"], s=pos.get("s", -pos["q"] - pos["r"])),
+                position=Coordinates(**pos),
                 barks=nd.get("voice", {}).get("barks"),
                 knowledge=nd.get("knowledge", []), data=nd))
 
@@ -134,7 +134,7 @@ async def seed_tosk_campaign(db: AsyncSession, recreate: bool = True):
         phase="exploration", state_data=gs.model_dump_json()))
     await db.commit()
 
-    placed = [(n.name, (n.position.q, n.position.r)) for n in initial_npcs]
+    placed = [(n.name, (n.position.x, n.position.y)) for n in initial_npcs]
     logger.info("Seeded ToSK POC: campaign=%s start=%s skeletons=%d",
                 TOSK_CAMPAIGN_ID, start_loc_id, len(initial_npcs))
     logger.info("  positions: %s", placed)

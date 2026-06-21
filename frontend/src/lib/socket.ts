@@ -20,15 +20,14 @@ export interface Location {
     name: string;
     description: string;
     source_id?: string;
-    walkable_hexes?: Coordinates[];
+    walkable_cells?: Coordinates[];
     interactables?: Interactable[];
     party_locations?: { party_id: string, position: Coordinates }[];
 }
 
 export interface Coordinates {
-    q: number;
-    r: number;
-    s: number;
+    x: number;
+    y: number;
 }
 
 export interface Entity {

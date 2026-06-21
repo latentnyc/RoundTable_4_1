@@ -73,7 +73,7 @@ async def seed_data(session_factory):
         }
         p1 = Player(
             id=pid1, name="Alice", user_id=uid1, hp_current=20, hp_max=20, ac=12,
-            position=Coordinates(q=0,r=0,s=0),
+            position=Coordinates(x=0,y=0),
             is_ai=False, role="Fighter", sheet_data=alice_sheet
         )
         await db.execute(
@@ -85,7 +85,7 @@ async def seed_data(session_factory):
         pid2 = str(uuid4())
         p2 = Player(
             id=pid2, name="Bob", user_id=uid2, hp_current=18, hp_max=18, ac=11,
-            position=Coordinates(q=1,r=0,s=-1),
+            position=Coordinates(x=1,y=0),
             is_ai=False, role="Cleric" # Added required fields
         )
         await db.execute(
@@ -100,7 +100,7 @@ async def seed_data(session_factory):
         from app.models import Enemy
         goblin = Enemy(
             id=eid, name="Goblin", is_ai=True, hp_current=10, hp_max=10, ac=12,
-            position=Coordinates(q=2,r=0,s=-2),
+            position=Coordinates(x=2,y=0),
             type="Goblin"
         )
 

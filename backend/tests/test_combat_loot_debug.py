@@ -24,7 +24,7 @@ async def test_combat_loop_loot():
         hp_current=10,
         hp_max=10,
         is_ai=False,
-        position=Coordinates(q=0,r=0,s=0)
+        position=Coordinates(x=0,y=0)
     )
     e1 = Enemy(
         id="goblin_1",
@@ -33,7 +33,7 @@ async def test_combat_loop_loot():
         hp_current=5,
         hp_max=5,
         is_ai=True,
-        position=Coordinates(q=1,r=-1,s=0),
+        position=Coordinates(x=1,y=-1),
         inventory=["rusty-sword"],
         data={"loot": {"guaranteed": ["gold-tooth"]}} # Mock loot data
     )

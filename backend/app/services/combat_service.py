@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.state_service import StateService
+from app.services.pathfinding_service import PathfindingService
 from game_engine.engine import GameEngine
 
 if TYPE_CHECKING:
@@ -221,20 +222,20 @@ class CombatService:
             dist = actor_char.position.distance_to(target_char.position)
             is_ranged_attack = params.get('is_ranged', False)
 
-            max_hex_range = 1
+            max_range = 1
             if is_ranged_attack and weapon_data and 'data' in weapon_data:
                 range_data = weapon_data['data'].get('range', {})
                 if isinstance(range_data, dict):
                     normal_range_ft = range_data.get('normal', 120)
                     if isinstance(normal_range_ft, (int, float)):
-                        max_hex_range = max(1, int(normal_range_ft) // 5)
+                        max_range = max(1, int(normal_range_ft) // 5)
                 else:
-                    max_hex_range = 24 # Fallback 120ft
+                    max_range = 24 # Fallback 120ft
 
-            if dist > max_hex_range:
+            if dist > max_range:
                 action_results.append({
                     "success": False,
-                    "message": f"**{actor_char.name}** tries to attack **{target_char.name}**, but is too far away. (Range: {max_hex_range} hexes)!"
+                    "message": f"**{actor_char.name}** tries to attack **{target_char.name}**, but is too far away. (Range: {max_range} squares)!"
                 })
                 continue
 
@@ -410,19 +411,19 @@ class CombatService:
             # Range check — read from normalized spell data
             dist = actor_char.position.distance_to(target_char.position)
             spell_range_str = matched_spell.get('data', {}).get('range', 'Touch').lower()
-            max_hexes = 1  # Default touch/melee
+            max_range = 1  # Default touch/melee
 
             if 'feet' in spell_range_str or 'ft' in spell_range_str:
                 nums = re.findall(r'\d+', spell_range_str)
                 if nums:
-                    max_hexes = max(1, int(nums[0]) // 5)
+                    max_range = max(1, int(nums[0]) // 5)
             elif 'mile' in spell_range_str:
-                max_hexes = 100
+                max_range = 100
             elif 'self' in spell_range_str:
-                max_hexes = 0
+                max_range = 0
 
-            if dist > max_hexes:
-                return {"success": False, "message": f"**{actor_char.name}** tries to cast **{spell_name}** at **{target_char.name}**, but they are out of range ({max_hexes} hexes max)!"}
+            if dist > max_range:
+                return {"success": False, "message": f"**{actor_char.name}** tries to cast **{spell_name}** at **{target_char.name}**, but they are out of range ({max_range} squares max)!"}
 
         # Condition checks for spell casting
         from app.services.condition_service import get_attack_modifiers, get_save_modifiers, should_skip_turn
@@ -531,7 +532,7 @@ class CombatService:
     @staticmethod
     async def _handle_opportunity_attack(campaign_id: str, actor_name: str, action_name: str, db: AsyncSession, game_state: 'GameState'):
         """
-        Checks if there are living enemies within 10 hexes and with Line of Sight.
+        Checks if there are living enemies within 10 cells and with Line of Sight.
         If so, a random valid enemy interrupts the action and attacks the actor.
         Returns (interrupted: bool, message: str)
         """
@@ -550,7 +551,7 @@ class CombatService:
             return False, "", game_state
 
         # Filter by distance (<= 10) and Line of Sight
-        walkable_set = {(h.q, h.r, h.s) for h in getattr(game_state.location, 'walkable_hexes', [])}
+        walkable_cells = getattr(game_state.location, 'walkable_cells', [])
         valid_interrupters = []
         for hostile in all_hostiles:
             if not hostile.position:
@@ -560,15 +561,7 @@ class CombatService:
             if dist > 10:
                 continue
 
-            # Line of Sight check
-            los_path = hostile.position.get_line_to(actor_char.position)
-            has_los = True
-            for point in los_path:
-                if (point.q, point.r, point.s) not in walkable_set:
-                    has_los = False
-                    break
-
-            if has_los:
+            if PathfindingService.check_line_of_sight(hostile.position, actor_char.position, walkable_cells):
                 valid_interrupters.append(hostile)
 
         if not valid_interrupters:
@@ -633,7 +626,7 @@ class CombatService:
         vessel = Vessel(
             name=v_name,
             description=v_desc,
-            position=Coordinates(q=target_char.position.q, r=target_char.position.r, s=target_char.position.s) if target_char.position else None,
+            position=Coordinates(x=target_char.position.x, y=target_char.position.y) if target_char.position else None,
             contents=v_contents,
             currency=v_currency
         )

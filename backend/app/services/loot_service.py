@@ -89,7 +89,7 @@ class LootService:
                 for m, idx in matches:
                     tp = m.get('position')
                     if tp:
-                        t_pos = Coordinates(q=tp['q'], r=tp['r'], s=tp.get('s', 0))
+                        t_pos = Coordinates(**tp)
                         dist = actor_char.position.distance_to(t_pos)
                         if dist < best_dist:
                             best_dist = dist
@@ -142,7 +142,7 @@ class LootService:
         if target_interactable:
             if actor_char and hasattr(actor_char, 'position') and target_interactable.get('position'):
                 tp = target_interactable['position']
-                target_pos = Coordinates(q=tp['q'], r=tp['r'], s=tp.get('s', 0))
+                target_pos = Coordinates(**tp)
                 if actor_char.position.distance_to(target_pos) > 1:
                     return {"success": False, "message": f"**{actor_name}** tries to open the {target_interactable['name']}, but they are too far away. They must move adjacent to it.", "out_of_range": True, "target_name": target_interactable['name']}
 
@@ -213,7 +213,7 @@ class LootService:
                                  name=dest_row.name,
                                  description=str(d_data.get('description', '')),
                                  interactables=d_data.get('interactables', []),
-                                 walkable_hexes=d_data.get('walkable_hexes', [])
+                                 walkable_cells=d_data.get('walkable_cells', [])
                              )
                              game_state.discovered_locations.append(new_loc)
                              await StateService.save_game_state(campaign_id, game_state, db)
@@ -234,7 +234,7 @@ class LootService:
                     new_vessel = Vessel(
                         name=chest_name,
                         description=f"An opened {chest_name.lower()}.",
-                        position=actor.position if actor else Coordinates(q=0, r=0, s=0),
+                        position=actor.position if actor else Coordinates(x=0, y=0),
                         contents=contents,
                         currency=currency
                     )

@@ -8,7 +8,7 @@ async def explore():
         state = res.scalar()
         if state and 'location' in state:
             loc = state['location']
-            print("Location Walkable Hexes Type:", type(loc.get('walkable_hexes', [])[0]) if loc.get('walkable_hexes') else "Empty")
-            print("First item:", loc.get('walkable_hexes', [])[:1])
+            print("Location Walkable Hexes Type:", type(loc.get('walkable_cells', [])[0]) if loc.get('walkable_cells') else "Empty")
+            print("First item:", loc.get('walkable_cells', [])[:1])
             
 asyncio.run(explore())

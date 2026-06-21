@@ -124,6 +124,33 @@ async def init_db_async():
     except SQLAlchemyError as e:
         logger.warning(f"items.rarity migration failed (non-fatal): {e}")
 
+    # --- COORDINATE MIGRATION: cube {q,r,s} -> square {x,y} (idempotent, fail-open) ---
+    # Positions live only inside JSON text columns (no coordinate DDL). init_db is the
+    # sole migration execution path in this repo — Alembic is never invoked. A second
+    # run reports 0 changed rows. The Coordinates model also has a {q,r}->{x,y} shim,
+    # so an un-migrated row still loads even if this step is skipped.
+    try:
+        from db.migrate_coords import migrate_json_text
+        targets = [
+            ("game_states", "id", "state_data"),
+            ("characters",  "id", "sheet_data"),
+            ("monsters",    "id", "data"),
+            ("npcs",        "id", "data"),
+            ("locations",   "id", "data"),
+        ]
+        async with engine.begin() as conn:
+            for table, pk, col in targets:
+                res = await conn.execute(text(f"SELECT {pk}, {col} FROM {table}"))
+                for row_id, raw in res.fetchall():
+                    new_raw, changed = migrate_json_text(raw)
+                    if changed:
+                        await conn.execute(
+                            text(f"UPDATE {table} SET {col} = :v WHERE {pk} = :id"),
+                            {"v": new_raw, "id": row_id},
+                        )
+    except SQLAlchemyError as e:
+        logger.warning(f"Coordinate migration failed (non-fatal): {e}")
+
     logger.info("Database Initialized.")
 
 

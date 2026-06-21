@@ -140,7 +140,7 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                     ac=ac,
                     initiative=0,
                     speed=speed,
-                    position=Coordinates(q=0, r=0, s=0),
+                    position=Coordinates(x=0, y=0),
                     role=char_row['role'] or "Unknown",
                     race=char_row['race'] or "Unknown",
                     level=level,
@@ -184,17 +184,13 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                     new_p.conditions = old_p.conditions
                     new_p.initiative = old_p.initiative
                 else:
-                    # New character joining. Assign a spawn hex if available.
-                    spawn_hexes = getattr(game_state.location, 'party_locations', [])
-                    if spawn_hexes:
-                        idx = len(game_state.party) % len(spawn_hexes)
-                        spawn_data = spawn_hexes[idx].get('position', {})
+                    # New character joining. Assign a spawn cell if available.
+                    spawn_cells = getattr(game_state.location, 'party_locations', [])
+                    if spawn_cells:
+                        idx = len(game_state.party) % len(spawn_cells)
+                        spawn_data = spawn_cells[idx].get('position', {})
                         if spawn_data:
-                            new_p.position = Coordinates(
-                                q=spawn_data.get('q', 0),
-                                r=spawn_data.get('r', 0),
-                                s=spawn_data.get('s', 0)
-                            )
+                            new_p.position = Coordinates(**spawn_data)
 
                 game_state.party.append(new_p)
 

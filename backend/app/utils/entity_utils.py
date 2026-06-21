@@ -186,12 +186,12 @@ class EntityUtils:
             for loc in game_state.location.party_locations:
                 pos = loc.get('position')
                 if pos:
-                    available_spawns.append((pos.get('q', 0), pos.get('r', 0), pos.get('s', 0)))
+                    available_spawns.append((pos.get('x', pos.get('q', 0)), pos.get('y', pos.get('r', 0))))
 
         # Track occupied positions to avoid stacking
         occupied_positions = set()
         for p in game_state.party:
-            occupied_positions.add((p.position.q, p.position.r, p.position.s))
+            occupied_positions.add((p.position.x, p.position.y))
 
         for player in players_to_sync:
             needs_spawn = False
@@ -204,8 +204,8 @@ class EntityUtils:
                 game_state.entities[player.id] = player
                 
                 # If they are stacked at (0,0,0) and that's not a designated spawn, try respawning
-                pos_tuple = (player.position.q, player.position.r, player.position.s)
-                if pos_tuple == (0, 0, 0) and pos_tuple not in available_spawns:
+                pos_tuple = (player.position.x, player.position.y)
+                if pos_tuple == (0, 0) and pos_tuple not in available_spawns:
                     needs_spawn = True
                     occupied_positions.discard(pos_tuple)
             else:
@@ -218,8 +218,7 @@ class EntityUtils:
                 # Find an empty spawn point if possible
                 for spawn in available_spawns:
                     if spawn not in occupied_positions:
-                         player.position.q = spawn[0]
-                         player.position.r = spawn[1]
-                         player.position.s = spawn[2]
+                         player.position.x = spawn[0]
+                         player.position.y = spawn[1]
                          occupied_positions.add(spawn)
                          break

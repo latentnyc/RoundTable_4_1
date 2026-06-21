@@ -20,12 +20,11 @@ async def handle_move_entity(sid, data, sio, connected_users):
     user_id = user_data['user_id']
 
     entity_id = data.get('entity_id')
-    target_q = data.get('q')
-    target_r = data.get('r')
-    target_s = data.get('s')
+    target_x = data.get('x')
+    target_y = data.get('y')
     path = data.get('path', [])
 
-    if entity_id is None or target_q is None or target_r is None or target_s is None:
+    if entity_id is None or target_x is None or target_y is None:
         logger.warning(f"[Move] Missing data in move_entity from user {user_id}")
         return
 
@@ -69,32 +68,31 @@ async def handle_move_entity(sid, data, sio, connected_users):
                     return
                 game_state.has_moved_this_turn = True
 
-            # Validate target hex is in walkable_hexes
-            target_hex = next((h for h in game_state.location.walkable_hexes if h.q == target_q and h.r == target_r and h.s == target_s), None)
-            if not target_hex:
-                 logger.warning(f"[Move] Target hex not walkable {target_q},{target_r}")
+            # Validate target cell is in walkable_cells
+            target_cell = next((h for h in game_state.location.walkable_cells if h.x == target_x and h.y == target_y), None)
+            if not target_cell:
+                 logger.warning(f"[Move] Target cell not walkable {target_x},{target_y}")
                  return
                  
             # Validate no collision
             occupied = False
             for loop_entity in game_state.party + [e for e in game_state.enemies if e.hp_current > 0] + game_state.npcs:
                 if loop_entity.id != entity.id and loop_entity.position is not None:
-                    if loop_entity.position.q == target_q and loop_entity.position.r == target_r:
+                    if loop_entity.position.x == target_x and loop_entity.position.y == target_y:
                         occupied = True
                         break
-                    
+
             if occupied:
-                 logger.warning(f"[Move] Target hex occupied {target_q},{target_r}")
+                 logger.warning(f"[Move] Target cell occupied {target_x},{target_y}")
                  return
 
             # Update position
             if entity.position is None:
                 from app.models import Coordinates
-                entity.position = Coordinates(q=target_q, r=target_r, s=target_s)
+                entity.position = Coordinates(x=target_x, y=target_y)
             else:
-                entity.position.q = target_q
-                entity.position.r = target_r
-                entity.position.s = target_s
+                entity.position.x = target_x
+                entity.position.y = target_y
 
             if path:
                 await sio.emit('entity_path_animation', {'entity_id': entity.id, 'path': path}, room=campaign_id)

@@ -10,6 +10,8 @@ from app.models import GameState, Location
 from db.schema import game_states, characters, monsters, npcs, locations
 from game_engine.engine import GameEngine
 from app.services.state_service import StateService
+from app.services.pathfinding_service import PathfindingService
+from app.utils.grid_utils import chebyshev_distance
 
 if TYPE_CHECKING:
     from app.models import Player, Enemy, NPC
@@ -318,38 +320,31 @@ class GameService:
     @staticmethod
     async def process_ai_following(campaign_id: str, leader_id: str, db: AsyncSession, sio, game_state: GameState):
         """
-        Out of combat, AI party members attempt to stay within 3 hexes of the leader.
+        Out of combat, AI party members attempt to stay within 3 cells of the leader.
         They will move up to their speed.
         """
-        import math
-
         if game_state.phase == 'combat':
             return
-            
+
         leader = next((p for p in game_state.party if p.id == leader_id), None)
         if not leader or not leader.position:
             return
 
-        # Helper for hex distance
-        def hex_distance(q1, r1, s1, q2, r2, s2):
-            return max(abs(q1 - q2), abs(r1 - r2), abs(s1 - s2))
-
-        # Helper to get occupied hexes
-        def get_obstacle_hexes():
+        # Occupied cells (enemies/NPCs block movement).
+        def get_obstacle_cells():
             obstacles = set()
             for entity in [e for e in game_state.enemies if e.hp_current > 0] + game_state.npcs:
                 if entity.position:
-                    obstacles.add((entity.position.q, entity.position.r, entity.position.s))
+                    obstacles.add((entity.position.x, entity.position.y))
             return obstacles
-            
-        def get_allied_hexes(ignore_id=None):
+
+        def get_allied_cells(ignore_id=None):
             allies = set()
             for entity in game_state.party:
                 if entity.id != ignore_id and entity.position:
-                    allies.add((entity.position.q, entity.position.r, entity.position.s))
+                    allies.add((entity.position.x, entity.position.y))
             return allies
 
-        walkable = {(h.q, h.r, h.s) for h in game_state.location.walkable_hexes}
         state_changed = False
 
         for member in game_state.party:
@@ -362,53 +357,31 @@ class GameService:
             if not member.position:
                 continue
 
-            dist = hex_distance(member.position.q, member.position.r, member.position.s, leader.position.q, leader.position.r, leader.position.s)
-            
-            # If they are further than 3 hexes away, they need to move
-            if dist > 3:
-                obstacles = get_obstacle_hexes()
-                allies = get_allied_hexes(ignore_id=member.id)
-                max_move = member.speed // 5 if member.speed else 6
-                
-                # BFS to find reachable hexes
-                start_hex = (member.position.q, member.position.r, member.position.s)
-                def get_neighbors(curr):
-                    return [
-                        (curr[0]+1, curr[1], curr[2]-1),
-                        (curr[0]+1, curr[1]-1, curr[2]),
-                        (curr[0], curr[1]-1, curr[2]+1),
-                        (curr[0]-1, curr[1], curr[2]+1),
-                        (curr[0]-1, curr[1]+1, curr[2]),
-                        (curr[0], curr[1]+1, curr[2]-1)
-                    ]
-                queue = [(start_hex, [])]
-                visited = {start_hex: []}
-                
-                while queue:
-                    curr, path = queue.pop(0)
-                    if len(path) >= max_move:
-                        continue
-                    for n in get_neighbors(curr):
-                        if n in walkable and n not in obstacles:
-                            if n not in visited or len(path) + 1 < len(visited[n]):
-                                visited[n] = path + [n]
-                                queue.append((n, path + [n]))
-                                
-                reachable_and_valid = [h for h in visited if h != start_hex and h not in allies]
+            dist = chebyshev_distance(member.position.x, member.position.y, leader.position.x, leader.position.y)
 
-                if reachable_and_valid:
-                    # Sort reachable by distance to leader
-                    reachable_and_valid.sort(key=lambda h: hex_distance(h[0], h[1], h[2], leader.position.q, leader.position.r, leader.position.s))
-                    best_hex = reachable_and_valid[0]
-                    new_dist_to_leader = hex_distance(best_hex[0], best_hex[1], best_hex[2], leader.position.q, leader.position.r, leader.position.s)
-                    
+            # If they are further than 3 cells away, they need to move
+            if dist > 3:
+                obstacles = get_obstacle_cells()
+                allies = get_allied_cells(ignore_id=member.id)
+                max_move = member.speed // 5 if member.speed else 6
+
+                start_cell = (member.position.x, member.position.y)
+                reachable = PathfindingService.find_reachable_cells(
+                    start_cell, max_move, game_state.location.walkable_cells, obstacles
+                )
+                candidates = [c for c in reachable if c != start_cell and c not in allies]
+
+                if candidates:
+                    # Pick the reachable cell closest to the leader.
+                    candidates.sort(key=lambda c: chebyshev_distance(c[0], c[1], leader.position.x, leader.position.y))
+                    best_cell = candidates[0]
+                    new_dist_to_leader = chebyshev_distance(best_cell[0], best_cell[1], leader.position.x, leader.position.y)
+
                     if new_dist_to_leader < dist:
-                        member.position.q = best_hex[0]
-                        member.position.r = best_hex[1]
-                        member.position.s = best_hex[2]
+                        member.position.x = best_cell[0]
+                        member.position.y = best_cell[1]
                         state_changed = True
-                        path_found = visited[best_hex]
-                        anim_path = [{"q": h[0], "r": h[1], "s": h[2]} for h in path_found]
+                        anim_path = [{"x": c[0], "y": c[1]} for c in reachable[best_cell]]
                         if sio:
                             # Schedule emission for sync
                             asyncio.create_task(sio.emit('entity_path_animation', {'entity_id': member.id, 'path': anim_path}, room=campaign_id))

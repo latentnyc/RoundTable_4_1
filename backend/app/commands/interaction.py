@@ -120,7 +120,7 @@ class OpenCommand(Command):
             if result.get('out_of_range'):
                 await NarratorService.narrate(
                     campaign_id=ctx.campaign_id,
-                    context=result['message'] + f"\n[CRITICAL SYSTEM NOTE TO DM: The player's command was REJECTED by the physics engine because they are physically too far away from '{result.get('target_name', target_name)}' on the hex map. DO NOT narrate them touching or interacting with it. DO NOT advance the plot. DO NOT start combat. In 1-2 sentences, mock them playfully for trying to use telekinesis, or simply state their arms aren't that long.]",
+                    context=result['message'] + f"\n[CRITICAL SYSTEM NOTE TO DM: The player's command was REJECTED by the physics engine because they are physically too far away from '{result.get('target_name', target_name)}' on the grid. DO NOT narrate them touching or interacting with it. DO NOT advance the plot. DO NOT start combat. In 1-2 sentences, mock them playfully for trying to use telekinesis, or simply state their arms aren't that long.]",
                     sio=ctx.sio,
                     db=ctx.db,
                     mode="interaction_narration",
