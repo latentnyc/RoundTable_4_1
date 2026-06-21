@@ -175,7 +175,7 @@ async def create_campaign(
     initial_location_source_id = None
     initial_location_id = str(uuid4()) # Default if not found
     initial_interactables = []
-    initial_walkable_hexes = []
+    initial_walkable_cells = []
     initial_party_locations = []
 
     initial_npcs = []
@@ -214,7 +214,7 @@ async def create_campaign(
                              initial_location_desc = str(l_desc)
 
                          initial_interactables = l_data.get('interactables', [])
-                         initial_walkable_hexes = l_data.get('walkable_hexes', [])
+                         initial_walkable_cells = l_data.get('walkable_cells', [])
                          initial_party_locations = l_data.get('party_locations', [])
 
                      # Fetch NPCs present at this location
@@ -259,7 +259,7 @@ async def create_campaign(
                                  unidentified_name=n_data.get('unidentified_name'),
                                  unidentified_description=n_data.get('unidentified_description'),
                                  llm_description=n_data.get('llm_description'),
-                                 position=Coordinates(q=0, r=0, s=0),
+                                 position=Coordinates(x=0, y=0),
                                  barks=n_data.get('voice', {}).get('barks'),
                                  knowledge=n_data.get('knowledge', []),
                                  loot=n_data.get('loot'),
@@ -279,7 +279,7 @@ async def create_campaign(
             name=initial_location_name,
             description=initial_location_desc,
             interactables=initial_interactables,
-            walkable_hexes=initial_walkable_hexes,
+            walkable_cells=initial_walkable_cells,
             party_locations=initial_party_locations
         ),
         discovered_locations=[],

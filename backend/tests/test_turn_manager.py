@@ -9,8 +9,8 @@ from app.models import GameState, Player, Enemy, Coordinates
 
 @pytest.fixture
 def base_game_state():
-    active_char = Player(id="char1", name="Hero", hp_current=10, hp_max=10, is_ai=False, role="Paladin", position=Coordinates(q=0,r=0,s=0))
-    enemy_char = Enemy(id="enemy1", name="Goblin", hp_current=10, hp_max=10, type="Goblin", is_ai=True, position=Coordinates(q=1,r=-1,s=0))
+    active_char = Player(id="char1", name="Hero", hp_current=10, hp_max=10, is_ai=False, role="Paladin", position=Coordinates(x=0,y=0))
+    enemy_char = Enemy(id="enemy1", name="Goblin", hp_current=10, hp_max=10, type="Goblin", is_ai=True, position=Coordinates(x=1,y=-1))
 
     return GameState(
         session_id="test_camp",

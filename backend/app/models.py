@@ -14,43 +14,52 @@ class Condition(BaseModel):
 
 # --- Fundamentals ---
 class Coordinates(BaseModel):
-    q: int
-    r: int
-    s: int # s = -q - r
+    x: int
+    y: int
 
     def distance_to(self, other: 'Coordinates') -> int:
-        return max(abs(self.q - other.q), abs(self.r - other.r), abs(self.s - other.s))
+        # Chebyshev (8-way) distance: every step, orthogonal or diagonal, costs 1 cell.
+        return max(abs(self.x - other.x), abs(self.y - other.y))
 
     def get_line_to(self, other: 'Coordinates') -> List['Coordinates']:
-        def cube_lerp(aq: float, ar: float, b_q: float, b_r: float, t: float):
-            return (aq + (b_q - aq) * t, ar + (b_r - ar) * t, (-aq-ar) + ((-b_q-b_r) - (-aq-ar)) * t)
-        
-        def cube_round(frac_q: float, frac_r: float, frac_s: float):
-            q, r, s = round(frac_q), round(frac_r), round(frac_s)
-            q_diff, r_diff, s_diff = abs(q - frac_q), abs(r - frac_r), abs(s - frac_s)
-            if q_diff > r_diff and q_diff > s_diff:
-                q = -r - s
-            elif r_diff > s_diff:
-                r = -q - s
-            else:
-                s = -q - r
-            return (int(q), int(r), int(s))
+        """
+        True supercover line from self to other (inclusive). Includes every cell the
+        segment passes through, including BOTH flanking cells at a diagonal corner
+        crossing, so a diagonal wall blocks line-of-sight (no corner-cutting).
+        """
+        x0, y0 = self.x, self.y
+        x1, y1 = other.x, other.y
+        dx, dy = abs(x1 - x0), abs(y1 - y0)
+        sx = 1 if x1 > x0 else -1
+        sy = 1 if y1 > y0 else -1
 
-        N = self.distance_to(other)
-        if N == 0:
-            return [self]
-            
-        # Nudge to break ties exactly on hex edges
-        a_q, a_r = float(self.q) + 1e-6, float(self.r) + 2e-6
-        b_q, b_r = float(other.q) + 1e-6, float(other.r) + 2e-6
-        
-        results = []
-        for i in range(N + 1):
-            t = float(i) / N
-            fq, fr, fs = cube_lerp(a_q, a_r, b_q, b_r, t)
-            rq, rr, rs = cube_round(fq, fr, fs)
-            results.append(Coordinates(q=rq, r=rr, s=rs))
-        return results
+        cells = [Coordinates(x=x0, y=y0)]
+        if dx == 0 and dy == 0:
+            return cells
+
+        x, y = x0, y0
+        err = dx - dy
+        n = dx + dy
+        while n > 0:
+            e2 = 2 * err
+            if e2 == 0:
+                # Exact corner crossing: emit BOTH flanking cells, then step diagonally.
+                cells.append(Coordinates(x=x + sx, y=y))
+                cells.append(Coordinates(x=x, y=y + sy))
+                x += sx
+                y += sy
+                err += dx - dy
+                n -= 2
+            elif e2 > -dy:
+                err -= dy
+                x += sx
+                n -= 1
+            else:
+                err += dx
+                y += sy
+                n -= 1
+            cells.append(Coordinates(x=x, y=y))
+        return cells
 
 class Stats(BaseModel):
     model_config = {"populate_by_name": True}
@@ -166,20 +175,20 @@ class Location(BaseModel):
     name: str
     description: str
     interactables: List[Dict[str, Any]] = []
-    walkable_hexes: List[Coordinates] = Field(default_factory=list)
+    walkable_cells: List[Coordinates] = Field(default_factory=list)
     party_locations: List[Dict[str, Any]] = Field(default_factory=list)
 
     @model_validator(mode='after')
-    def enforce_spawn_hexes_are_walkable(self) -> 'Location':
-        if self.party_locations and self.walkable_hexes is not None:
-            existing = {(h.q, h.r, h.s) for h in self.walkable_hexes}
+    def enforce_spawn_cells_are_walkable(self) -> 'Location':
+        if self.party_locations and self.walkable_cells is not None:
+            existing = {(h.x, h.y) for h in self.walkable_cells}
             for p_loc in self.party_locations:
                 pos = p_loc.get('position')
                 if pos:
                     coord = Coordinates(**pos) if isinstance(pos, dict) else pos
-                    if (coord.q, coord.r, coord.s) not in existing:
-                        self.walkable_hexes.append(coord)
-                        existing.add((coord.q, coord.r, coord.s))
+                    if (coord.x, coord.y) not in existing:
+                        self.walkable_cells.append(coord)
+                        existing.add((coord.x, coord.y))
         return self
 
 class LogEntry(BaseModel):

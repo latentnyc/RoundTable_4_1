@@ -82,7 +82,7 @@
                 }
             ],
             "secrets": [],
-            "walkable_hexes": []
+            "walkable_cells": []
         }
     ],
     "npcs": [

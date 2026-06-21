@@ -4,7 +4,7 @@ import { useSocketContext } from '@/lib/SocketProvider';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { Expand, Minus, Plus, ShoppingBag } from 'lucide-react';
 import { Player, Enemy, NPC } from '@/lib/socket';
-import { HEX_SIZE, HEX_PATH, hexToPixel, getHexDistance, getHexNeighbors } from '@/lib/hexMath';
+import { CELL_SIZE, CELL_PATH, cellToPixel, chebyshevDistance, getNeighbors } from '@/lib/gridMath';
 
 interface TokenProps {
     entity: Player | Enemy | NPC;
@@ -14,7 +14,7 @@ interface TokenProps {
     onClick?: () => void;
     dx?: number;
     dy?: number;
-    animatingPath?: { q: number, r: number, s: number }[];
+    animatingPath?: { x: number, y: number }[];
     onAnimationComplete?: () => void;
 }
 
@@ -25,7 +25,7 @@ const Token = ({ entity, color, isSelected, onClick, dx = 0, dy = 0, animatingPa
         if (!animatingPath || animatingPath.length === 0) {
             setVisualPos(entity.position);
         }
-    }, [entity.position.q, entity.position.r, entity.position.s, animatingPath]);
+    }, [entity.position.x, entity.position.y, animatingPath]);
 
     useEffect(() => {
         if (animatingPath && animatingPath.length > 0) {
@@ -47,11 +47,11 @@ const Token = ({ entity, color, isSelected, onClick, dx = 0, dy = 0, animatingPa
         }
     }, [animatingPath]);
 
-    const xBase = hexToPixel(visualPos.q, visualPos.r).x;
-    const yBase = hexToPixel(visualPos.q, visualPos.r).y;
+    const xBase = cellToPixel(visualPos.x, visualPos.y).px;
+    const yBase = cellToPixel(visualPos.x, visualPos.y).py;
     const x = xBase + dx;
 
-    // SVG viewBox centers (0,0) at the hex coordinate.
+    // SVG viewBox centers (0,0) at the grid coordinate.
     // The Token text rendering behaves differently from regular shapes, pulling the perceived center down.
     // An offset of -2 provides visual alignment natively.
     const y = yBase + dy - 2;
@@ -72,13 +72,13 @@ const Token = ({ entity, color, isSelected, onClick, dx = 0, dy = 0, animatingPa
         >
             {/* Selection Ring */}
             {isSelected && (
-                <circle cx="0" cy="0" r={HEX_SIZE * 0.9} fill="none" stroke="white" strokeWidth="2" strokeDasharray="4 2" className="animate-spin-slow" />
+                <circle cx="0" cy="0" r={CELL_SIZE * 0.9} fill="none" stroke="white" strokeWidth="2" strokeDasharray="4 2" className="animate-spin-slow" />
             )}
 
             {/* Token Base */}
             <circle
                 cx="0" cy="0"
-                r={HEX_SIZE * 0.7}
+                r={CELL_SIZE * 0.7}
                 fill={color}
                 className="stroke-neutral-900 drop-shadow-md"
                 strokeWidth="3"
@@ -87,7 +87,7 @@ const Token = ({ entity, color, isSelected, onClick, dx = 0, dy = 0, animatingPa
             {/* Inner Ring */}
             <circle
                 cx="0" cy="0"
-                r={HEX_SIZE * 0.6}
+                r={CELL_SIZE * 0.6}
                 fill="none"
                 stroke="white"
                 strokeOpacity="0.2"
@@ -109,7 +109,7 @@ const Token = ({ entity, color, isSelected, onClick, dx = 0, dy = 0, animatingPa
 
             {/* HP Bar (Simplified) */}
             {entity.hp_max && (
-                <g transform={`translate(0, ${HEX_SIZE * 0.8})`}>
+                <g transform={`translate(0, ${CELL_SIZE * 0.8})`}>
                     <rect x="-10" y="0" width="20" height="4" fill="black" rx="2" />
                     <rect x="-10" y="0" width={20 * (Math.max(0, entity.hp_current || 0) / entity.hp_max)} height="4" fill="#22c55e" rx="2" />
                 </g>
@@ -117,7 +117,7 @@ const Token = ({ entity, color, isSelected, onClick, dx = 0, dy = 0, animatingPa
 
             {/* Condition Indicators */}
             {(entity as any).conditions?.length > 0 && (
-                <g transform={`translate(0, ${HEX_SIZE * 0.8 + 7})`}>
+                <g transform={`translate(0, ${CELL_SIZE * 0.8 + 7})`}>
                     {((entity as any).conditions as { name: string }[]).slice(0, 3).map((cond, i) => {
                         const condColors: Record<string, string> = {
                             Blinded: '#6b7280', Charmed: '#ec4899', Frightened: '#a855f7',
@@ -173,14 +173,14 @@ export default function BattlemapPanel() {
     const npcs = gameState?.npcs || [];
 
     const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
-    const [plottedPath, setPlottedPath] = useState<{ q: number, r: number, s: number }[]>([]);
-    const [animatingPaths, setAnimatingPaths] = useState<Record<string, { q: number, r: number, s: number }[]>>({});
+    const [plottedPath, setPlottedPath] = useState<{ x: number, y: number }[]>([]);
+    const [animatingPaths, setAnimatingPaths] = useState<Record<string, { x: number, y: number }[]>>({});
 
     // Listen for path animations from backend (ensuring synced movement for all players/AI)
     useEffect(() => {
         if (!socket) return;
 
-        const handlePathAnimation = (data: { entity_id: string, path: { q: number, r: number, s: number }[] }) => {
+        const handlePathAnimation = (data: { entity_id: string, path: { x: number, y: number }[] }) => {
             setAnimatingPaths(prev => ({ ...prev, [data.entity_id]: data.path }));
         };
 
@@ -190,48 +190,48 @@ export default function BattlemapPanel() {
         };
     }, [socket]);
 
-    const handleHexHover = (hex: { q: number, r: number, s: number }) => {
+    const handleCellHover = (cell: { x: number, y: number }) => {
         if (!selectedTokenId) return;
         const token = [...party, ...enemies, ...npcs].find(e => e.id === selectedTokenId);
         if (!token) return;
 
-        const pathIdx = plottedPath.findIndex(p => p.q === hex.q && p.r === hex.r);
+        const pathIdx = plottedPath.findIndex(p => p.x === cell.x && p.y === cell.y);
 
         if (pathIdx !== -1) {
             setPlottedPath(prev => prev.slice(0, pathIdx + 1));
             return;
         }
 
-        if (hex.q === token.position.q && hex.r === token.position.r) {
+        if (cell.x === token.position.x && cell.y === token.position.y) {
             setPlottedPath([]);
             return;
         }
 
         const tip = plottedPath.length > 0 ? plottedPath[plottedPath.length - 1] : token.position;
-        const dist = getHexDistance(tip.q, tip.r, tip.s, hex.q, hex.r, hex.s);
+        const dist = chebyshevDistance(tip.x, tip.y, cell.x, cell.y);
 
         if (dist === 1) {
-            const maxHexDistance = Math.floor((token.speed || 30) / 5);
-            if (plottedPath.length < maxHexDistance) {
-                const isEnemyOrNPC = [...enemies, ...npcs].some(e => e.position && e.position.q === hex.q && e.position.r === hex.r && (e.hp_current === undefined || e.hp_current > 0));
+            const maxCellDistance = Math.floor((token.speed || 30) / 5);
+            if (plottedPath.length < maxCellDistance) {
+                const isEnemyOrNPC = [...enemies, ...npcs].some(e => e.position && e.position.x === cell.x && e.position.y === cell.y && (e.hp_current === undefined || e.hp_current > 0));
                 if (!isEnemyOrNPC) {
-                    setPlottedPath(prev => [...prev, hex]);
+                    setPlottedPath(prev => [...prev, cell]);
                 }
             }
         }
     };
 
-    const handleHexClick = (hex: { q: number, r: number, s: number }, isReachable: boolean) => {
+    const handleCellClick = (cell: { x: number, y: number }, isReachable: boolean) => {
         if (!selectedTokenId || !socket || !isReachable) return;
 
         const pathTarget = plottedPath.length > 0 ? plottedPath[plottedPath.length - 1] : null;
-        const matchesPathTarget = pathTarget && pathTarget.q === hex.q && pathTarget.r === hex.r;
+        const matchesPathTarget = pathTarget && pathTarget.x === cell.x && pathTarget.y === cell.y;
 
         let finalPath = [];
         if (matchesPathTarget) {
             finalPath = [...plottedPath];
         } else {
-            finalPath = [hex];
+            finalPath = [cell];
         }
 
         const emitId = selectedTokenId;
@@ -240,9 +240,8 @@ export default function BattlemapPanel() {
 
         socket.emit('move_entity', {
             entity_id: emitId,
-            q: hex.q,
-            r: hex.r,
-            s: hex.s,
+            x: cell.x,
+            y: cell.y,
             path: finalPath
         });
     };
@@ -253,15 +252,15 @@ export default function BattlemapPanel() {
         if (!token) return "";
 
         const pts = [token.position, ...plottedPath].map(h => {
-            const px = hexToPixel(h.q, h.r);
-            return `${px.x},${px.y}`;
+            const px = cellToPixel(h.x, h.y);
+            return `${px.px},${px.py}`;
         });
         return pts.join(" ");
     }, [plottedPath, selectedTokenId, party, enemies, npcs]);
 
-    // Derived state for reachable hexes (Shrinks as path is plotted)
-    const reachableHexes = useMemo(() => {
-        if (!selectedTokenId || !gameState?.location?.walkable_hexes) return new Set<string>();
+    // Derived state for reachable cells (Shrinks as path is plotted)
+    const reachableCells = useMemo(() => {
+        if (!selectedTokenId || !gameState?.location?.walkable_cells) return new Set<string>();
 
         const token = [...party, ...enemies, ...npcs].find(e => e.id === selectedTokenId);
         if (!token || token.speed === undefined || !token.position) return new Set<string>();
@@ -275,32 +274,32 @@ export default function BattlemapPanel() {
         const reachable = new Set<string>();
 
         // Add the path itself and origin so they stay highlighted (to allow clicking backwards)
-        reachable.add(`${token.position.q},${token.position.r}`);
-        plottedPath.forEach(p => reachable.add(`${p.q},${p.r}`));
+        reachable.add(`${token.position.x},${token.position.y}`);
+        plottedPath.forEach(p => reachable.add(`${p.x},${p.y}`));
 
         if (remainingMoves <= 0) return reachable;
 
         // Only enemies and NPCs block movement paths (allies can be moved through, but not ended on)
-        const obstacleHexes = new Set(
+        const obstacleCells = new Set(
             [...enemies.filter(e => e.hp_current > 0), ...npcs]
-                .map(e => `${e.position.q},${e.position.r}`)
+                .map(e => `${e.position.x},${e.position.y}`)
         );
 
-        const alliedHexes = new Set(
-            party.map(p => `${p.position.q},${p.position.r}`)
+        const alliedCells = new Set(
+            party.map(p => `${p.position.x},${p.position.y}`)
         );
 
-        // Set of hexes we have already stepped on in this path
-        const pathSet = new Set(plottedPath.map(p => `${p.q},${p.r}`));
-        pathSet.add(`${token.position.q},${token.position.r}`);
+        // Set of cells we have already stepped on in this path
+        const pathSet = new Set(plottedPath.map(p => `${p.x},${p.y}`));
+        pathSet.add(`${token.position.x},${token.position.y}`);
 
-        const walkableSet = new Set(gameState.location.walkable_hexes.map(h => `${h.q},${h.r}`));
+        const walkableSet = new Set(gameState.location.walkable_cells.map(h => `${h.x},${h.y}`));
         const startPos = plottedPath.length > 0 ? plottedPath[plottedPath.length - 1] : token.position;
 
-        // BFS to find all hexes reachable within remainingMoves
+        // BFS to find all cells reachable within remainingMoves
         const visited = new Set<string>();
-        const queue: { q: number, r: number, s: number, dist: number }[] = [{ ...startPos, dist: 0 }];
-        visited.add(`${startPos.q},${startPos.r}`);
+        const queue: { x: number, y: number, dist: number }[] = [{ ...startPos, dist: 0 }];
+        visited.add(`${startPos.x},${startPos.y}`);
 
         while (queue.length > 0) {
             const current = queue.shift()!;
@@ -308,10 +307,10 @@ export default function BattlemapPanel() {
             // Reached max distance for this tip
             if (current.dist >= remainingMoves) continue;
 
-            const neighbors = getHexNeighbors(current.q, current.r, current.s);
+            const neighbors = getNeighbors(current.x, current.y);
             for (const n of neighbors) {
-                const key = `${n.q},${n.r}`;
-                if (walkableSet.has(key) && !visited.has(key) && !pathSet.has(key) && !obstacleHexes.has(key)) {
+                const key = `${n.x},${n.y}`;
+                if (walkableSet.has(key) && !visited.has(key) && !pathSet.has(key) && !obstacleCells.has(key)) {
                     visited.add(key);
                     reachable.add(key);
                     queue.push({ ...n, dist: current.dist + 1 });
@@ -319,15 +318,15 @@ export default function BattlemapPanel() {
             }
         }
 
-        // Cannot end your turn on an ally's hex
-        for (const alliedHex of alliedHexes) {
-            reachable.delete(alliedHex);
+        // Cannot end your turn on an ally's cell
+        for (const alliedCell of alliedCells) {
+            reachable.delete(alliedCell);
         }
 
         return reachable;
-    }, [selectedTokenId, gameState?.location?.walkable_hexes, party, enemies, npcs, gameState?.phase, plottedPath]);
+    }, [selectedTokenId, gameState?.location?.walkable_cells, party, enemies, npcs, gameState?.phase, plottedPath]);
 
-    // Calculate rendering offsets for tokens that share the same hex
+    // Calculate rendering offsets for tokens that share the same cell
     const allEntities = useMemo(() => {
         return [...npcs, ...enemies.filter(e => e.hp_current > 0), ...party];
     }, [npcs, enemies, party]);
@@ -336,7 +335,7 @@ export default function BattlemapPanel() {
         const counts: Record<string, number> = {};
         allEntities.forEach(e => {
             if (!e.position) return;
-            const key = `${e.position.q},${e.position.r}`;
+            const key = `${e.position.x},${e.position.y}`;
             counts[key] = (counts[key] || 0) + 1;
         });
 
@@ -348,7 +347,7 @@ export default function BattlemapPanel() {
                 offsets[e.id] = { dx: 0, dy: 0 };
                 return;
             }
-            const key = `${e.position.q},${e.position.r}`;
+            const key = `${e.position.x},${e.position.y}`;
             const total = counts[key];
             if (total > 1) {
                 currentCounts[key] = (currentCounts[key] || 0) + 1;
@@ -380,13 +379,13 @@ export default function BattlemapPanel() {
 
 
 
-    // Room bounding boxes based on explicit hex grids
+    // Room bounding boxes based on explicit cell grids
     const roomRenderData = useMemo(() => {
         if (!gameState?.location) return [];
         const locs = [gameState.location, ...(gameState.discovered_locations || [])];
 
         return locs.map(loc => {
-            if (!loc.walkable_hexes || loc.walkable_hexes.length === 0) return null;
+            if (!loc.walkable_cells || loc.walkable_cells.length === 0) return null;
 
             let minX = Infinity;
             let maxX = -Infinity;
@@ -396,64 +395,61 @@ export default function BattlemapPanel() {
             const interactables = loc.interactables || [];
             const doorPositions = new Set(
                 interactables.filter(i => i.type === 'door' && i.position)
-                    .map(d => `${d.position!.q},${d.position!.r}`)
+                    .map(d => `${d.position!.x},${d.position!.y}`)
             );
 
-            // Only use non-door hexes to calculate the tight bounding box
-            const floorHexes = loc.walkable_hexes.filter(h => !doorPositions.has(`${h.q},${h.r}`));
-            const hexesToBound = floorHexes.length > 0 ? floorHexes : loc.walkable_hexes;
+            // Only use non-door cells to calculate the tight bounding box
+            const floorCells = loc.walkable_cells.filter(h => !doorPositions.has(`${h.x},${h.y}`));
+            const cellsToBound = floorCells.length > 0 ? floorCells : loc.walkable_cells;
 
-            hexesToBound.forEach(h => {
-                const px = hexToPixel(h.q, h.r);
-                minX = Math.min(minX, px.x);
-                maxX = Math.max(maxX, px.x);
-                minY = Math.min(minY, px.y);
-                maxY = Math.max(maxY, px.y);
+            cellsToBound.forEach(h => {
+                const px = cellToPixel(h.x, h.y);
+                minX = Math.min(minX, px.px);
+                maxX = Math.max(maxX, px.px);
+                minY = Math.min(minY, px.py);
+                maxY = Math.max(maxY, px.py);
             });
 
             // Include party locations in bounds if they extend past the defined walkable area
             const partyLocs = loc.party_locations || [];
             partyLocs.forEach(spawn => {
                 if (spawn.position) {
-                    const px = hexToPixel(spawn.position.q, spawn.position.r);
-                    minX = Math.min(minX, px.x);
-                    maxX = Math.max(maxX, px.x);
-                    minY = Math.min(minY, px.y);
-                    maxY = Math.max(maxY, px.y);
+                    const px = cellToPixel(spawn.position.x, spawn.position.y);
+                    minX = Math.min(minX, px.px);
+                    maxX = Math.max(maxX, px.px);
+                    minY = Math.min(minY, px.py);
+                    maxY = Math.max(maxY, px.py);
                 }
             });
 
-            // The padding should reach exactly to the center of adjacent door hexes.
-            // Horizontal doors (West/East) are 1.5 * HEX_SIZE away from the edge floor hex.
-            // Vertical doors (North/South) are sqrt(3) * HEX_SIZE away from the outer floor hex.
-            const padX = HEX_SIZE * 1.5;
-            const padY = Math.sqrt(3) * HEX_SIZE;
+            // Pad by one cell so edge-ring doors (one cell outside the floor rect) are framed symmetrically.
+            const pad = CELL_SIZE;
 
             return {
                 id: loc.source_id || loc.id,
                 rect: {
-                    x: minX - padX,
-                    y: minY - padY,
-                    width: (maxX - minX) + padX * 2,
-                    height: (maxY - minY) + padY * 2,
+                    x: minX - pad,
+                    y: minY - pad,
+                    width: (maxX - minX) + pad * 2,
+                    height: (maxY - minY) + pad * 2,
                 },
-                hexes: loc.walkable_hexes,
+                cells: loc.walkable_cells,
                 interactables: interactables,
                 partyLocations: loc.party_locations || []
             };
         }).filter(Boolean) as {
             id: string;
             rect: { x: number; y: number; width: number; height: number };
-            hexes: { q: number; r: number; s: number }[];
+            cells: { x: number; y: number }[];
             interactables: any[];
-            partyLocations: { party_id: string, position: { q: number, r: number, s: number } }[];
+            partyLocations: { party_id: string, position: { x: number, y: number } }[];
         }[];
     }, [gameState?.location, gameState?.discovered_locations]);
 
     const allDoors = useMemo(() => {
         const doors = roomRenderData.flatMap(r => r.interactables).filter(i => i.type === 'door' && i.position);
         // Deduplicate in case rooms share the exact same door interactable object in their schema arrays
-        const dm = new Map(doors.map(d => [d.id || `${d.position.q},${d.position.r}`, d]));
+        const dm = new Map(doors.map(d => [d.id || `${d.position.x},${d.position.y}`, d]));
         return Array.from(dm.values());
     }, [roomRenderData]);
 
@@ -527,7 +523,7 @@ export default function BattlemapPanel() {
                                 style={{ overflow: 'visible' }}
                             >
                                 {/* Grid Layer - Fog of War Rooms */}
-                                <g className="hex-rooms" stroke="white" strokeWidth="1" fill="none">
+                                <g className="grid-rooms" stroke="white" strokeWidth="1" fill="none">
                                     {/* Base Room Silhouette (Merged Overlaps) */}
                                     <g className="room-base-layer">
                                         <g className="room-borders" style={{ filter: "drop-shadow(0px 20px 25px rgba(0,0,0,0.5))" }}>
@@ -564,22 +560,22 @@ export default function BattlemapPanel() {
 
                                     {roomRenderData.map((room) => (
                                         <g key={`content-${room.id}`} className="room-content-layer">
-                                            {/* Draw Walkable Hexes */}
-                                            {room.hexes.map((hex) => {
-                                                const { x, y } = hexToPixel(hex.q, hex.r);
-                                                const hexKey = `${hex.q},${hex.r}`;
-                                                const isReachable = reachableHexes.has(hexKey);
-                                                const isInPath = plottedPath.some(p => p.q === hex.q && p.r === hex.r);
-                                                const hasVessel = gameState.vessels?.some(v => v.position?.q === hex.q && v.position?.r === hex.r);
-                                                const hasCorpse = enemies.some(e => e.position && e.position.q === hex.q && e.position.r === hex.r && e.hp_current !== undefined && e.hp_current <= 0);
+                                            {/* Draw Walkable Cells */}
+                                            {room.cells.map((cell) => {
+                                                const { px: x, py: y } = cellToPixel(cell.x, cell.y);
+                                                const cellKey = `${cell.x},${cell.y}`;
+                                                const isReachable = reachableCells.has(cellKey);
+                                                const isInPath = plottedPath.some(p => p.x === cell.x && p.y === cell.y);
+                                                const hasVessel = gameState.vessels?.some(v => v.position?.x === cell.x && v.position?.y === cell.y);
+                                                const hasCorpse = enemies.some(e => e.position && e.position.x === cell.x && e.position.y === cell.y && e.hp_current !== undefined && e.hp_current <= 0);
 
                                                 return (
-                                                    <g key={hexKey} transform={`translate(${x}, ${y})`}>
+                                                    <g key={cellKey} transform={`translate(${x}, ${y})`}>
                                                         <path
-                                                            d={HEX_PATH}
+                                                            d={CELL_PATH}
                                                             className={`transition-colors duration-200 ${isReachable ? 'fill-green-500/20 stroke-green-500/50 cursor-pointer' : 'opacity-20 hover:fill-white/10'} ${isInPath && isReachable ? '!fill-yellow-500/30' : ''}`}
-                                                            onMouseEnter={() => handleHexHover(hex)}
-                                                            onClick={() => handleHexClick(hex, isReachable)}
+                                                            onMouseEnter={() => handleCellHover(cell)}
+                                                            onClick={() => handleCellClick(cell, isReachable)}
                                                         />
                                                         {(hasVessel || hasCorpse) && (
                                                             <g transform="translate(0, 8)" className="pointer-events-none opacity-80">
@@ -605,12 +601,12 @@ export default function BattlemapPanel() {
                                                 />
                                             )}
 
-                                            {/* Draw Party Spawn Hexes */}
+                                            {/* Draw Party Spawn Cells */}
                                             {room.partyLocations?.map((spawn) => {
-                                                const { x, y } = hexToPixel(spawn.position.q, spawn.position.r);
+                                                const { px: x, py: y } = cellToPixel(spawn.position.x, spawn.position.y);
                                                 return (
-                                                    <g key={`spawn-${spawn.position.q}-${spawn.position.r}`} transform={`translate(${x}, ${y})`} className="pointer-events-none">
-                                                        <path d={HEX_PATH} fill="rgba(234, 179, 8, 0.2)" />
+                                                    <g key={`spawn-${spawn.position.x}-${spawn.position.y}`} transform={`translate(${x}, ${y})`} className="pointer-events-none">
+                                                        <path d={CELL_PATH} fill="rgba(234, 179, 8, 0.2)" />
                                                         <text
                                                             x="0"
                                                             y="0"
@@ -631,12 +627,12 @@ export default function BattlemapPanel() {
                                 {/* Interactables Layer (Doors) */}
                                 <g className="interactables pointer-events-none">
                                     {allDoors.map(door => {
-                                        const pos = hexToPixel(door.position!.q, door.position!.r);
+                                        const pos = cellToPixel(door.position!.x, door.position!.y);
                                         const isOpen = door.state === 'open';
                                         return (
-                                            <g key={door.id} transform={`translate(${pos.x}, ${pos.y})`}>
-                                                {/* Ground highlight for door hex */}
-                                                <path d={HEX_PATH} fill={isOpen ? "rgba(34, 197, 94, 0.2)" : "rgba(239, 68, 68, 0.2)"} />
+                                            <g key={door.id} transform={`translate(${pos.px}, ${pos.py})`}>
+                                                {/* Ground highlight for door cell */}
+                                                <path d={CELL_PATH} fill={isOpen ? "rgba(34, 197, 94, 0.2)" : "rgba(239, 68, 68, 0.2)"} />
                                                 <text
                                                     x="0"
                                                     y="0"

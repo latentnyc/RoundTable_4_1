@@ -33,7 +33,14 @@ async def startup_event():
     try:
         await init_db_async()
 
-        # Database initialized via Alembic and init_db
+        # Forward-only safety net for the hex->square migration: clear the per-campaign
+        # last-broadcast cache so the first emit after a (re)start is a full state, never a
+        # JSON-Patch referencing stale q/r/s paths. A fresh process clears it anyway; this
+        # covers `uvicorn --reload` warm reloads.
+        from app.services.state_service import StateService
+        StateService._last_broadcasted_state.clear()
+
+        # Database initialized via init_db (Alembic is not used in this project)
         logger.info("Database schema verified.")
 
         init_firebase()

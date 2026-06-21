@@ -145,7 +145,7 @@ class StateService:
                 if 'hp_current' not in s_data:
                     s_data['hp_current'] = int(s_data.get('hp_max', 10))
                 if 'position' not in s_data:
-                    s_data['position'] = {"q": 0, "r": 0, "s": 0}
+                    s_data['position'] = {"x": 0, "y": 0}
 
                 # Sanitize inventory to ensure Pydantic List[str] validation passes
                 if 'inventory' in s_data:
@@ -204,7 +204,7 @@ class StateService:
                 if 'hp_current' not in init_d:
                     init_d['hp_current'] = int(init_d.get('hp_max', 10))
                 if 'position' not in init_d:
-                    init_d['position'] = {"q": 0, "r": 0, "s": 0}
+                    init_d['position'] = {"x": 0, "y": 0}
                 if 'ac' not in init_d:
                     init_d['ac'] = int(d.get('stats', {}).get('ac', 10))
 
@@ -248,7 +248,7 @@ class StateService:
                 if 'hp_current' not in init_d:
                     init_d['hp_current'] = int(init_d.get('hp_max', 10))
                 if 'position' not in init_d:
-                    init_d['position'] = {"q": 0, "r": 0, "s": 0}
+                    init_d['position'] = {"x": 0, "y": 0}
                 if 'ac' not in init_d:
                     init_d['ac'] = int(d.get('stats', {}).get('ac', 10))
 

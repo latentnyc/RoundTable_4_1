@@ -26,7 +26,7 @@ async def test_identification():
         is_ai=True,
         hp_current=20,
         hp_max=20,
-        position={"x": 0, "y": 0, "z": 0, "q": 0, "r": 0, "s": 0},
+        position={"x": 0, "y": 0},
         identified=False
     )
 
@@ -38,7 +38,7 @@ async def test_identification():
         hp_max=10,
         sheet_data={"stats": {"intelligence": 16}},
         is_ai=False,
-        position={"x": 5, "y": 5, "z": 0, "q": 0, "r": 0, "s": 0}
+        position={"x": 5, "y": 5}
     )
 
     mock_location = Location(

@@ -111,7 +111,7 @@ class AttackCommand(Command):
             if "too far away" in result.get('message', '').lower():
                 await NarratorService.narrate(
                     campaign_id=campaign_id,
-                    context=result['message'] + f"\n[CRITICAL SYSTEM NOTE TO DM: The player {sender_name} attempted to melee attack {target_name}, but they are too far away on the hexagonal map. The physics engine REJECTED this attack. DO NOT narrate a missed swing or a counterattack. DO NOT advance the plot. Explain that they are out of range and must move closer first.]",
+                    context=result['message'] + f"\n[CRITICAL SYSTEM NOTE TO DM: The player {sender_name} attempted to melee attack {target_name}, but they are too far away on the grid. The physics engine REJECTED this attack. DO NOT narrate a missed swing or a counterattack. DO NOT advance the plot. Explain that they are out of range and must move closer first.]",
                     sio=sio,
                     db=db,
                     mode="combat_narration",

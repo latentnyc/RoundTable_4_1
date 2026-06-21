@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import random
 import traceback
 from app.services.game_service import GameService
 from app.services.combat_service import CombatService
@@ -14,6 +15,8 @@ logger = logging.getLogger(__name__)
 # Global lock for turn management used to be here, but we now use LockService for distributed locking
 from app.services.lock_service import LockService
 from app.services.state_service import StateService
+from app.services.pathfinding_service import PathfindingService
+from app.utils.grid_utils import chebyshev_distance
 
 class TurnManager:
     @staticmethod
@@ -348,11 +351,65 @@ class TurnManager:
         return mech_msg
 
     @staticmethod
+    def _get_multiattack_actions(actor) -> list:
+        """Parse a monster's Multiattack data into an ordered list of attack-action dicts.
+
+        Returns [] when the actor has no Multiattack (caller falls back to a single attack).
+        Supports two SRD shapes: a flat 'actions' list of {action_name, count}, and
+        'action_options' (pick one option set). Each returned item is the matched attack's
+        SRD action dict.
+        """
+        data = getattr(actor, 'data', {})
+        if not isinstance(data, dict):
+            return []
+
+        actions = data.get('actions', [])
+        if not actions:
+            return []
+
+        multi_action = None
+        for a in actions:
+            if isinstance(a, dict) and 'multiattack' in a.get('name', '').lower():
+                multi_action = a
+                break
+        if not multi_action:
+            return []
+
+        # Look up the actor's concrete attack actions by name (anything with damage).
+        attack_lookup = {}
+        for a in actions:
+            if isinstance(a, dict) and a.get('damage') and 'multiattack' not in a.get('name', '').lower():
+                attack_lookup[a['name']] = a
+
+        attack_sequence = []
+
+        # Format 1: flat list of {action_name, count}.
+        if multi_action.get('multiattack_type') == 'actions' and multi_action.get('actions'):
+            for entry in multi_action['actions']:
+                action_name = entry.get('action_name', '')
+                count = int(entry.get('count', 1))
+                if action_name in attack_lookup:
+                    attack_sequence.extend(attack_lookup[action_name] for _ in range(count))
+
+        # Format 2: action_options — choose one option set.
+        elif multi_action.get('multiattack_type') == 'action_options' and multi_action.get('action_options'):
+            options = multi_action['action_options'].get('from', {}).get('options', [])
+            if options:
+                chosen = random.choice(options)
+                for item in chosen.get('items', []):
+                    action_name = item.get('action_name', '')
+                    count = int(item.get('count', 1))
+                    if action_name in attack_lookup:
+                        attack_sequence.extend(attack_lookup[action_name] for _ in range(count))
+
+        return attack_sequence
+
+    @staticmethod
     async def execute_ai_turn(campaign_id: str, actor, game_state, sio, db, commit: bool = True):
         """
         Simple AI logic: Attack closest/random hostile.
         """
-        logger.debug(f"Executing AI Turn for {actor.name} (ID: {actor.id}) at Position: q={actor.position.q}, r={actor.position.r}")
+        logger.debug(f"Executing AI Turn for {actor.name} (ID: {actor.id}) at Position: x={actor.position.x}, y={actor.position.y}")
 
         target = await TurnManager._select_optimal_target(campaign_id, actor, game_state, sio)
 
@@ -402,102 +459,70 @@ class TurnManager:
         # Check LOS if within raw distance range
         has_los = False
         if dist_to_target <= max_attack_range:
-            walkable_set = {(h.q, h.r, h.s) for h in getattr(game_state.location, 'walkable_hexes', [])}
-            los_path = actor.position.get_line_to(target.position)
-            has_los = True
-            for point in los_path:
-                if (point.q, point.r, point.s) not in walkable_set:
-                    has_los = False
-                    break
-                    
+            has_los = PathfindingService.check_line_of_sight(
+                actor.position, target.position, getattr(game_state.location, 'walkable_cells', [])
+            )
+
         needs_to_move = dist_to_target > max_attack_range or not has_los
 
         if needs_to_move:
-            # Need to move closer to get within range/LOS
-            obstacle_hexes = set()
+            # Need to move closer to get within range/LOS.
+            # Enemies/NPCs block movement; allies can be passed through but not stopped on.
+            obstacle_cells = set()
             for entity in [e for e in game_state.enemies if e.hp_current > 0] + game_state.npcs:
                 if entity.id != actor.id and entity.position:
-                    obstacle_hexes.add((entity.position.q, entity.position.r, entity.position.s))
+                    obstacle_cells.add((entity.position.x, entity.position.y))
 
-            allied_hexes = set()
+            allied_cells = set()
             for p in game_state.party:
                 if p.id != actor.id and p.position:
-                    allied_hexes.add((p.position.q, p.position.r, p.position.s))
+                    allied_cells.add((p.position.x, p.position.y))
 
-            walkable = {(h.q, h.r, h.s) for h in game_state.location.walkable_hexes}
             max_move = actor.speed // 5 if hasattr(actor, 'speed') and actor.speed else 6
 
-            # BFS to find truly reachable hexes and their paths
-            start_hex = (actor.position.q, actor.position.r, actor.position.s)
-            
-            def get_neighbors(curr):
-                return [
-                    (curr[0]+1, curr[1], curr[2]-1),
-                    (curr[0]+1, curr[1]-1, curr[2]),
-                    (curr[0], curr[1]-1, curr[2]+1),
-                    (curr[0]-1, curr[1], curr[2]+1),
-                    (curr[0]-1, curr[1]+1, curr[2]),
-                    (curr[0], curr[1]+1, curr[2]-1)
-                ]
-                
-            queue = [(start_hex, [])]
-            visited = {start_hex: []}
-            
-            while queue:
-                curr, path = queue.pop(0)
-                
-                if len(path) >= max_move:
-                    continue
-                    
-                for n in get_neighbors(curr):
-                    if n in walkable and n not in obstacle_hexes:
-                        if n not in visited or len(path) + 1 < len(visited[n]):
-                            visited[n] = path + [n]
-                            queue.append((n, path + [n]))
+            # Shared 8-way Chebyshev BFS over walkable cells.
+            start_cell = (actor.position.x, actor.position.y)
+            reachable = PathfindingService.find_reachable_cells(
+                start_cell, max_move, game_state.location.walkable_cells, obstacle_cells
+            )
+            candidates = [c for c in reachable if c != start_cell and c not in allied_cells]
 
-            reachable_and_valid = [h for h in visited if h != start_hex and h not in allied_hexes]
-            
-            if reachable_and_valid:
-                # Sort reachable hexes by distance to target
-                reachable_and_valid.sort(key=lambda h: max(abs(h[0] - target.position.q), abs(h[1] - target.position.r), abs(h[2] - target.position.s)))
-                
-                best_hex = reachable_and_valid[0]
-                new_dist_to_target = max(abs(best_hex[0] - target.position.q), abs(best_hex[1] - target.position.r), abs(best_hex[2] - target.position.s))
-                
+            if candidates:
+                # Pick the reachable cell closest to the target.
+                candidates.sort(key=lambda c: chebyshev_distance(c[0], c[1], target.position.x, target.position.y))
+
+                best_cell = candidates[0]
+                new_dist_to_target = chebyshev_distance(best_cell[0], best_cell[1], target.position.x, target.position.y)
+
                 if new_dist_to_target < dist_to_target:
-                    actor.position.q = best_hex[0]
-                    actor.position.r = best_hex[1]
-                    actor.position.s = best_hex[2]
-                    
-                    logger.debug(f"AI {actor.name} moved to Position: q={actor.position.q}, r={actor.position.r}")
-                    
-                    anim_path = [{"q": h[0], "r": h[1], "s": h[2]} for h in visited[best_hex]]
+                    actor.position.x = best_cell[0]
+                    actor.position.y = best_cell[1]
+
+                    logger.debug(f"AI {actor.name} moved to Position: x={actor.position.x}, y={actor.position.y}")
+
+                    anim_path = [{"x": c[0], "y": c[1]} for c in reachable[best_cell]]
                     await sio.emit('entity_path_animation', {'entity_id': actor.id, 'path': anim_path}, room=campaign_id)
-                    
+
                     # We MUST save the game state here so the move is permanent
                     if commit:
                         logger.debug(f"Saving Game State for {actor.name} move out of combat.")
                         await StateService.save_game_state(campaign_id, game_state, db)
                         await db.commit()
                         logger.debug(f"Game State DB Commit for {actor.name} complete.")
-                        
+
                     # Also need to emit game_state_update so other clients see new position definitively
                     await StateService.emit_state_update(campaign_id, game_state, sio)
                     # wait a little bit for the animation to play before attacking if they do attack
-                    await asyncio.sleep(len(visited[best_hex]) * 0.15)
-                    
+                    await asyncio.sleep(len(reachable[best_cell]) * 0.15)
+
                     # Update dist_to_target after moving
                     dist_to_target = actor.position.distance_to(target.position)
-                    
+
                     # Recalculate LOS from new position
                     if dist_to_target <= max_attack_range:
-                        walkable_set = {(h.q, h.r, h.s) for h in getattr(game_state.location, 'walkable_hexes', [])}
-                        los_path = actor.position.get_line_to(target.position)
-                        has_los = True
-                        for point in los_path:
-                            if (point.q, point.r, point.s) not in walkable_set:
-                                has_los = False
-                                break
+                        has_los = PathfindingService.check_line_of_sight(
+                            actor.position, target.position, getattr(game_state.location, 'walkable_cells', [])
+                        )
 
         if dist_to_target > max_attack_range or not has_los:
             # Still couldn't reach
@@ -522,8 +547,40 @@ class TurnManager:
                 
             return game_state
 
-        # Resolve Attack (now we are adjacent)
-        result = await CombatService.resolution_attack(campaign_id, actor.id, actor.name, target.name, db, current_state=game_state, commit=commit, target_id=str(target.id))
+        # Resolve Attack(s) (now we are adjacent). Monsters with a Multiattack action
+        # (e.g. the Lizardfolk's Bite + Heavy Club) resolve each sub-attack in sequence;
+        # everyone else makes a single attack.
+        multi_attacks = TurnManager._get_multiattack_actions(actor)
+
+        if multi_attacks:
+            all_results = []
+            current_state = game_state
+            for _atk_action in multi_attacks:
+                # Stop early once the target is down.
+                target_entity = next(
+                    (e for e in (current_state.party + current_state.enemies + current_state.npcs) if e.id == target.id),
+                    None,
+                )
+                if target_entity and target_entity.hp_current <= 0:
+                    break
+                atk_result = await CombatService.resolution_attack(
+                    campaign_id, actor.id, actor.name, target.name, db,
+                    current_state=current_state, commit=False, target_id=str(target.id),
+                )
+                all_results.append(atk_result)
+                if atk_result.get('game_state'):
+                    current_state = atk_result['game_state']
+
+            result = all_results[-1] if all_results else {"success": False, "message": f"**{actor.name}** fails to attack **{target.name}**."}
+            if result.get("success"):
+                result['game_state'] = current_state
+                # Persist once after the whole sequence.
+                if commit:
+                    await StateService.save_game_state(campaign_id, current_state, db)
+                    await db.commit()
+        else:
+            all_results = None
+            result = await CombatService.resolution_attack(campaign_id, actor.id, actor.name, target.name, db, current_state=game_state, commit=commit, target_id=str(target.id))
 
         if not result.get("success"):
             err_msg = result.get("message", f"**{actor.name}** fails to attack **{target.name}**.")
@@ -539,9 +596,12 @@ class TurnManager:
                 
             return result.get('game_state', game_state)
 
-        # Mechanics Log
-        mech_msg = TurnManager._format_combat_log(actor, target, result)
-        logger.debug(f"AI {actor.name} completed Attack Resolution. Result HP: {result.get('target_hp_remaining')}, Position check: q={actor.position.q}, r={actor.position.r}")
+        # Mechanics Log — one line per sub-attack when multiattacking.
+        if all_results:
+            mech_msg = "\n".join(TurnManager._format_combat_log(actor, target, r) for r in all_results)
+        else:
+            mech_msg = TurnManager._format_combat_log(actor, target, result)
+        logger.debug(f"AI {actor.name} completed Attack Resolution. Result HP: {result.get('target_hp_remaining')}, Position check: x={actor.position.x}, y={actor.position.y}")
 
         # Save & Emit Mechanics
         is_actor_party = any(p.id == actor.id for p in game_state.party)
@@ -578,7 +638,7 @@ class TurnManager:
             await StateService.emit_state_update(campaign_id, result['game_state'], sio)
 
         if commit:
-            logger.debug(f"Committing DB changes after {actor.name} action loop. Position should still be q={actor.position.q}, r={actor.position.r}.")
+            logger.debug(f"Committing DB changes after {actor.name} action loop. Position should still be x={actor.position.x}, y={actor.position.y}.")
             await db.commit()
 
         # Narration

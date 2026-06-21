@@ -13,9 +13,9 @@ from app.models import (
 
 @pytest.fixture
 def coords():
-    """Factory for creating Coordinates."""
-    def _make(q=0, r=0):
-        return Coordinates(q=q, r=r, s=-q - r)
+    """Factory for creating square-grid Coordinates."""
+    def _make(x=0, y=0):
+        return Coordinates(x=x, y=y)
     return _make
 
 
@@ -104,15 +104,14 @@ def npc_factory(coords):
 @pytest.fixture
 def location_factory(coords):
     """Factory for creating Locations."""
-    def _make(name="Test Arena", hexes=None):
-        walkable = hexes or [
-            coords(q, r) for q in range(-3, 4) for r in range(-3, 4)
-            if abs(-q - r) <= 3
+    def _make(name="Test Arena", cells=None):
+        walkable = cells or [
+            coords(x, y) for x in range(-3, 4) for y in range(-3, 4)
         ]
         return Location(
             name=name,
             description=f"A {name.lower()} for testing.",
-            walkable_hexes=walkable,
+            walkable_cells=walkable,
         )
     return _make
 

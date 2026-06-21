@@ -19,8 +19,8 @@ async def test_turn_advancement_locking():
     mock_db = AsyncMock()
 
     # Mock Game State
-    active_char = Player(id="char1", name="Hero", hp_current=10, hp_max=10, is_ai=False, role="Paladin", position=Coordinates(q=0,r=0,s=0))
-    enemy_char = Enemy(id="enemy1", name="Goblin", hp_current=10, hp_max=10, type="Goblin", is_ai=True, position=Coordinates(q=1,r=-1,s=0))
+    active_char = Player(id="char1", name="Hero", hp_current=10, hp_max=10, is_ai=False, role="Paladin", position=Coordinates(x=0,y=0))
+    enemy_char = Enemy(id="enemy1", name="Goblin", hp_current=10, hp_max=10, type="Goblin", is_ai=True, position=Coordinates(x=1,y=-1))
 
     initial_state = GameState(
         session_id="test_camp",

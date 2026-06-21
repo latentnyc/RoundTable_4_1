@@ -205,7 +205,7 @@ class TestBackwardCompat:
         p = Player(
             id="test", name="Hero", role="Fighter", is_ai=False,
             hp_current=10, hp_max=10,
-            position={"q": 0, "r": 0, "s": 0},
+            position={"x": 0, "y": 0},
             status_effects=["Poisoned", "Blinded"],
         )
         assert len(p.conditions) == 2
@@ -217,7 +217,7 @@ class TestBackwardCompat:
         e = Enemy(
             id="test", name="Goblin", type="Goblin", is_ai=True,
             hp_current=7, hp_max=7,
-            position={"q": 0, "r": 0, "s": 0},
+            position={"x": 0, "y": 0},
             data={"conditions": [{"name": "Stunned", "duration": 2}]},
         )
         assert len(e.conditions) == 1

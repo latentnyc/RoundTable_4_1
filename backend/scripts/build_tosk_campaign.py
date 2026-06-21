@@ -1,9 +1,9 @@
 """Build the 'Tomb of the Serpent Kings — The False Tomb' POC campaign JSON.
 
 Generates games/Tomb_of_the_Serpent_Kings.json per design_docs/tosk-poc-build-spec.md.
-Authoring is code-generated so hex invariants hold by construction:
-  * every hex is {q, r, s} with s = -q - r
-  * every enemy/coffin position is a member of its room's walkable_hexes
+Authoring is code-generated so grid invariants hold by construction:
+  * every cell is {x, y}
+  * every enemy/coffin position is a member of its room's walkable_cells
   * every item id referenced by contents[]/loot exists in items[]
 
 Source adventure: "Tomb of the Serpent Kings" v4 by Skerples — CC BY-NC-SA 4.0.
@@ -18,22 +18,22 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 OUT = os.path.join(ROOT, "games", "Tomb_of_the_Serpent_Kings.json")
 
 
-def block(qmin, qmax, rmin, rmax):
-    """Rectangular hex pocket; s computed so s == -q-r always holds."""
-    return [{"q": q, "r": r, "s": -q - r}
-            for r in range(rmin, rmax + 1)
-            for q in range(qmin, qmax + 1)]
+def block(xmin, xmax, ymin, ymax):
+    """Rectangular block of walkable square cells."""
+    return [{"x": x, "y": y}
+            for y in range(ymin, ymax + 1)
+            for x in range(xmin, xmax + 1)]
 
 
-def door(did, name, q, r, target, state="closed", locked=False, key_id=""):
+def door(did, name, x, y, target, state="closed", locked=False, key_id=""):
     return {"id": did, "name": name, "type": "door", "state": state, "locked": locked,
-            "key_id": key_id, "position": {"q": q, "r": r, "s": -q - r},
+            "key_id": key_id, "position": {"x": x, "y": y},
             "contents": [], "secrets": [], "target_location_id": target}
 
 
-def coffin(cid, name, q, r, contents=None, secrets=None, ctype="coffin"):
+def coffin(cid, name, x, y, contents=None, secrets=None, ctype="coffin"):
     return {"id": cid, "name": name, "type": ctype, "state": "closed", "locked": False,
-            "key_id": "", "position": {"q": q, "r": r, "s": -q - r},
+            "key_id": "", "position": {"x": x, "y": y},
             "contents": contents or [], "secrets": secrets or []}
 
 
@@ -72,8 +72,8 @@ atlas = [
             door("door_01_to_04", "Far Cell Doorway", -1, -2, L4, state="open"),
             door("door_01_to_05", "Barred Stone Door", 0, -3, L5, state="closed", locked=True),
         ],
-        "secrets": [], "walkable_hexes": block(-1, 1, -2, 2),
-        "party_locations": [{"party_id": "default", "position": {"q": 0, "r": 2, "s": -2}}],
+        "secrets": [], "walkable_cells": block(-1, 1, -2, 2),
+        "party_locations": [{"party_id": "default", "position": {"x": 0, "y": 2}}],
     },
     {
         "id": L2, "name": "Guard Tomb", "active_hours": "always",
@@ -91,7 +91,7 @@ atlas = [
             door("door_02_to_01", "Cell Doorway", 0, 2, L1, state="open"),
             coffin("coffin_02_warrior", "Warrior's Coffin", 0, -1, contents=["item_tosk_gold_amulet"], secrets=[GAS]),
         ],
-        "secrets": [], "walkable_hexes": block(-1, 1, -1, 1), "party_locations": [],
+        "secrets": [], "walkable_cells": block(-1, 1, -1, 1), "party_locations": [],
     },
     {
         "id": L3, "name": "Scholar Tomb", "active_hours": "always",
@@ -109,7 +109,7 @@ atlas = [
             door("door_03_to_01", "Cell Doorway", 0, 2, L1, state="open"),
             coffin("coffin_03_scholar", "Scholar's Coffin", 0, -1, contents=["item_tosk_gold_amulet"], secrets=[GAS]),
         ],
-        "secrets": [], "walkable_hexes": block(-1, 1, -1, 1), "party_locations": [],
+        "secrets": [], "walkable_cells": block(-1, 1, -1, 1), "party_locations": [],
     },
     {
         "id": L4, "name": "Sorcerer Tomb", "active_hours": "always",
@@ -129,7 +129,7 @@ atlas = [
                    contents=["item_tosk_serpent_ring", "item_tosk_gold_amulet"],
                    secrets=["Prying the ring free shatters the statue and releases poison gas.", GAS]),
         ],
-        "secrets": [], "walkable_hexes": block(-1, 1, -1, 1), "party_locations": [],
+        "secrets": [], "walkable_cells": block(-1, 1, -1, 1), "party_locations": [],
     },
     {
         "id": L5, "name": "The Hammer-Trap Door", "active_hours": "always",
@@ -150,7 +150,7 @@ atlas = [
             door("door_05_to_01", "South Doorway", 0, 2, L1, state="open"),
             door("door_05_to_06", "Barred Stone Doors", 0, -2, L6, state="closed", locked=True),
         ],
-        "secrets": [], "walkable_hexes": block(-1, 1, -2, 2), "party_locations": [],
+        "secrets": [], "walkable_cells": block(-1, 1, -2, 2), "party_locations": [],
     },
     # ── ROOM 6 — combat, seeded starting_location (per spec §0/§3) ──
     {
@@ -176,11 +176,11 @@ atlas = [
             coffin("coffin_06_left", "Left Coffin", -2, -2),
             coffin("coffin_06_right", "Right Coffin", 2, -2),
         ],
-        "secrets": [], "walkable_hexes": block(-2, 2, -2, 2),
+        "secrets": [], "walkable_cells": block(-2, 2, -2, 2),
         "party_locations": [
-            {"party_id": "default", "position": {"q": -1, "r": 2, "s": -1}},
-            {"party_id": "default", "position": {"q": 0, "r": 2, "s": -2}},
-            {"party_id": "default", "position": {"q": 1, "r": 2, "s": -3}},
+            {"party_id": "default", "position": {"x": -1, "y": 2}},
+            {"party_id": "default", "position": {"x": 0, "y": 2}},
+            {"party_id": "default", "position": {"x": 1, "y": 2}},
         ],
     },
     {
@@ -205,7 +205,7 @@ atlas = [
             door("door_07_to_08", "Gap Beneath the Idol", 0, -1, L8, state="open"),
         ],
         "secrets": ["A secret passage descends beneath the idol to Room 8."],
-        "walkable_hexes": block(-2, 2, -2, 2), "party_locations": [],
+        "walkable_cells": block(-2, 2, -2, 2), "party_locations": [],
     },
     {
         "id": L8, "name": "Secret Passage", "active_hours": "always",
@@ -223,7 +223,7 @@ atlas = [
         },
         "environmental_state": {"light_level": "dark", "light_required": True, "hazards": []},
         "interactables": [door("door_08_to_07", "Passage Up", 0, 1, L7, state="open")],
-        "secrets": [], "walkable_hexes": block(-1, 1, -1, 1), "party_locations": [],
+        "secrets": [], "walkable_cells": block(-1, 1, -1, 1), "party_locations": [],
     },
 ]
 
@@ -256,7 +256,7 @@ def skeleton(suffix, q, r, central=False):
         "schedule": [{"time": "00:00-24:00", "location": L6, "activity": "lying in wait within a coffin"}],
         "disposition": {"base": "aggressive", "attitude": "Hostile", "triggers": {},
                         "romance_eligible": False, "player_affinity": -10},
-        "position": {"q": q, "r": r, "s": -q - r},
+        "position": {"x": q, "y": r},
         "secrets": [], "hostile": True, "friendly": False, "ally": False,
     }
 
@@ -322,18 +322,18 @@ def validate(c):
     item_ids = {it["id"] for it in c["items"]}
     loc_ids = {r["id"] for r in c["atlas"]}
 
-    def check_hex(h, where):
-        if h.get("s") != -h.get("q", 0) - h.get("r", 0):
-            errors.append(f"{where}: s != -q-r for {h}")
+    def check_cell(h, where):
+        if not (isinstance(h.get("x"), int) and isinstance(h.get("y"), int)):
+            errors.append(f"{where}: cell missing int x/y: {h}")
 
     for room in c["atlas"]:
-        wh = {(h["q"], h["r"]) for h in room["walkable_hexes"]}
-        for h in room["walkable_hexes"]:
-            check_hex(h, f"{room['id']} walkable")
+        wh = {(h["x"], h["y"]) for h in room["walkable_cells"]}
+        for h in room["walkable_cells"]:
+            check_cell(h, f"{room['id']} walkable")
         for inter in room["interactables"]:
             p = inter.get("position")
             if p:
-                check_hex(p, f"{room['id']}/{inter['id']} pos")
+                check_cell(p, f"{room['id']}/{inter['id']} pos")
             # door targets must resolve
             tgt = inter.get("target_location_id")
             if tgt and tgt not in loc_ids and not tgt.startswith("loc_tosk_09"):
@@ -342,10 +342,10 @@ def validate(c):
                 if iid not in item_ids:
                     errors.append(f"{room['id']}/{inter['id']} contents item '{iid}' missing from items[]")
             # coffins/chests should sit on walkable floor
-            if inter.get("type") in ("coffin", "chest") and p and (p["q"], p["r"]) not in wh:
-                errors.append(f"{room['id']}/{inter['id']} position not in walkable_hexes")
+            if inter.get("type") in ("coffin", "chest") and p and (p["x"], p["y"]) not in wh:
+                errors.append(f"{room['id']}/{inter['id']} position not in walkable_cells")
         for pl in room.get("party_locations", []):
-            check_hex(pl["position"], f"{room['id']} party_loc")
+            check_cell(pl["position"], f"{room['id']} party_loc")
         # connections must resolve (allow the not-yet-built Level 2 hall)
         for cn in room["description"]["connections"]:
             t = cn["target_id"]
@@ -353,14 +353,14 @@ def validate(c):
                 errors.append(f"{room['id']} connection target '{t}' not a known location")
 
     for n in c["npcs"]:
-        check_hex(n["position"], f"{n['id']} pos")
+        check_cell(n["position"], f"{n['id']} pos")
         room = next((r for r in c["atlas"] if r["id"] == n["schedule"][0]["location"]), None)
         if not room:
             errors.append(f"{n['id']} schedule location '{n['schedule'][0]['location']}' has no room")
         else:
-            wh = {(h["q"], h["r"]) for h in room["walkable_hexes"]}
-            if (n["position"]["q"], n["position"]["r"]) not in wh:
-                errors.append(f"{n['id']} position not in {room['id']} walkable_hexes")
+            wh = {(h["x"], h["y"]) for h in room["walkable_cells"]}
+            if (n["position"]["x"], n["position"]["y"]) not in wh:
+                errors.append(f"{n['id']} position not in {room['id']} walkable_cells")
         if not n.get("actions") or not n["actions"][0].get("damage"):
             errors.append(f"{n['id']} missing actions[0].damage (combat needs damage_dice)")
         for iid in n["loot"]["guaranteed"] + [r["item_id"] for r in n["loot"]["random"]]:
@@ -381,8 +381,8 @@ if __name__ == "__main__":
         sys.exit(1)
     with open(OUT, "w", encoding="utf-8") as f:
         json.dump(campaign, f, indent=2, ensure_ascii=False)
-    nhex = sum(len(r["walkable_hexes"]) for r in campaign["atlas"])
+    nhex = sum(len(r["walkable_cells"]) for r in campaign["atlas"])
     print("VALIDATION PASSED")
-    print(f"  rooms={len(campaign['atlas'])} npcs={len(campaign['npcs'])} items={len(campaign['items'])} total_hexes={nhex}")
+    print(f"  rooms={len(campaign['atlas'])} npcs={len(campaign['npcs'])} items={len(campaign['items'])} total_cells={nhex}")
     print(f"  starting_location={campaign['campaign_meta']['starting_location']}")
     print("WROTE:", OUT)

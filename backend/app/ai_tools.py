@@ -6,6 +6,7 @@ from langchain_core.tools import tool
 from app.services.game_service import GameService
 from app.services.loot_service import LootService
 from app.services.state_service import StateService
+from app.services.pathfinding_service import PathfindingService
 from db.session import AsyncSessionLocal
 from app.models import Coordinates
 from app.socket_manager import sio
@@ -76,7 +77,7 @@ def create_interact_tool(campaign_id: str, character_name: str, db=None):
             for m_type, m_obj in matches:
                  if m_type == 'interactable':
                      tp = m_obj.get('position', {})
-                     t_pos = Coordinates(q=tp.get('q', 0), r=tp.get('r', 0), s=tp.get('s', 0))
+                     t_pos = Coordinates(**tp) if tp else Coordinates(x=0, y=0)
                  else:
                      t_pos = m_obj.position
                      
@@ -88,67 +89,36 @@ def create_interact_tool(campaign_id: str, character_name: str, db=None):
             obj_type, target, t_pos = best_match
             
             # Check distance
-            max_reach = 6 # 5 hex movement (25ft) + 1 hex interact reach
+            max_reach = 6 # 5 cells movement (25ft) + 1 cell interact reach
 
             if best_dist > max_reach:
                  return f"The object is {best_dist * 5} feet away. You can only move up to 25 feet and interact at 5 feet (30 feet total reach). Inform the player it is too far to reach."
-            
-            # If distance > 1, we need to move
+
+            # If distance > 1, we need to move adjacent to the target.
             if best_dist > 1:
-                obstacle_hexes = set()
+                # In interact, party members block movement too (can't path through them).
+                obstacle_cells = set()
                 for entity in [e for e in game_state.enemies if e.hp_current > 0] + game_state.party + game_state.npcs:
                     if entity.id != actor.id and getattr(entity, 'position', None):
-                        obstacle_hexes.add((entity.position.q, entity.position.r, entity.position.s))
+                        obstacle_cells.add((entity.position.x, entity.position.y))
 
-                walkable = {(h.q, h.r, h.s) for h in game_state.location.walkable_hexes}
                 max_move = actor.speed // 5 if hasattr(actor, 'speed') and actor.speed else 6
 
-                start_hex = (actor.position.q, actor.position.r, actor.position.s)
-                
-                def get_neighbors(curr):
-                    return [
-                        (curr[0]+1, curr[1], curr[2]-1),
-                        (curr[0]+1, curr[1]-1, curr[2]),
-                        (curr[0], curr[1]-1, curr[2]+1),
-                        (curr[0]-1, curr[1], curr[2]+1),
-                        (curr[0]-1, curr[1]+1, curr[2]),
-                        (curr[0], curr[1]+1, curr[2]-1)
-                    ]
-                    
-                queue = [(start_hex, [])]
-                visited = {start_hex: []}
-                
-                while queue:
-                    curr, path = queue.pop(0)
-                    if len(path) >= max_move:
-                        continue
-                        
-                    for n in get_neighbors(curr):
-                        if n in walkable and n not in obstacle_hexes:
-                            if n not in visited or len(path) + 1 < len(visited[n]):
-                                visited[n] = path + [n]
-                                queue.append((n, path + [n]))
+                best_cell, path = PathfindingService.find_best_cell_adjacent_to(
+                    actor.position, t_pos, max_move, game_state.location.walkable_cells, obstacle_cells
+                )
 
-                # Find hexes adjacent to target
-                target_adj = get_neighbors((t_pos.q, t_pos.r, t_pos.s))
-                valid_destinations = [h for h in target_adj if h in visited]
-
-                if not valid_destinations:
+                if best_cell is None:
                      return f"There is no walkable path to reach the {target_name}."
 
-                # Pick the shortest path destination
-                valid_destinations.sort(key=lambda h: len(visited[h]))
-                best_hex = valid_destinations[0]
-
-                actor.position.q = best_hex[0]
-                actor.position.r = best_hex[1]
-                actor.position.s = best_hex[2]
+                actor.position.x = best_cell[0]
+                actor.position.y = best_cell[1]
 
                 # Emit animation
                 if sio:
-                    anim_path = [{"q": h[0], "r": h[1], "s": h[2]} for h in visited[best_hex]]
+                    anim_path = [{"x": c[0], "y": c[1]} for c in path]
                     await sio.emit('entity_path_animation', {'entity_id': actor.id, 'path': anim_path}, room=campaign_id)
-                    
+
                     # Apply local state change before acting
                     await StateService.emit_state_update(campaign_id, game_state, sio)
                     await asyncio.sleep(0.5) # Let animation play briefly

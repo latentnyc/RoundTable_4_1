@@ -40,7 +40,7 @@ WIZARD_SHEET = {
     "hp_current": 8, "hp_max": 8, "ac": 12, "speed": 30,
     "level": 1, "xp": 0,
     "control_mode": "human", "is_ai": False,
-    "position": {"q": 0, "r": 0, "s": 0},
+    "position": {"x": 0, "y": 0},
     "inventory": [],
     "equipment": [
         {"name": "Quarterstaff", "type": "Weapon", "data": {
@@ -65,7 +65,7 @@ RANGER_SHEET = {
     "hp_current": 11, "hp_max": 11, "ac": 14, "speed": 35,
     "level": 1, "xp": 0,
     "control_mode": "ai", "is_ai": True,
-    "position": {"q": 0, "r": 0, "s": 0},
+    "position": {"x": 0, "y": 0},
     "inventory": [],
     "equipment": [
         {"name": "Longbow", "type": "Weapon", "data": {
@@ -90,7 +90,7 @@ FIGHTER_SHEET = {
     "hp_current": 13, "hp_max": 13, "ac": 18, "speed": 30,
     "level": 1, "xp": 0,
     "control_mode": "ai", "is_ai": True,
-    "position": {"q": 0, "r": 0, "s": 0},
+    "position": {"x": 0, "y": 0},
     "inventory": [],
     "equipment": [
         {"name": "Greataxe", "type": "Weapon", "data": {
@@ -194,7 +194,7 @@ async def create_test_campaign(db: AsyncSession):
         initial_location = Location(
             name="The Beginning",
             description="A test arena.",
-            walkable_hexes=[],
+            walkable_cells=[],
             party_locations=[],
         )
         initial_npcs = []
@@ -222,7 +222,7 @@ async def create_test_campaign(db: AsyncSession):
                         name=loc_row.name,
                         description=desc_text,
                         interactables=l_data.get('interactables', []),
-                        walkable_hexes=l_data.get('walkable_hexes', []),
+                        walkable_cells=l_data.get('walkable_cells', []),
                         party_locations=l_data.get('party_locations', []),
                     )
 
@@ -242,14 +242,14 @@ async def create_test_campaign(db: AsyncSession):
                         attitude = disposition.get('attitude', '').lower()
                         if any(h in attitude for h in ['hostile', 'aggressive', 'violent']):
                             n_data['hostile'] = True
-                        # Read the AUTHORED position, not a hardcoded (0,0,0), so multiple
-                        # NPCs in one starting room sit on their distinct hexes.
-                        pos = n_data.get('position') or {'q': 0, 'r': 0, 's': 0}
+                        # Read the AUTHORED position, not a hardcoded (0,0), so multiple
+                        # NPCs in one starting room sit on their distinct cells.
+                        pos = n_data.get('position') or {'x': 0, 'y': 0}
                         initial_npcs.append(NPC(
                             id=n_row.id, name=n_row.name, is_ai=True,
                             hp_current=hp, hp_max=hp, ac=ac,
                             role=n_row.role or "NPC",
-                            position=Coordinates(q=pos['q'], r=pos['r'], s=pos.get('s', -pos['q'] - pos['r'])),
+                            position=Coordinates(**pos),
                             barks=n_data.get('voice', {}).get('barks'),
                             knowledge=n_data.get('knowledge', []),
                             data=n_data,

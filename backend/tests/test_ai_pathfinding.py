@@ -1,61 +1,48 @@
+"""Square-grid (8-way Chebyshev) pathfinding tests for the shared PathfindingService."""
 import os
 import sys
-import pytest
-import asyncio
-from unittest.mock import AsyncMock
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from app.models import GameState, Player, Enemy, Coordinates, Location
-from app.services.ai_turn_service import AITurnService
+from app.models import Coordinates
+from app.services.pathfinding_service import PathfindingService
 
-@pytest.mark.asyncio
-async def test_ai_pathfinding():
-    print("\nSetting up mini-board for pathfinding...")
-    
-    p1 = Player(
-        id="player1", name="Alice", user_id="u1", hp_current=20, hp_max=20, ac=12,
-        position=Coordinates(q=0, r=0, s=0), role="Fighter", is_ai=False
+
+def test_reachable_cells_along_corridor():
+    # Straight 4-cell corridor.
+    walkable = [Coordinates(x=x, y=0) for x in range(0, 4)]
+    reachable = PathfindingService.find_reachable_cells(
+        (0, 0), max_move=6, walkable_cells=walkable, obstacle_cells=set()
     )
-    
-    goblin = Enemy(
-        id="enemy1", name="Goblin", hp_current=15, hp_max=15, ac=10,
-        position=Coordinates(q=3, r=0, s=-3), is_ai=True, type="Monster",
-        data={"actions": [{"name": "Bite", "desc": "Melee Weapon Attack"}]}
+    assert (3, 0) in reachable
+    assert len(reachable[(3, 0)]) == 3  # three steps down the corridor
+
+
+def test_diagonal_reachable_within_budget():
+    # 5x5 open area: a cell two diagonal steps away is reachable in 2 moves (Chebyshev).
+    walkable = [Coordinates(x=x, y=y) for x in range(0, 5) for y in range(0, 5)]
+    reachable = PathfindingService.find_reachable_cells(
+        (0, 0), max_move=2, walkable_cells=walkable, obstacle_cells=set()
     )
-    
-    walkable = [
-        Coordinates(q=0, r=0, s=0),
-        Coordinates(q=1, r=0, s=-1),
-        Coordinates(q=2, r=0, s=-2),
-        Coordinates(q=3, r=0, s=-3)
-    ]
-    
-    gs = GameState(
-        session_id="test_session",
-        location=Location(name="Cave", description="A cave", walkable_hexes=walkable),
-        party=[p1],
-        enemies=[goblin],
-        active_entity_id="enemy1"
+    assert (2, 2) in reachable
+    assert len(reachable[(2, 2)]) == 2  # two diagonal steps, not four
+
+
+def test_find_best_cell_adjacent_to_target():
+    # An actor at (3,0) wants a cell adjacent to a target at (0,0), down a corridor.
+    walkable = [Coordinates(x=x, y=0) for x in range(0, 4)]
+    best_cell, path = PathfindingService.find_best_cell_adjacent_to(
+        Coordinates(x=3, y=0), Coordinates(x=0, y=0),
+        max_move=6, walkable_cells=walkable, obstacle_cells=set(),
     )
-    
-    mock_sio = AsyncMock()
-    mock_db = AsyncMock()
-    
-    print(f"Goblin starting at: {goblin.position.q}, {goblin.position.r}")
-    print(f"Alice at: {p1.position.q}, {p1.position.r}")
-    
-    from app.services.combat_service import CombatService
-    CombatService.resolution_attack = AsyncMock(return_value={"success": True, "game_state": gs, "is_hit": True, "total_damage": 5})
-    
-    try:
-        result_gs = await AITurnService.execute_ai_turn("test_session", goblin, gs, mock_sio, mock_db, commit=False)
-        print(f"Goblin ended at: {goblin.position.q}, {goblin.position.r}")
-        if goblin.position.q == 1 and goblin.position.r == 0:
-            print("SUCCESS! Goblin moved adjacent to Alice.")
-        else:
-            print("FAILED! Goblin did not move to (1, 0, -1).")
-    except Exception as e:
-        import traceback
-        print("EXCEPTION RAISED:")
-        print(traceback.format_exc())
+    assert best_cell == (1, 0)  # only walkable cell adjacent to (0,0)
+    assert path[-1] == (1, 0)
+
+
+def test_find_best_cell_toward_limited_by_budget():
+    walkable = [Coordinates(x=x, y=0) for x in range(0, 6)]
+    best_cell, _ = PathfindingService.find_best_cell_toward(
+        Coordinates(x=5, y=0), Coordinates(x=0, y=0),
+        max_move=2, walkable_cells=walkable, obstacle_cells=set(),
+    )
+    assert best_cell == (3, 0)  # closest it can get in 2 moves

@@ -1,18 +1,16 @@
-def hex_distance(q1: int, r1: int, s1: int, q2: int, r2: int, s2: int) -> int:
+def chebyshev_distance(x1: int, y1: int, x2: int, y2: int) -> int:
     """
-    Calculate the cube distance between two hexes.
+    Chebyshev (8-way) distance between two square cells. Every step — orthogonal
+    or diagonal — counts as one cell (5 ft).
     """
-    return max(abs(q1 - q2), abs(r1 - r2), abs(s1 - s2))
+    return max(abs(x1 - x2), abs(y1 - y2))
 
-def get_neighbors(curr: tuple[int, int, int]) -> list[tuple[int, int, int]]:
+def get_neighbors(curr: tuple[int, int]) -> list[tuple[int, int]]:
     """
-    Get the 6 surrounding neighbors of a hex coordinate tuple (q,r,s).
+    Get the 8 surrounding neighbors of a square cell (x, y): 4 orthogonal + 4 diagonal.
     """
+    x, y = curr
     return [
-        (curr[0]+1, curr[1], curr[2]-1),
-        (curr[0]+1, curr[1]-1, curr[2]),
-        (curr[0], curr[1]-1, curr[2]+1),
-        (curr[0]-1, curr[1], curr[2]+1),
-        (curr[0]-1, curr[1]+1, curr[2]),
-        (curr[0], curr[1]+1, curr[2]-1)
+        (x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1),          # orthogonal
+        (x + 1, y + 1), (x + 1, y - 1), (x - 1, y + 1), (x - 1, y - 1),  # diagonal
     ]

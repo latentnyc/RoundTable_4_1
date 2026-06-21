@@ -61,7 +61,7 @@ class ConnectionService:
                         ac=stats['ac'],
                         initiative=0,
                         speed=stats['speed'],
-                        position=Coordinates(q=0, r=0, s=0),
+                        position=Coordinates(x=0, y=0),
                         role=char_row['role'] or "Unknown",
                         race=char_row['race'] or "Unknown",
                         level=level,

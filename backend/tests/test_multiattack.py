@@ -1,30 +1,30 @@
-"""Tests for monster multiattack parsing and resolution."""
+"""Tests for monster multiattack parsing (live path: TurnManager)."""
 import pytest
-from app.services.ai_turn_service import AITurnService
+from app.services.turn_manager import TurnManager
 from app.models import NPC, Coordinates
 
 
 class TestMultiattackParsing:
-    """Test _get_multiattack_actions parses SRD multiattack data correctly."""
+    """TurnManager._get_multiattack_actions parses SRD multiattack data correctly."""
 
     def _make_npc_with_actions(self, actions):
         return NPC(
             id="test", name="TestMonster", role="Enemy", is_ai=True,
             hp_current=22, hp_max=22, ac=13,
-            position=Coordinates(q=0, r=0, s=0),
+            position=Coordinates(x=0, y=0),
             data={"actions": actions},
         )
 
     def test_no_actions_returns_empty(self):
         npc = self._make_npc_with_actions([])
-        result = AITurnService._get_multiattack_actions(npc)
+        result = TurnManager._get_multiattack_actions(npc)
         assert result == []
 
     def test_no_multiattack_returns_empty(self):
         npc = self._make_npc_with_actions([
             {"name": "Bite", "attack_bonus": 4, "damage": [{"damage_dice": "1d6+2"}]}
         ])
-        result = AITurnService._get_multiattack_actions(npc)
+        result = TurnManager._get_multiattack_actions(npc)
         assert result == []
 
     def test_actions_format_simple(self):
@@ -34,7 +34,7 @@ class TestMultiattackParsing:
              "actions": [{"action_name": "Mace", "count": "2", "type": "melee"}]},
             {"name": "Mace", "attack_bonus": 4, "damage": [{"damage_dice": "1d6+2"}]},
         ])
-        result = AITurnService._get_multiattack_actions(npc)
+        result = TurnManager._get_multiattack_actions(npc)
         assert len(result) == 2
         assert result[0]["name"] == "Mace"
         assert result[1]["name"] == "Mace"
@@ -50,13 +50,13 @@ class TestMultiattackParsing:
             {"name": "Bite", "attack_bonus": 5, "damage": [{"damage_dice": "1d8+4"}]},
             {"name": "Claws", "attack_bonus": 5, "damage": [{"damage_dice": "2d6+4"}]},
         ])
-        result = AITurnService._get_multiattack_actions(npc)
+        result = TurnManager._get_multiattack_actions(npc)
         assert len(result) == 2
         assert result[0]["name"] == "Bite"
         assert result[1]["name"] == "Claws"
 
     def test_action_options_format(self):
-        """Lizardfolk-style: choose from option sets."""
+        """Lizardfolk-style: choose from option sets (Bite + Heavy Club)."""
         npc = self._make_npc_with_actions([
             {"name": "Multiattack", "multiattack_type": "action_options", "damage": [],
              "action_options": {
@@ -71,7 +71,7 @@ class TestMultiattackParsing:
             {"name": "Bite", "attack_bonus": 4, "damage": [{"damage_dice": "1d6+2"}]},
             {"name": "Heavy Club", "attack_bonus": 4, "damage": [{"damage_dice": "1d6+2"}]},
         ])
-        result = AITurnService._get_multiattack_actions(npc)
+        result = TurnManager._get_multiattack_actions(npc)
         assert len(result) == 2
         names = {r["name"] for r in result}
         assert "Bite" in names
@@ -87,12 +87,12 @@ class TestMultiattackParsing:
              ]},
             {"name": "Bite", "attack_bonus": 4, "damage": [{"damage_dice": "1d6+2"}]},
         ])
-        result = AITurnService._get_multiattack_actions(npc)
+        result = TurnManager._get_multiattack_actions(npc)
         assert len(result) == 1
         assert result[0]["name"] == "Bite"
 
     def test_player_no_multiattack(self, player_factory):
         """Player entities should never have multiattack."""
         p = player_factory()
-        result = AITurnService._get_multiattack_actions(p)
+        result = TurnManager._get_multiattack_actions(p)
         assert result == []
