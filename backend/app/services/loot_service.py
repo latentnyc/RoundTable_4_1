@@ -8,7 +8,7 @@ from app.services.state_service import StateService
 from db.schema import locations
 
 if TYPE_CHECKING:
-    from app.models import GameState
+    pass
 
 class LootService:
     @staticmethod
@@ -48,7 +48,6 @@ class LootService:
         """
         Unlocks/Opens a vessel by name and returns its contents. Also handles doors and chests.
         """
-        from app.services.game_service import GameService
         from app.services.combat_service import CombatService
         from app.models import Vessel, Coordinates
 
@@ -67,7 +66,6 @@ class LootService:
         actor_char = next((p for p in game_state.party if p.name == actor_name), None)
 
         # We need Coordinates to do distance calculations
-        from app.models import Coordinates
 
         target_interactable = None
         target_idx = -1

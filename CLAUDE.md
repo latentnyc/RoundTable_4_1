@@ -84,15 +84,15 @@ Use `--reset-db` to wipe everything and start fresh: `./scripts/dev-start.sh --r
 
 ## Known Fragile Areas
 
-1. **`StateService._last_broadcasted_state`** — class-level dict, never cleared when clients disconnect. Can produce invalid patches after all players leave and rejoin.
+1. **Single-process in-memory coordination** — `StateService._last_broadcasted_state` (patch-diff cache), presence, and `dm_busy` status live in process-local dicts. The cache is now cleared on disconnect (`app/socket/handlers/connection.py`), but the design still assumes a single worker: running >1 uvicorn worker breaks patch diffing, presence, and the DM lock. Needs Redis + the socket.io Redis adapter before horizontal scale.
 
-2. **`SocketProvider.tsx:134`** — patch application failure is caught but only logged to console. No recovery or resync. Client state can silently diverge from server.
+2. **Client patch divergence within the resync threshold** — `SocketProvider.tsx` applies `fast-json-patch` deltas and *does* request a full resync after 3 consecutive patch failures. But the server's `GameState.version` is incremented on every save yet never read client-side, so a dropped/reordered patch that still applies cleanly can silently desync until a later patch happens to fail. Wire `version` into gap detection (Phase 2).
 
 3. **`TurnManager` lock cycling** — advisory locks prevent race conditions but the lock → advance → save → emit flow is complex. Errors mid-sequence can leave state inconsistent.
 
 4. **Entity hydration** — `_hydrate_party()` has many fallback defaults and type coercions. If sheet_data structure changes, hydration can silently produce wrong values.
 
-5. **`ErrorBoundary`** — component exists at `frontend/src/components/ErrorBoundary.tsx` but is never mounted in `App.tsx`. A React rendering error crashes the entire app.
+5. **Monolithic full-state broadcast** — every mutation re-`model_dump()`s the entire `GameState` and diffs it, and every client receives every entity's full data (enemy stat blocks included). This caps scaling and makes per-viewer hidden information (fog-of-war, undiscovered traps) structurally impossible without a per-viewer projection (Phase 2/3).
 
 ## Environment Variables
 
@@ -107,6 +107,18 @@ Use `--reset-db` to wipe everything and start fresh: `./scripts/dev-start.sh --r
 - `VITE_API_URL` — Backend URL (`http://localhost:8000`)
 - `VITE_FIREBASE_*` — Firebase config (API key, auth domain, project ID, etc.)
 
+## Database & Migrations
+
+**Canonical schema:** `backend/db/schema.py` (SQLAlchemy metadata). It is applied at startup by
+`backend/db/init_db.py`, which runs `metadata.create_all()` and then a series of idempotent
+`ALTER TABLE ... ADD COLUMN IF NOT EXISTS` statements for columns added after a table first shipped.
+**This is the migration path** — to add a column, add it to `schema.py` and (for existing
+deployments) add a matching idempotent `ALTER TABLE` in `init_db.py`.
+
+**Alembic is scaffolded but NOT wired** (`backend/alembic.ini`, `backend/db/migrations/`). Revisions
+authored there will not run on deploy. Either wire it (autogenerate + `alembic upgrade` on deploy) or
+keep using `init_db.py` — do not assume hand-written Alembic revisions take effect.
+
 ## Tests
 
 ```bash
@@ -116,11 +128,11 @@ cd backend && ./venv/bin/pytest -m "not integration"  # Unit tests only
 
 - Backend tests in `backend/tests/test_*.py` (pytest, async)
 - Verification scripts in `backend/scripts/verification/` (one-off diagnostics, not tests)
-- No frontend tests yet
+- Frontend tests in `frontend/src/test/` (Vitest + Testing Library); run `npm test` in `frontend/`
 
 ## Tech Stack
 
-**Backend**: Python 3.11, FastAPI, SQLAlchemy 2.0, asyncpg, Socket.IO, LangGraph, LangChain, Gemini API, Firebase Admin SDK, Alembic
+**Backend**: Python 3.11, FastAPI, SQLAlchemy 2.0, asyncpg, Socket.IO, LangGraph, LangChain, Gemini API, Firebase Admin SDK, Alembic (scaffolded, not yet wired — see Database & Migrations)
 **Frontend**: React 19, TypeScript 5.9, Vite 7, Zustand, Socket.IO Client, Tailwind CSS 4, Framer Motion, fast-json-patch
 **Database**: PostgreSQL 15 (Docker)
 **Auth**: Firebase Authentication (emulators for local dev)

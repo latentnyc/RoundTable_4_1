@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 import json
@@ -62,7 +62,7 @@ async def get_spell(item_id: str, db: AsyncSession = Depends(get_db)):
     row = result.mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail="Spell not found")
-    
+
     try:
         data = json.loads(row['data'])
     except json.JSONDecodeError:

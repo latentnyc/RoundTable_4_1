@@ -1,0 +1,24 @@
+# Ruff configuration for the RoundTable backend.
+#
+# Phase 0 scope: enforce a focused, high-signal lint gate (pyflakes "F" — undefined names,
+# unused imports, redefinitions, broken f-strings) that the codebase passes today, so CI gives
+# a real signal without drowning in legacy style nits. Cosmetic rules (line length, statement
+# layout) are intentionally NOT enforced yet; widen `select` over time as the code is cleaned.
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+extend-exclude = [
+    "venv",
+    "db/migrations",      # Alembic scaffolding (not the active migration path)
+    "scripts",            # one-off diagnostics / verification scripts
+    "tests",              # test files use fixtures/patterns ruff would false-flag
+    "debug_db.py",
+    "check_hexes.py",
+]
+
+[tool.ruff.lint]
+# "F" = pyflakes (real bugs). Keep this list growing as the codebase is cleaned up.
+select = ["F"]
+# F841 (unused local variable) is low-risk noise on this codebase; defer to a later cleanup.
+ignore = ["F841"]

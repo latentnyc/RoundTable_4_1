@@ -1,6 +1,5 @@
 import logging
 import sys
-from typing import TextIO
 
 class ColorFormatter(logging.Formatter):
     """

@@ -1,10 +1,10 @@
 import json
 import logging
-from typing import List, Optional
+from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
-from app.models import GameState, Player, Enemy, NPC
+from app.models import GameState, Player, NPC
 
 logger = logging.getLogger(__name__)
 

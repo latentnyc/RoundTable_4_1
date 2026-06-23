@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from ..dependencies import get_db
 from ..dtos import Profile, UpdateProfileRequest
-from ..auth_utils import verify_token
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 

@@ -84,7 +84,7 @@ class TurnManager:
              turn_msg = f"It is now **{active_char.name}**'s turn!"
              # Let the DM or character narrate the turn directly instead of announcing it redundantly
              # await sio.emit('system_message', {'content': turn_msg}, room=campaign_id)
-             
+
              if db:
                  context_str = f"[SYSTEM NOTE TO DM: It is currently {active_char.name}'s turn. Provide a brief 1-sentence atmospheric summary of the current battle situation, then explicitly ask {active_char.name} what they would like to do. Do NOT narrate an action, simply prompt them for their turn.]"
                  await NarratorService.narrate(
@@ -131,7 +131,7 @@ class TurnManager:
 
                             active_id, next_state = await TurnManager._advance_game_state(campaign_id, db, game_state)
                             if not next_state:
-                                logger.info(f"Turn advance returned no state (Combat Ended or Error). Ending turn loop.")
+                                logger.info("Turn advance returned no state (Combat Ended or Error). Ending turn loop.")
                                 break
 
                             game_state = next_state
@@ -162,7 +162,7 @@ class TurnManager:
                         # 4. AI Turn Logic (Phase 1: Setup)
                         ai_turn_count += 1
                         await sio.emit('typing_indicator', {'sender_id': active_id, 'is_typing': True}, room=campaign_id)
-                        
+
                         # Save state before dropping lock for sleep
                         if pending_changes and game_state:
                             logger.info(f"Saving pre-AI turn state for campaign {campaign_id}")
@@ -192,7 +192,7 @@ class TurnManager:
                         else:
                             async with AsyncSessionLocal() as session:
                                 game_state = await GameService.get_game_state(campaign_id, session)
-                                
+
                         # Execute the Turn
                         try:
                             # Re-resolve active_char from the newly fetched state so mutations apply to the correct object tree
@@ -225,7 +225,7 @@ class TurnManager:
                                 await sio.emit('system_message', {
                                     'content': f"*{active_char.name}'s turn timed out and was skipped.*"
                                 }, room=campaign_id)
-                                         
+
                             # Save state after AI action BEFORE dropping lock for next sleep
                             if pending_changes and game_state:
                                 if db:
@@ -236,7 +236,7 @@ class TurnManager:
                                         await GameService.save_game_state(campaign_id, game_state, session)
                                         await session.commit()
                                 pending_changes = False
-                                
+
                         except SQLAlchemyError as e:
                             logger.error("Database error executing AI turn: %s\n%s", str(e), traceback.format_exc())
                             await sio.emit('system_message', {'content': f"AI DB Error for {active_char.name}: {e}"}, room=campaign_id)
@@ -245,7 +245,7 @@ class TurnManager:
                             await sio.emit('system_message', {'content': f"AI Error for {active_char.name}: {e}"}, room=campaign_id)
                             # If AI fails, we still want to loop to next turn
                             pass
-                            
+
                 except TimeoutError:
                     logger.warning(f"Lock timeout during AI action for {campaign_id}")
                     break
@@ -270,7 +270,6 @@ class TurnManager:
 
     @staticmethod
     async def _select_optimal_target(campaign_id: str, actor, game_state, sio):
-        import random
         targets = []
         is_actor_party = any(p.id == actor.id for p in game_state.party)
 
@@ -322,7 +321,7 @@ class TurnManager:
         target_type = getattr(target, 'type', getattr(target, 'race', ''))
         if not target_type and hasattr(target, 'data') and isinstance(target.data, dict):
             target_type = target.data.get('race', '')
-            
+
         type_str = f" [{target_type.upper()}]" if target_type else ""
         mech_msg = f"{prefix}**{actor.name}** attacks **{target.name}**{type_str}!\n"
 
@@ -336,7 +335,7 @@ class TurnManager:
                 weapon_tags.append('[HEAVY/STANDARD MELEE WEAPON ATTACK]')
         else:
             weapon_tags.append('[UNARMED STRIKE]')
-            
+
         tag_str = " ".join(weapon_tags)
         if tag_str:
              mech_msg += f"{tag_str}\n"
@@ -421,12 +420,12 @@ class TurnManager:
         max_attack_range = 1
         weapons = []
         is_spellcaster = False
-        
+
         if hasattr(actor, 'sheet_data'):
             weapons = [item for item in actor.sheet_data.get('equipment', []) if isinstance(item, dict) and item.get('type') == 'Weapon']
             if actor.sheet_data.get('spells'):
                 is_spellcaster = True
-                
+
         if hasattr(actor, 'data'):
             for action in actor.data.get('actions', []):
                 desc = action.get('desc', '').lower()
@@ -446,7 +445,7 @@ class TurnManager:
                 normal_range = w.get('data', {}).get('range', {}).get('normal', 120)
                 if isinstance(normal_range, int):
                     max_attack_range = max(max_attack_range, normal_range // 5)
-                    
+
         if is_spellcaster and max_attack_range <= 1:
             max_attack_range = 12 # 60ft fallback for typical cantrips
 
@@ -455,7 +454,7 @@ class TurnManager:
              return game_state
 
         dist_to_target = actor.position.distance_to(target.position)
-        
+
         # Check LOS if within raw distance range
         has_los = False
         if dist_to_target <= max_attack_range:
@@ -531,7 +530,7 @@ class TurnManager:
             await sio.emit('chat_message', {
                 'sender_id': 'system', 'sender_name': 'System', 'content': dash_msg, 'id': save_result['id'], 'timestamp': save_result['timestamp'], 'is_system': True, 'message_type': 'system'
             }, room=campaign_id)
-            
+
             await NarratorService.narrate(
                 campaign_id=campaign_id,
                 context=dash_msg,
@@ -539,12 +538,12 @@ class TurnManager:
                 db=db,
                 mode="combat_narration"
             )
-            
+
             # Save the dash (which did not result in an attack) to ensure any move is kept.
             if commit:
                 await StateService.save_game_state(campaign_id, game_state, db)
                 await db.commit()
-                
+
             return game_state
 
         # Resolve Attack(s) (now we are adjacent). Monsters with a Multiattack action
@@ -588,12 +587,12 @@ class TurnManager:
             await sio.emit('chat_message', {
                 'sender_id': 'system', 'sender_name': 'System', 'content': err_msg, 'id': save_result['id'], 'timestamp': save_result['timestamp'], 'is_system': True, 'message_type': 'system'
             }, room=campaign_id)
-            
+
             # Save the new state anyways (the movement still happened)
             if commit and result.get('game_state'):
                 await StateService.save_game_state(campaign_id, result['game_state'], db)
                 await db.commit()
-                
+
             return result.get('game_state', game_state)
 
         # Mechanics Log — one line per sub-attack when multiattacking.
@@ -605,7 +604,7 @@ class TurnManager:
 
         # Save & Emit Mechanics
         is_actor_party = any(p.id == actor.id for p in game_state.party)
-        
+
         if is_actor_party:
              # Formulate hidden context
              hidden_ctx = f"You attempt to attack {target.name} and roll a total of {result.get('attack_total', '?')}."
@@ -614,12 +613,12 @@ class TurnManager:
              if bark:
                  # Override mech_msg formatting for the DM, skipping the public system broadcast
                  dm_mech_context = f"[MECHANICS: {mech_msg.replace('**', '').replace('⚔️ ', '')}]"
-                 
+
                  save_result = await ChatService.save_message(campaign_id, actor.id, actor.name, bark, db=db)
                  await sio.emit('chat_message', {
                      'sender_id': actor.id, 'sender_name': actor.name, 'content': bark, 'id': save_result['id'], 'timestamp': save_result['timestamp'], 'is_system': False, 'message_type': 'chat'
                  }, room=campaign_id)
-                 
+
                  mech_msg = dm_mech_context
              else:
                  save_result = await ChatService.save_message(campaign_id, 'system', 'System', mech_msg, db=db)

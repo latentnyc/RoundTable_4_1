@@ -1,11 +1,8 @@
 import json
 import os
-import asyncio
 import logging
-import traceback
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-from ..dependencies import get_db
 from sqlalchemy.exc import SQLAlchemyError
 from db.session import AsyncSessionLocal
 
@@ -160,7 +157,7 @@ async def import_table(db: AsyncSession, table_name, json_filename, json_dir, na
     return 0
 
 async def load_basic_dataset():
-    logger.info(f"Loading basic dataset...")
+    logger.info("Loading basic dataset...")
 
     if not os.path.exists(DATA_DIR):
         msg = f"Error: Could not find data directory at {DATA_DIR}"

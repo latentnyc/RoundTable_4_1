@@ -1,3 +1,9 @@
+# NOTE (migration story): Alembic is scaffolded here but is NOT the active migration path.
+# The canonical schema source of truth is `db/schema.py` (SQLAlchemy metadata), applied at
+# startup by `db/init_db.py` via `metadata.create_all()` plus idempotent `ALTER TABLE ... IF
+# NOT EXISTS` statements. Until Alembic is wired into deploy (autogenerate + `alembic upgrade`),
+# do NOT hand-author revisions here expecting them to run — they will silently not apply.
+# See CLAUDE.md > Database & Migrations.
 import asyncio
 from logging.config import fileConfig
 

@@ -1,3 +1,4 @@
+import hashlib
 import logging
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
@@ -10,13 +11,21 @@ from game_engine.tools import game_tools
 
 logger = logging.getLogger(__name__)
 
-# Cache for compiled graphs: (api_key, model_name, llm_provider) -> compiled_graph
+# Cache for compiled graphs, keyed by a HASH of the API key (never the raw key) + model +
+# provider. Different campaigns/keys stay isolated without retaining plaintext secrets in a
+# process-lifetime module dict.
 _dm_graph_cache = {}
+
+
+def _graph_cache_key(api_key, model_name, llm_provider):
+    digest = hashlib.sha256(api_key.encode()).hexdigest() if api_key else "none"
+    return (digest, model_name, llm_provider)
+
 
 def get_dm_graph(api_key: str = None, model_name: str = "gemini-3-flash-preview", llm_provider: str = "gemini"):
     # Check cache first
     final_api_key = api_key
-    cache_key = (final_api_key, model_name, llm_provider)
+    cache_key = _graph_cache_key(final_api_key, model_name, llm_provider)
 
     if cache_key in _dm_graph_cache:
         return _dm_graph_cache[cache_key], None

@@ -1,13 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 import logging
-import os
 from ..dependencies import get_db
-from ..dtos import CreateProfileRequest, Profile
+from ..dtos import Profile
 from ..auth_utils import verify_token
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
-from uuid import uuid4
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -74,7 +72,7 @@ async def login(token_data: dict = Depends(verify_token), db: AsyncSession = Dep
                     await db.execute(text("UPDATE campaigns SET gm_id = :uid WHERE gm_id = :test_id"), {"uid": uid, "test_id": TEST_USER_ID})
                     await db.execute(text("UPDATE campaign_participants SET user_id = :uid WHERE user_id = :test_id"), {"uid": uid, "test_id": TEST_USER_ID})
                     await db.execute(text("UPDATE characters SET user_id = :uid WHERE user_id = :test_id"), {"uid": uid, "test_id": TEST_USER_ID})
-                    
+
             except SQLAlchemyError as e:
                 logger.error("Database error creating profile: %s", str(e))
                 # Identify if error is due to missing columns or constraints

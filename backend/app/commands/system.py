@@ -4,8 +4,6 @@ from .registry import CommandRegistry
 from app.services.chat_service import ChatService
 from app.services.ai_service import AIService
 from app.services.context_builder import build_narrative_context
-from app.models import GameState
-from sqlalchemy import text
 import json
 import random
 from langchain_core.messages import HumanMessage
@@ -158,7 +156,7 @@ class DMCommand(Command):
 
                 await ctx.db.commit()
 
-            except Exception as e:
+            except Exception:
                  # Silently fail banter
                  pass
 

@@ -1,4 +1,4 @@
-from typing import Optional, Type, List
+from typing import Optional, Type
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 from .engine import GameEngine

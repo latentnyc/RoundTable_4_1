@@ -34,6 +34,9 @@ jobs:
       - name: Build
         run: npx vite build
 
+      - name: Unit tests
+        run: npx vitest run
+
   backend:
     name: Backend
     runs-on: ubuntu-latest
@@ -72,8 +75,11 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      - name: Install test dependencies
-        run: pip install pytest pytest-asyncio
+      - name: Install test & lint dependencies
+        run: pip install pytest pytest-asyncio ruff
+
+      - name: Lint (ruff)
+        run: ruff check .
 
       - name: Run tests
         run: pytest -m "not integration" --tb=short -q

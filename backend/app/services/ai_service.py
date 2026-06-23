@@ -1,13 +1,9 @@
 from app.agents import get_dm_graph, get_character_graph, summarize_messages
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from app.callbacks import SocketIOCallbackHandler
-from app.services.context_builder import build_narrative_context
-from app.models import GameState
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-import json
 from uuid import uuid4
-from typing import Optional
 import traceback
 import logging
 
@@ -196,7 +192,7 @@ class AIService:
         except Exception as e:
              # This is a LangChain invocation so keeping it broad but logging tightly
              logger.error("dm_graph.ainvoke failed during narration: %s\n%s", str(e), traceback.format_exc())
-             return f"*The Dungeon Master pauses momentarily, considering the outcome.* (System Error: Narration failed to generate)"
+             return "*The Dungeon Master pauses momentarily, considering the outcome.* (System Error: Narration failed to generate)"
 
     @staticmethod
     async def get_latest_memory(campaign_id: str, db: AsyncSession):

@@ -1,7 +1,4 @@
-import socketio
 import logging
-from uuid import uuid4
-from sqlalchemy.ext.asyncio import AsyncSession
 from db.session import AsyncSessionLocal
 from app.socket.decorators import socket_event_handler
 from app.services.game_service import GameService
@@ -61,10 +58,10 @@ async def handle_move_entity(sid, data, sio, connected_users):
             # Combat restrictions
             if game_state.phase == 'combat':
                 if game_state.active_entity_id != entity.id:
-                    await sio.emit('system_message', {'content': f"🚫 It is not your turn!"}, room=sid)
+                    await sio.emit('system_message', {'content': "🚫 It is not your turn!"}, room=sid)
                     return
                 if getattr(game_state, 'has_moved_this_turn', False):
-                    await sio.emit('system_message', {'content': f"🚫 You have already moved this turn!"}, room=sid)
+                    await sio.emit('system_message', {'content': "🚫 You have already moved this turn!"}, room=sid)
                     return
                 game_state.has_moved_this_turn = True
 
@@ -73,7 +70,7 @@ async def handle_move_entity(sid, data, sio, connected_users):
             if not target_cell:
                  logger.warning(f"[Move] Target cell not walkable {target_x},{target_y}")
                  return
-                 
+
             # Validate no collision
             occupied = False
             for loop_entity in game_state.party + [e for e in game_state.enemies if e.hp_current > 0] + game_state.npcs:
@@ -98,14 +95,14 @@ async def handle_move_entity(sid, data, sio, connected_users):
                 await sio.emit('entity_path_animation', {'entity_id': entity.id, 'path': path}, room=campaign_id)
 
             await GameService.save_game_state(campaign_id, game_state, db)
-            
+
             # Broadcast the update
             await StateService.emit_state_update(campaign_id, game_state, sio)
-            
+
             if game_state.phase == 'combat':
                 from app.services.turn_manager import TurnManager
                 from app.services.narrator_service import NarratorService
-                
+
                 if getattr(game_state, 'has_acted_this_turn', False):
                     await TurnManager.advance_turn(campaign_id, sio, db, current_game_state=game_state)
                     await db.commit()
@@ -125,7 +122,7 @@ async def handle_move_entity(sid, data, sio, connected_users):
                     await GameService.process_ai_following(campaign_id, entity_id, db, sio, game_state)
                 except AttributeError:
                     logger.warning("[Move] process_ai_following not implemented yet")
-            
+
             # Commit the movement and any AI following changes out of combat
             await db.commit()
 

@@ -1,15 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException
-from typing import List, Dict
+from typing import List
 import json
 import logging
-import os
 import base64
 from ..permissions import verify_token, is_admin
 from ..dependencies import get_db
 from ..dtos import (
     CampaignCreateRequest, CampaignResponse, CampaignDetailsResponse,
     UpdateCampaignRequest, TestAPIKeyRequest, ModelListResponse,
-    CampaignParticipantResponse, ParticipantCharacter, UpdateParticipantRequest,
+    CampaignParticipantResponse, UpdateParticipantRequest,
     CampaignTemplateResponse, ImageGenerationRequest, ImageGenerationResponse
 )
 from ..models import GameState, Location, NPC, Coordinates

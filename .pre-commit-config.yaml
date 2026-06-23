@@ -7,12 +7,12 @@ repos:
     -   id: check-yaml
     -   id: check-added-large-files
 
-# -   repo: https://github.com/yelp/detect-secrets
-#     rev: v1.4.0
-#     hooks:
-#     -   id: detect-secrets
-#         args: ['--baseline', '.secrets.baseline']
-#         exclude: package-lock.json
+-   repo: https://github.com/yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+    -   id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: package-lock.json
 
 -   repo: local
     hooks:

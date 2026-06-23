@@ -1,5 +1,4 @@
 import asyncio
-import time
 import logging
 import hashlib
 from contextlib import asynccontextmanager
@@ -47,7 +46,7 @@ class LockService:
         lock_id = cls._get_lock_id(campaign_id)
         session = AsyncSessionLocal()
         acquired = False
-        
+
         try:
             # We use an async timeout because pg_advisory_lock without NOWAIT will block indefinitely
             # until either it gets the lock, or the DB connection drops.
@@ -63,11 +62,11 @@ class LockService:
             except SQLAlchemyError as e:
                 logger.error(f"Database error acquiring advisory lock for {campaign_id}: {e}")
                 raise
-                
+
             cls._local_locks[campaign_id] = current_task
             cls._local_counts[campaign_id] = 1
             cls._local_sessions[campaign_id] = session
-            
+
             yield
         finally:
             if acquired:
@@ -76,7 +75,7 @@ class LockService:
                     cls._local_locks.pop(campaign_id, None)
                     cls._local_counts.pop(campaign_id, None)
                     lock_session = cls._local_sessions.pop(campaign_id, None)
-                    
+
                     if lock_session:
                         try:
                             await lock_session.execute(text("SELECT pg_advisory_unlock(:id)"), {"id": lock_id})

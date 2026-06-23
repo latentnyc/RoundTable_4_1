@@ -1,7 +1,5 @@
-import os
 import logging
-import firebase_admin
-from firebase_admin import auth, credentials
+from firebase_admin import auth
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
@@ -31,4 +29,3 @@ async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(secur
 
 async def get_current_user(token_data: dict = Depends(verify_token)):
     return token_data
-

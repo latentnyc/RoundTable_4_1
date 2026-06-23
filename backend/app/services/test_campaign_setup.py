@@ -21,9 +21,9 @@ import json
 import logging
 from uuid import uuid4
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text, select, insert
-from db.schema import campaigns, campaign_participants, characters, profiles, game_states, campaign_templates
-from app.models import GameState, Player, Location, Coordinates, NPC
+from sqlalchemy import select, insert
+from db.schema import campaigns, campaign_participants, profiles, game_states, campaign_templates
+from app.models import GameState, Location, Coordinates, NPC
 from app.services.campaign_loader import instantiate_campaign
 
 logger = logging.getLogger(__name__)

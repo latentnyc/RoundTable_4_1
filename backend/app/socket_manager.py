@@ -1,9 +1,6 @@
 import socketio
 
-from typing import Dict, List, Optional
-import os
-import json
-from uuid import uuid4
+from typing import Dict
 
 # Import Handlers
 from app.socket.handlers import connection, chat, game_state, inventory, exploration

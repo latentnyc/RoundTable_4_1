@@ -27,6 +27,9 @@ lint_report.txt
 *_report.txt
 list_models.py
 
+# Internal working docs (keep local, not committed)
+design_docs/holistic-review.md
+
 # Dev scripts runtime files
 scripts/.dev-logs/
 scripts/.dev-pids

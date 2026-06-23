@@ -1,6 +1,5 @@
 import logging
 import asyncio
-from typing import Optional, List, Tuple
 from langchain_core.tools import tool
 
 from app.services.game_service import GameService
@@ -15,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 def create_interact_tool(campaign_id: str, character_name: str, db=None):
     """Factory to create a stateful interact tool for a specific AI character."""
-    
+
     @tool
     async def interact_with_object(target_name: str) -> str:
         """Use this to open doors, loot corpses, search chests, or interact with an object on the map.
@@ -42,7 +41,7 @@ def create_interact_tool(campaign_id: str, character_name: str, db=None):
                 if getattr(p, 'name', '') == character_name:
                     actor = p
                     break
-                    
+
             if not actor:
                  return "Error: Could not locate your character on the map."
 
@@ -67,7 +66,7 @@ def create_interact_tool(campaign_id: str, character_name: str, db=None):
                 if len(unique_names) > 1:
                      return f"Found multiple objects matching '{target_name}': {', '.join(unique_names)}. Ask the player to clarify which one they mean."
                 # If they are all called "Wooden Door", we will just pick the closest one below.
-                
+
             elif len(matches) == 0:
                 return f"Could not find any object matching '{target_name}' nearby."
 
@@ -80,14 +79,14 @@ def create_interact_tool(campaign_id: str, character_name: str, db=None):
                      t_pos = Coordinates(**tp) if tp else Coordinates(x=0, y=0)
                  else:
                      t_pos = m_obj.position
-                     
+
                  dist = actor.position.distance_to(t_pos)
                  if dist < best_dist:
                      best_dist = dist
                      best_match = (m_type, m_obj, t_pos)
 
             obj_type, target, t_pos = best_match
-            
+
             # Check distance
             max_reach = 6 # 5 cells movement (25ft) + 1 cell interact reach
 
@@ -131,9 +130,9 @@ def create_interact_tool(campaign_id: str, character_name: str, db=None):
                  act_target_name = target.get('name')
             else:
                  act_target_name = target.name
-                 
+
             result = await LootService.open_vessel(campaign_id, actor.name, act_target_name, session, target_id=target_id)
-            
+
             # Note: open_vessel performs distance validation and saves/commits the DB state automatically if successful.
             if result.get("success"):
                  if sio:

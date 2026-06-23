@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 import logging
-from app.dtos import TestAPIKeyRequest, ModelListResponse, UpdateSettingsRequest, Profile
+from app.dtos import TestAPIKeyRequest, ModelListResponse, UpdateSettingsRequest
 from app.dependencies import get_db
 from app.auth_utils import verify_token
 from fastapi import Depends

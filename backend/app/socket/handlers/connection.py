@@ -1,4 +1,3 @@
-import socketio
 import logging
 from firebase_admin import auth as firebase_auth
 from sqlalchemy import text

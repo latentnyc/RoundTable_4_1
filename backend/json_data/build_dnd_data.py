@@ -1,7 +1,6 @@
 import requests
 import json
 import time
-import os
 
 # Base URL for the 5e SRD API
 BASE_URL = "https://www.dnd5eapi.co"

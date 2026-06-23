@@ -1,5 +1,5 @@
 from google import genai
-from typing import List, Optional
+from typing import List
 
 class SystemService:
     @staticmethod

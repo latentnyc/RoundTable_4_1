@@ -1,4 +1,3 @@
-import os
 from app.logging_config import logger
 
 from app.config import settings
@@ -59,7 +58,7 @@ async def startup_event():
         logger.info("Syncing campaign templates...")
         await parse_and_load()
         logger.info("Campaign templates synced.")
-        
+
         logger.info("Setting up QoL dependencies...")
         async with AsyncSessionLocal() as db:
             await create_test_campaign(db)

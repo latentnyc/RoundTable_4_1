@@ -1,7 +1,5 @@
-import socketio
 import json
 import logging
-import traceback
 from datetime import datetime
 from uuid import uuid4
 from sqlalchemy import text
@@ -82,15 +80,15 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                 speed = _safe_int(sheet_data.get('speed'), 30)
                 level = _safe_int(char_row['level'], 1)
                 xp = _safe_int(char_row['xp'], 0)
-                
+
                 # Derive AC & Initiative from Equipment + Stats
                 dex_score = _safe_int(sheet_data.get('stats', {}).get('Dexterity'), 10)
                 dex_mod = (dex_score - 10) // 2
-                
+
                 base_ac = 10
                 shield_bonus = 0
                 equipped_armor = None
-                
+
                 for item in sheet_data.get('equipment', []):
                     if isinstance(item, dict) and item.get('type') == 'Armor':
                         item_data = item.get('data', {})
@@ -99,7 +97,7 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                             shield_bonus = ac_info_shield.get('base', 2) if isinstance(ac_info_shield, dict) else 2
                         else:
                             equipped_armor = item
-                            
+
                 if isinstance(equipped_armor, dict):
                     ac_info = equipped_armor.get('data', {}).get('armor_class', {})
                     if isinstance(ac_info, dict):
@@ -114,15 +112,15 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                             base_ac += int(dex_mod)
                     else:
                         base_ac += int(dex_mod)
-                    
+
                 derived_ac = int(base_ac) + int(shield_bonus)
-                
+
                 explicit_ac = sheet_data.get('ac')
                 if explicit_ac is not None:
                      ac = _safe_int(explicit_ac, derived_ac)
                 else:
                      ac = derived_ac
-                
+
                 initiative = _safe_int(sheet_data.get('initiative'), dex_mod)
 
                 # Check control mode
@@ -422,7 +420,7 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                             # Update Game State Location Description to match Intro
                             # This triggers the SceneVisPanel to generate the image based on the intro
                             gs.location.description = opening_text
-                            logger.info(f"[DEBUG] Updated GameState location description to match intro.")
+                            logger.info("[DEBUG] Updated GameState location description to match intro.")
 
                             # Update DB
                             await db.execute(

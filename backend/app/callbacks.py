@@ -1,7 +1,6 @@
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
-from typing import Any, Dict, List, Optional, Union
-import socketio
+from typing import Any, Dict, List
 import logging
 
 class SocketIOCallbackHandler(AsyncCallbackHandler):

@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, model_validator
 from typing import List, Dict, Optional, Literal, Any
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 # --- Conditions ---
 class Condition(BaseModel):
@@ -93,7 +93,7 @@ class Entity(BaseModel):
     loot: Optional[Dict[str, Any]] = None
     currency: Dict[str, int] = {"pp": 0, "gp": 0, "sp": 0, "cp": 0}
     identified: bool = True
-    
+
     # Newly promoted explicit fields from 'data' / 'sheet_data'
     race: str = "Unknown"
     stats: Stats = Field(default_factory=Stats)
@@ -110,7 +110,7 @@ class Entity(BaseModel):
                 for key in ['race', 'stats', 'voice', 'hostile', 'friendly', 'ally', 'type', 'conditions']:
                     if key in data and key not in values:
                         values[key] = data[key]
-                        
+
             # Flatten 'sheet_data' for Players
             sheet_data = values.get('sheet_data', {})
             if isinstance(sheet_data, dict):
@@ -156,12 +156,12 @@ class Enemy(Entity):
 class NPC(Entity):
     role: str # e.g. "Shopkeeper"
     identified: bool = False
-    
+
     # Explicit diplomacy fields
     hostile: bool = False
     friendly: bool = False
     ally: bool = False
-    
+
     data: Dict[str, Any] = {} # Catch-all for schedules, remaining unstructured params
 
 class DMSettings(BaseModel):
