@@ -23,10 +23,15 @@ def create_interact_tool(campaign_id: str, character_name: str, db=None):
         """
         session = db
         if not session:
-            # Fallback if testing outside of a provided db scope
+            # Fallback if testing outside of a provided db scope. We own this session,
+            # so we commit the staged interaction (open_vessel stages only now).
             async with AsyncSessionLocal() as temp_session:
-                return await _run_interact(target_name, temp_session)
+                result = await _run_interact(target_name, temp_session)
+                await temp_session.commit()
+                return result
         else:
+            # The provided session is owned by the caller (the agent's chat session),
+            # which commits the unit of work.
             return await _run_interact(target_name, session)
 
     async def _run_interact(target_name: str, session) -> str:
@@ -133,7 +138,8 @@ def create_interact_tool(campaign_id: str, character_name: str, db=None):
 
             result = await LootService.open_vessel(campaign_id, actor.name, act_target_name, session, target_id=target_id)
 
-            # Note: open_vessel performs distance validation and saves/commits the DB state automatically if successful.
+            # Note: open_vessel performs distance validation and stages the DB writes; the
+            # session owner (temp_session wrapper above, or the caller's session) commits them.
             if result.get("success"):
                  if sio:
                      if "game_state" in result:

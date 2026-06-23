@@ -47,6 +47,9 @@ class LootService:
     async def open_vessel(campaign_id: str, actor_name: str, vessel_name: str, db: AsyncSession, target_id: str = None):
         """
         Unlocks/Opens a vessel by name and returns its contents. Also handles doors and chests.
+
+        Stages writes only — does NOT commit. The caller that owns the AsyncSession
+        commits the operation atomically (see StateService commit contract).
         """
         from app.services.combat_service import CombatService
         from app.models import Vessel, Coordinates
@@ -173,7 +176,6 @@ class LootService:
                 .values(data=json.dumps(loc_data))
             )
             await db.execute(stmt)
-            await db.commit()
 
             if item_type == 'door':
                 reveal_text = ""
@@ -215,7 +217,6 @@ class LootService:
                              )
                              game_state.discovered_locations.append(new_loc)
                              await StateService.save_game_state(campaign_id, game_state, db)
-                             await db.commit()
 
                 return {"success": True, "message": f"**{actor_name}** creaks open the {target_interactable['name']}{reveal_text}.", "game_state": game_state}
 
@@ -251,7 +252,6 @@ class LootService:
 
                     game_state.location.description = json.dumps(loc_data)
                     await StateService.save_game_state(campaign_id, game_state, db)
-                    await db.commit()
 
                 return {
                     "success": True,
@@ -291,6 +291,9 @@ class LootService:
     async def take_items(campaign_id: str, actor_id: str, vessel_id: str, item_ids: list, take_currency: bool, db: AsyncSession):
         """
         Transfers items and currency from a vessel to a player's inventory.
+
+        Stages writes only — does NOT commit. The caller that owns the AsyncSession
+        commits the operation (see StateService commit contract).
         """
         game_state = await StateService.get_game_state(campaign_id, db)
         if not game_state:
@@ -324,8 +327,6 @@ class LootService:
             vessel.currency = {"pp": 0, "gp": 0, "sp": 0, "cp": 0}
 
         await StateService.save_game_state(campaign_id, game_state, db)
-        await db.commit()
-        await db.commit()
 
         # Long-term memory: record notable recoveries (fail-open).
         try:
