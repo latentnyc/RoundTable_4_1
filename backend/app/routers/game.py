@@ -30,10 +30,16 @@ async def get_game_state(session_id: str, user: dict = Depends(verify_token), db
 
 @router.post("/state/{session_id}")
 async def update_game_state(session_id: str, state: GameState, user: dict = Depends(verify_token), db: AsyncSession = Depends(get_db)):
-    # This checks if campaign exists, if not 404
-    # For now, just insert
+    # Upsert the single per-campaign row (uq_game_states_campaign_id); a plain INSERT
+    # would violate the constraint on the second call for a campaign.
     await db.execute(
-        text("INSERT INTO game_states (id, campaign_id, turn_index, phase, state_data) VALUES (:id, :campaign_id, :turn_index, :phase, :state_data)"),
+        text("""INSERT INTO game_states (id, campaign_id, turn_index, phase, state_data)
+                VALUES (:id, :campaign_id, :turn_index, :phase, :state_data)
+                ON CONFLICT (campaign_id) DO UPDATE SET
+                    turn_index = EXCLUDED.turn_index,
+                    phase = EXCLUDED.phase,
+                    state_data = EXCLUDED.state_data,
+                    updated_at = now()"""),
         {
             "id": str(uuid4()),
             "campaign_id": session_id,
