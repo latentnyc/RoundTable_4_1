@@ -26,12 +26,12 @@ async def test_spawn_trio_api():
     # Insert test user and campaign into the DB to satisfy foreign keys
     campaign_id = "test_campaign_uuid_for_trio"
     user_id = "test_user_uuid"
-    
+
     async with AsyncSessionLocal() as db:
-        await db.execute(text("INSERT INTO profiles (id, username) VALUES (:uid, 'Test User') ON CONFLICT (id) DO NOTHING"), {"uid": user_id})
+        await db.execute(text("INSERT INTO profiles (id, username) VALUES (:uid, 'Test User (trio)') ON CONFLICT (id) DO NOTHING"), {"uid": user_id})
         await db.execute(text("INSERT INTO campaigns (id, name, gm_id) VALUES (:cid, 'Test Trio Campaign', :uid) ON CONFLICT (id) DO NOTHING"), {"cid": campaign_id, "uid": user_id})
         await db.commit()
-    
+
     faein_payload = {
         "name": "Faein",
         "role": "Fighter",
@@ -50,7 +50,7 @@ async def test_spawn_trio_api():
             "alignment": "Lawful Neutral"
         }
     }
-    
+
     jenath_payload = {
         "name": "Jenath",
         "role": "Wizard",
@@ -98,7 +98,7 @@ async def test_spawn_trio_api():
         data1 = res1.json()
         assert data1["name"] == "Faein"
         assert data1["control_mode"] == "human"
-        
+
         # 2. Spawn Jenath
         res2 = await ac.post("/characters/", json=jenath_payload)
         assert res2.status_code == 200
@@ -112,3 +112,12 @@ async def test_spawn_trio_api():
         data3 = res3.json()
         assert data3["name"] == "Zenel"
         assert data3["control_mode"] == "ai"
+
+    # Clean up rows this test created so the shared dev DB stays re-runnable across
+    # full-suite runs (its profile/campaign/characters otherwise accumulate and the
+    # 'Test User' username previously collided with test_callback_logic).
+    async with AsyncSessionLocal() as db:
+        await db.execute(text("DELETE FROM characters WHERE campaign_id = :cid OR user_id = :uid"), {"cid": campaign_id, "uid": user_id})
+        await db.execute(text("DELETE FROM campaigns WHERE id = :cid OR gm_id = :uid"), {"cid": campaign_id, "uid": user_id})
+        await db.execute(text("DELETE FROM profiles WHERE id = :uid"), {"uid": user_id})
+        await db.commit()
