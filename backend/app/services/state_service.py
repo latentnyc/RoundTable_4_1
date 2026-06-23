@@ -38,7 +38,14 @@ class StateService:
         if old_state_dict:
             patch = jsonpatch.make_patch(old_state_dict, new_state_dict)
             if patch.patch: # Only emit if there are actual changes
-                await sio.emit('game_state_patch', patch.patch, room=campaign_id)
+                # Version-gated delta: the client applies it only if it currently holds
+                # base_version, otherwise it requests a full-state resync. (A full
+                # game_state_update carries its own version, read directly by the client.)
+                await sio.emit('game_state_patch', {
+                    'patch': patch.patch,
+                    'base_version': old_state_dict.get('version', 0),
+                    'version': new_state_dict.get('version', 0),
+                }, room=campaign_id)
         else:
             await sio.emit('game_state_update', new_state_dict, room=campaign_id)
 

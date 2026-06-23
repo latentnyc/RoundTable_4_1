@@ -17,6 +17,33 @@ from app.services.state_service import StateService
 
 logger = logging.getLogger(__name__)
 
+
+@socket_event_handler
+async def handle_request_full_state(sid, data, sio, connected_users):
+    """Targeted resync: send the current full state to ONLY the requesting client.
+
+    The client calls this when a patch's base_version doesn't match its local version
+    (a missed/reordered delta). We emit the exact last-broadcast state — the base that
+    subsequent room patches diff from — so the client's version lines up with future
+    patches. Falls back to a fresh DB fetch (which also seeds the broadcast cache) if
+    nothing has been broadcast for this campaign yet.
+    """
+    user_info = connected_users.get(sid) or {}
+    campaign_id = user_info.get('campaign_id') or (data or {}).get('campaign_id')
+    if not campaign_id:
+        return
+
+    cached = StateService._last_broadcasted_state.get(campaign_id)
+    if cached is not None:
+        await sio.emit('game_state_update', cached, room=sid)
+        return
+
+    async with AsyncSessionLocal() as db:
+        game_state = await GameService.get_game_state(campaign_id, db)
+        if game_state:
+            await StateService.emit_state_update(campaign_id, game_state, sio)
+
+
 @socket_event_handler
 async def handle_join_campaign(sid, data, sio, connected_users):
     # data: { user_id, campaign_id, character_id }
@@ -204,14 +231,11 @@ async def handle_join_campaign(sid, data, sio, connected_users):
                 logger.info("[DEBUG] Fresh campaign detected. Clearing location description to prevent premature image generation.")
                 game_state.location.description = ""
 
-            # 5. Save Updated State
-            # Ensure character JSON sheets capture the new spawn coordinates
-            await StateService._save_party(game_state.party, campaign_id, db)
-
-            await db.execute(
-                text("INSERT INTO game_states (id, campaign_id, turn_index, phase, state_data) VALUES (:id, :campaign_id, :turn_index, :phase, :state_data)"),
-                {"id": str(uuid4()), "campaign_id": campaign_id, "turn_index": game_state.turn_index, "phase": game_state.phase, "state_data": game_state.model_dump_json()}
-            )
+            # 5. Save Updated State via the single persistence path. The old raw
+            # append-log INSERT here inserted a fresh uuid row per join, which now
+            # violates the one-row-per-campaign constraint on re-join (breaking
+            # reconnect/resync); save_game_state upserts and persists all entities.
+            await StateService.save_game_state(campaign_id, game_state, db)
             await db.commit()
 
             # 5.5 Fetch & Emit AI Stats

@@ -43,9 +43,11 @@ class TestEmitStateUpdate:
         mock_sio.emit.assert_called_once()
         call_args = mock_sio.emit.call_args
         assert call_args[0][0] == 'game_state_patch'
-        patch = call_args[0][1]
-        assert isinstance(patch, list)
-        assert len(patch) > 0
+        payload = call_args[0][1]
+        assert isinstance(payload, dict)
+        assert isinstance(payload['patch'], list)
+        assert len(payload['patch']) > 0
+        assert 'base_version' in payload and 'version' in payload
 
     @pytest.mark.asyncio
     async def test_no_emit_when_no_changes(self, game_state_factory, mock_sio):
@@ -86,7 +88,7 @@ class TestEmitStateUpdate:
         gs.enemies[0].hp_current = original_hp - 5
         await StateService.emit_state_update("camp1", gs, mock_sio)
 
-        patch = mock_sio.emit.call_args[0][1]
+        patch = mock_sio.emit.call_args[0][1]['patch']
         # At least one patch op should reference hp_current
         hp_ops = [op for op in patch if 'hp_current' in op.get('path', '')]
         assert len(hp_ops) > 0
@@ -103,6 +105,23 @@ class TestEmitStateUpdate:
         gs.active_entity_id = gs.party[0].id
         await StateService.emit_state_update("camp1", gs, mock_sio)
 
-        patch = mock_sio.emit.call_args[0][1]
+        patch = mock_sio.emit.call_args[0][1]['patch']
         phase_ops = [op for op in patch if '/phase' in op.get('path', '')]
         assert len(phase_ops) > 0
+
+    @pytest.mark.asyncio
+    async def test_patch_includes_version_metadata(self, game_state_factory, mock_sio):
+        """Patch payload carries base_version (the version the client must hold to apply it)
+        and the resulting version, so the client can detect a missed delta."""
+        gs = game_state_factory()
+        gs.version = 1
+        await StateService.emit_state_update("camp1", gs, mock_sio)  # full state, caches v1
+        mock_sio.emit.reset_mock()
+
+        gs.version = 2
+        gs.enemies[0].hp_current = 1
+        await StateService.emit_state_update("camp1", gs, mock_sio)  # patch v1 -> v2
+
+        payload = mock_sio.emit.call_args[0][1]
+        assert payload['base_version'] == 1
+        assert payload['version'] == 2

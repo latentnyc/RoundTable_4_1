@@ -242,7 +242,7 @@ describe('SocketProvider', () => {
     act(() => {
       triggerEvent('game_state_patch', badPatch)
     })
-    expect(mockSocket.emit).toHaveBeenLastCalledWith('join_campaign', {
+    expect(mockSocket.emit).toHaveBeenLastCalledWith('request_full_state', {
       user_id: 'user-123',
       campaign_id: 'campaign-abc',
     })
@@ -251,7 +251,7 @@ describe('SocketProvider', () => {
     act(() => {
       triggerEvent('game_state_patch', badPatch)
     })
-    expect(mockSocket.emit).toHaveBeenLastCalledWith('join_campaign', {
+    expect(mockSocket.emit).toHaveBeenLastCalledWith('request_full_state', {
       user_id: 'user-123',
       campaign_id: 'campaign-abc',
     })
@@ -283,5 +283,97 @@ describe('SocketProvider', () => {
       user_id: 'user-123',
       campaign_id: 'campaign-abc',
     })
+  })
+
+  it('requests a full-state resync when a patch reports a version gap', async () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <SocketProvider>{children}</SocketProvider>
+    )
+    const { result } = renderHook(() => useSocketContext(), { wrapper })
+
+    act(() => {
+      result.current.connect('campaign-abc')
+      triggerEvent('connect')
+    })
+
+    const baseState: any = {
+      session_id: 'campaign-abc',
+      version: 5,
+      turn_index: 0,
+      phase: 'exploration',
+      active_entity_id: null,
+      party: [{ id: 'p1', name: 'Adventurer', hp_current: 10, hp_max: 10, ac: 15, initiative: 0, speed: 30, position: { x: 0, y: 0 }, inventory: [], conditions: [] }],
+      enemies: [],
+      npcs: [],
+      turn_order: [],
+      combat_log: [],
+    }
+
+    act(() => {
+      useSocketStore.getState().setGameState(baseState)
+    })
+
+    // base_version 7 != local version 5 -> we missed a delta; must resync, not apply.
+    const gappedPatch = {
+      base_version: 7,
+      version: 8,
+      patch: [{ op: 'replace', path: '/party/0/hp_current', value: 5 }],
+    }
+
+    act(() => {
+      triggerEvent('game_state_patch', gappedPatch)
+    })
+
+    expect(mockSocket.emit).toHaveBeenLastCalledWith('request_full_state', {
+      user_id: 'user-123',
+      campaign_id: 'campaign-abc',
+    })
+    expect(useSocketStore.getState().gameState?.party[0].hp_current).toBe(10)
+  })
+
+  it('applies a versioned patch when base_version matches local version', async () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <SocketProvider>{children}</SocketProvider>
+    )
+    const { result } = renderHook(() => useSocketContext(), { wrapper })
+
+    act(() => {
+      result.current.connect('campaign-abc')
+      triggerEvent('connect')
+    })
+
+    const baseState: any = {
+      session_id: 'campaign-abc',
+      version: 5,
+      turn_index: 0,
+      phase: 'exploration',
+      active_entity_id: null,
+      party: [{ id: 'p1', name: 'Adventurer', hp_current: 10, hp_max: 10, ac: 15, initiative: 0, speed: 30, position: { x: 0, y: 0 }, inventory: [], conditions: [] }],
+      enemies: [],
+      npcs: [],
+      turn_order: [],
+      combat_log: [],
+    }
+
+    act(() => {
+      useSocketStore.getState().setGameState(baseState)
+    })
+
+    const goodPatch = {
+      base_version: 5,
+      version: 6,
+      patch: [
+        { op: 'replace', path: '/version', value: 6 },
+        { op: 'replace', path: '/party/0/hp_current', value: 3 },
+      ],
+    }
+
+    act(() => {
+      triggerEvent('game_state_patch', goodPatch)
+    })
+
+    const updated = useSocketStore.getState().gameState
+    expect(updated?.party[0].hp_current).toBe(3)
+    expect(updated?.version).toBe(6)
   })
 })

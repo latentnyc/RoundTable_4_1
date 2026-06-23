@@ -124,40 +124,64 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                 });
 
                 // Bind State Event Handlers
+                const requestFullState = () => {
+                    if (user?.uid && campaignIdRef.current) {
+                        newSocket.emit('request_full_state', {
+                            user_id: user.uid,
+                            campaign_id: campaignIdRef.current
+                        });
+                    }
+                };
+
                 newSocket.on('game_state_update', (state) => {
                     patchFailureCount.current = 0; // Reset on full state
                     useSocketStore.getState().setGameState(state);
                 });
 
-                newSocket.on('game_state_patch', (patch) => {
+                newSocket.on('game_state_patch', (payload) => {
                     const state = useSocketStore.getState().gameState;
-                    if (state) {
-                        try {
-                            // Fourth argument is 'mutateDocument'. We must set it to false so Zustand detects a new object reference.
-                            const result = applyPatch(state, patch, false, false);
-                            useSocketStore.getState().setGameState(result.newDocument);
-                            patchFailureCount.current = 0;
-                        } catch (e) {
-                            console.error("Failed to apply game state patch:", e);
-                            patchFailureCount.current++;
-
-                            if (patchFailureCount.current >= 3) {
-                                // Too many failures — force full reconnection
-                                console.warn("3 consecutive patch failures, forcing reconnection...");
-                                patchFailureCount.current = 0;
-                                newSocket.disconnect();
-                                newSocket.connect();
-                            } else if (user?.uid && campaignIdRef.current) {
-                                // Request fresh full state
-                                console.warn("Patch failed, requesting full state resync...");
-                                newSocket.emit('join_campaign', {
-                                    user_id: user.uid,
-                                    campaign_id: campaignIdRef.current
-                                });
-                            }
-                        }
-                    } else {
+                    if (!state) {
                         console.warn("Received patch but no base game state exists yet.");
+                        return;
+                    }
+
+                    // Back-compat: older servers sent a bare JSON-Patch array; newer servers
+                    // send { patch, base_version, version } so a missed delta is detectable.
+                    const isArray = Array.isArray(payload);
+                    const patchOps = isArray ? payload : payload?.patch;
+                    const baseVersion = isArray ? null : payload?.base_version;
+                    if (!patchOps) return;
+
+                    // Version gap: this delta was diffed from base_version but we hold a
+                    // different version, so we missed/reordered a patch. Resync rather than
+                    // applying it (which would silently diverge).
+                    const localVersion = (state as { version?: number }).version;
+                    if (baseVersion != null && localVersion != null && baseVersion !== localVersion) {
+                        console.warn(`Patch base v${baseVersion} != local v${localVersion}; requesting full-state resync.`);
+                        requestFullState();
+                        return;
+                    }
+
+                    try {
+                        // Fourth argument is 'mutateDocument'. We must set it to false so Zustand detects a new object reference.
+                        const result = applyPatch(state, patchOps, false, false);
+                        useSocketStore.getState().setGameState(result.newDocument);
+                        patchFailureCount.current = 0;
+                    } catch (e) {
+                        console.error("Failed to apply game state patch:", e);
+                        patchFailureCount.current++;
+
+                        if (patchFailureCount.current >= 3) {
+                            // Too many failures — force full reconnection
+                            console.warn("3 consecutive patch failures, forcing reconnection...");
+                            patchFailureCount.current = 0;
+                            newSocket.disconnect();
+                            newSocket.connect();
+                        } else {
+                            // Targeted resync: ask the server for the current full state.
+                            console.warn("Patch failed, requesting full state resync...");
+                            requestFullState();
+                        }
                     }
                 });
 

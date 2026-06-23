@@ -85,6 +85,7 @@ export interface LogEntry {
 
 export interface GameState {
     session_id: string;
+    version?: number; // Server-incremented; used for patch gap detection / resync
     turn_index: number;
     phase: 'combat' | 'exploration' | 'social';
     active_entity_id: string | null;

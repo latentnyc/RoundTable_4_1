@@ -46,6 +46,10 @@ async def join_campaign(sid, data):
     await game_state.handle_join_campaign(sid, data, sio, connected_users)
 
 @sio.event
+async def request_full_state(sid, data=None):
+    await game_state.handle_request_full_state(sid, data, sio, connected_users)
+
+@sio.event
 async def chat_message(sid, data):
     await chat.handle_chat_message(sid, data, sio, connected_users)
 
