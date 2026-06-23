@@ -83,6 +83,35 @@ async def init_db_async():
         logger.critical(f"Database initialization failed: {e}")
         raise e
 
+    # --- GAME_STATES: collapse append-log to one upserted row per campaign (idempotent) ---
+    # Older builds inserted a fresh game_states row per save and read "newest by timestamp",
+    # which is non-deterministic under rapid AI-turn saves. Dedup to the newest row per
+    # campaign, then enforce it with a unique constraint so save_game_state can upsert on
+    # campaign_id. Both steps are idempotent; a second run deletes 0 rows and skips the add.
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("""
+                DELETE FROM game_states gs
+                USING (
+                    SELECT id, ROW_NUMBER() OVER (
+                        PARTITION BY campaign_id ORDER BY updated_at DESC, id DESC
+                    ) AS rn
+                    FROM game_states
+                ) ranked
+                WHERE gs.id = ranked.id AND ranked.rn > 1
+            """))
+            await conn.execute(text("""
+                DO $$ BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_constraint WHERE conname = 'uq_game_states_campaign_id'
+                    ) THEN
+                        ALTER TABLE game_states ADD CONSTRAINT uq_game_states_campaign_id UNIQUE (campaign_id);
+                    END IF;
+                END $$;
+            """))
+    except SQLAlchemyError as e:
+        logger.warning(f"game_states dedup/unique migration failed (non-fatal): {e}")
+
     # --- SPRINT 1: LONG-TERM MEMORY (episodic) — isolated & fail-open ---
     # Created via raw DDL only (intentionally NOT in schema.py metadata, so
     # metadata.create_all never races it). A failure here must not crash startup:

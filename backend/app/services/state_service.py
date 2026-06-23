@@ -2,7 +2,8 @@ import json
 import logging
 from uuid import uuid4
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, insert, delete, desc, bindparam
+from sqlalchemy import select, update, insert, desc, bindparam
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from db.schema import game_states, characters, monsters, npcs
 from app.models import GameState, Player, Enemy, NPC, Vessel
 
@@ -12,6 +13,15 @@ class StateService:
     """
     Handles all hydration, persistence, and querying of the GameState and its entities.
     Extracted from GameService to adhere to the Single Responsibility Principle.
+
+    Commit contract (Phase 1)
+    --------------------------
+    Persistence methods here STAGE writes only; they never call ``db.commit()``.
+    The owner of the ``AsyncSession`` (the caller that opened it — a command
+    dispatcher, a socket handler, etc.) owns the transaction boundary and is
+    responsible for committing exactly once on success / rolling back on error.
+    This keeps a single logical operation atomic across the entity tables and the
+    ``game_states`` row instead of fragmenting it into several partial commits.
     """
     _last_broadcasted_state = {}
 
@@ -24,18 +34,20 @@ class StateService:
         import jsonpatch
         new_state_dict = game_state.model_dump()
         old_state_dict = StateService._last_broadcasted_state.get(campaign_id)
-        
+
         if old_state_dict:
             patch = jsonpatch.make_patch(old_state_dict, new_state_dict)
             if patch.patch: # Only emit if there are actual changes
                 await sio.emit('game_state_patch', patch.patch, room=campaign_id)
         else:
             await sio.emit('game_state_update', new_state_dict, room=campaign_id)
-            
+
         StateService._last_broadcasted_state[campaign_id] = new_state_dict
 
     @staticmethod
     async def get_game_state(campaign_id: str, db: AsyncSession) -> GameState:
+        # One upserted row per campaign (see save_game_state); the order_by is a
+        # defensive tiebreaker for the brief window before the dedup migration runs.
         query = (
             select(game_states.c.state_data)
             .where(game_states.c.campaign_id == campaign_id)
@@ -63,6 +75,11 @@ class StateService:
 
     @staticmethod
     async def save_game_state(campaign_id: str, game_state: GameState, db: AsyncSession):
+        """Stage the full game state for persistence (entities + skeleton row).
+
+        Does NOT commit — see the class-level commit contract. The session owner
+        commits the whole unit of work atomically.
+        """
         from datetime import datetime, timezone
 
         # Auto-increment state version for client-side gap detection
@@ -73,37 +90,66 @@ class StateService:
         await StateService._save_enemies(game_state.enemies, campaign_id, db)
         await StateService._save_npcs(game_state.npcs, campaign_id, db)
 
-        # 2. Save Lightweight GameState (Skeleton)
+        # 2. Save Lightweight GameState (Skeleton).
+        # ONE upserted row per campaign_id (unique constraint uq_game_states_campaign_id):
+        # deterministic to read back, and never an append-log race under rapid AI-turn saves.
         state_dict = game_state.model_dump()
         state_dict['party'] = [p.id for p in game_state.party]
         state_dict['enemies'] = [e.id for e in game_state.enemies]
         state_dict['npcs'] = [n.id for n in game_state.npcs]
+        state_json = json.dumps(state_dict)
+        now = datetime.now(timezone.utc)
 
-        stmt = insert(game_states).values(
+        stmt = pg_insert(game_states).values(
             id=str(uuid4()),
             campaign_id=campaign_id,
             turn_index=game_state.turn_index,
             phase=game_state.phase,
-            state_data=json.dumps(state_dict),
-            updated_at=datetime.now(timezone.utc)
+            state_data=state_json,
+            updated_at=now,
+        ).on_conflict_do_update(
+            index_elements=['campaign_id'],
+            set_={
+                'turn_index': game_state.turn_index,
+                'phase': game_state.phase,
+                'state_data': state_json,
+                'updated_at': now,
+            },
         )
         await db.execute(stmt)
 
-        # 3. Prune old game states: keep only the 10 most recent states for this campaign
-        select_stmt = (
-            select(game_states.c.id)
-            .where(game_states.c.campaign_id == campaign_id)
-            .order_by(desc(game_states.c.updated_at), desc(game_states.c.id))
-        )
-        select_result = await db.execute(select_stmt)
-        all_ids = [r[0] for r in select_result.fetchall()]
-        if len(all_ids) > 10:
-            ids_to_delete = all_ids[10:]
-            delete_stmt = (
-                delete(game_states)
-                .where(game_states.c.id.in_(ids_to_delete))
+    @staticmethod
+    def _normalize_inventory(inventory) -> list:
+        """Coerce an inventory list to canonical item-ID strings.
+
+        The Entity model declares ``inventory: List[str]``; equip/loot paths can
+        transiently hold item dicts in memory. Normalizing on the persistence
+        boundary keeps the stored shape uniform and the save/load round-trip
+        idempotent.
+        """
+        if not inventory:
+            return []
+        clean = []
+        for item in inventory:
+            if isinstance(item, str):
+                clean.append(item)
+            elif isinstance(item, dict):
+                iid = item.get('id') or item.get('name')
+                if iid:
+                    clean.append(str(iid))
+        return clean
+
+    @staticmethod
+    def _flag_all_default(kind: str, entity_id, name, hp_max, ac, position):
+        """Warn when an entity hydrates to the all-default skeleton (10 HP / AC 10 / 0,0),
+        which usually means its persisted data was missing or malformed."""
+        pos = position if isinstance(position, dict) else {}
+        if hp_max == 10 and ac == 10 and pos.get('x', 0) == 0 and pos.get('y', 0) == 0:
+            logger.warning(
+                "Hydration produced all-default stats for %s id=%s name=%r "
+                "(hp_max=10, ac=10, pos=0,0) — check persisted data.",
+                kind, entity_id, name,
             )
-            await db.execute(delete_stmt)
 
     @staticmethod
     async def _hydrate_party(party_ids: list, db: AsyncSession) -> list['Player']:
@@ -122,8 +168,12 @@ class StateService:
                 r = row_map[pid]
                 try:
                     s_data = json.loads(r.sheet_data) if r.sheet_data else {}
-                except json.JSONDecodeError:
-                    s_data = {}
+                except json.JSONDecodeError as e:
+                    logger.error(
+                        "Corrupt sheet_data for character id=%s name=%r: %s | raw=%.200r",
+                        r.id, r.name, e, r.sheet_data,
+                    )
+                    raise ValueError(f"Corrupt sheet_data JSON for character {r.id}") from e
 
                 # Preserve the original sheet structure so Pydantic doesn't wipe non-Entity attributes
                 if 'sheet_data' not in s_data:
@@ -147,21 +197,16 @@ class StateService:
                 if 'position' not in s_data:
                     s_data['position'] = {"x": 0, "y": 0}
 
-                # Sanitize inventory to ensure Pydantic List[str] validation passes
+                # Normalize inventory to canonical id-strings (model is List[str]).
                 if 'inventory' in s_data:
-                    clean_inv = []
-                    for item in s_data['inventory']:
-                        if isinstance(item, dict) and 'id' in item:
-                            clean_inv.append(item['id'])
-                        elif isinstance(item, str):
-                            clean_inv.append(item)
-                    s_data['inventory'] = clean_inv
+                    s_data['inventory'] = StateService._normalize_inventory(s_data['inventory'])
 
                 # Calculate actual AC based on stats and equipment
                 from game_engine.character_sheet import CharacterSheet
                 temp_sheet = CharacterSheet(s_data)
                 s_data['ac'] = temp_sheet.get_ac()
 
+                StateService._flag_all_default("character", r.id, r.name, s_data.get('hp_max'), s_data.get('ac'), s_data.get('position'))
                 party_objs.append(Player(**s_data))
         return party_objs
 
@@ -182,8 +227,12 @@ class StateService:
                 r = row_map[eid]
                 try:
                     d = json.loads(r.data) if r.data else {}
-                except json.JSONDecodeError:
-                    d = {}
+                except json.JSONDecodeError as e:
+                    logger.error(
+                        "Corrupt data for monster id=%s name=%r: %s | raw=%.200r",
+                        r.id, r.name, e, r.data,
+                    )
+                    raise ValueError(f"Corrupt data JSON for monster {r.id}") from e
 
                 # Base init with data blob
                 init_d = {'data': d}
@@ -208,6 +257,7 @@ class StateService:
                 if 'ac' not in init_d:
                     init_d['ac'] = int(d.get('stats', {}).get('ac', 10))
 
+                StateService._flag_all_default("monster", r.id, r.name, init_d.get('hp_max'), init_d.get('ac'), init_d.get('position'))
                 enemy_objs.append(Enemy(**init_d))
         return enemy_objs
 
@@ -228,8 +278,12 @@ class StateService:
                 r = row_map[nid]
                 try:
                     d = json.loads(r.data) if r.data else {}
-                except json.JSONDecodeError:
-                    d = {}
+                except json.JSONDecodeError as e:
+                    logger.error(
+                        "Corrupt data for npc id=%s name=%r: %s | raw=%.200r",
+                        r.id, r.name, e, r.data,
+                    )
+                    raise ValueError(f"Corrupt data JSON for npc {r.id}") from e
 
                 init_d = {'data': d}
                 init_d.update({
@@ -254,6 +308,7 @@ class StateService:
 
                 if not r.role and 'role' in d: init_d['role'] = str(d['role'])
 
+                StateService._flag_all_default("npc", r.id, r.name, init_d.get('hp_max'), init_d.get('ac'), init_d.get('position'))
                 npc_objs.append(NPC(**init_d))
         return npc_objs
 
@@ -267,23 +322,32 @@ class StateService:
         updates, inserts = [], []
         for p in party:
             if not p.sheet_data: p.sheet_data = {}
-            # Sync transient fields to the preserved sheet_data blob
-            for field in ['hp_current', 'hp_max', 'is_ai', 'control_mode', 'inventory', 'currency']:
+            # Sync transient fields to the preserved sheet_data blob (the source of truth)
+            for field in ['hp_current', 'hp_max', 'is_ai', 'control_mode', 'currency']:
                 if hasattr(p, field):
                     p.sheet_data[field] = getattr(p, field)
+            # Normalize inventory to canonical id-strings before persisting.
+            if hasattr(p, 'inventory'):
+                p.sheet_data['inventory'] = StateService._normalize_inventory(p.inventory)
             if hasattr(p, 'position') and p.position:
                 pos = getattr(p, 'position')
                 p.sheet_data['position'] = pos.model_dump() if hasattr(pos, 'model_dump') else pos
 
-            rec = {
-                "b_id": p.id, "b_sheet_data": json.dumps(p.sheet_data)
-            }
+            sheet_json = json.dumps(p.sheet_data)
             if p.id in existing_pids:
-                updates.append(rec)
+                # Rewrite scalar columns from the entity too, so columns never drift
+                # from the blob (hydration overlays these columns over the blob).
+                updates.append({
+                    "b_id": p.id,
+                    "b_sheet_data": sheet_json,
+                    "b_name": p.name,
+                    "b_role": p.role,
+                    "b_control_mode": p.control_mode,
+                })
             else:
                 inserts.append({
                     "id": p.id,
-                    "sheet_data": json.dumps(p.sheet_data),
+                    "sheet_data": sheet_json,
                     "user_id": p.user_id if p.user_id else "system",
                     "campaign_id": campaign_id,
                     "name": p.name,
@@ -292,7 +356,17 @@ class StateService:
                 })
 
         if updates:
-            await db.execute(update(characters).where(characters.c.id == bindparam('b_id')).values(sheet_data=bindparam('b_sheet_data')), updates)
+            await db.execute(
+                update(characters)
+                .where(characters.c.id == bindparam('b_id'))
+                .values(
+                    sheet_data=bindparam('b_sheet_data'),
+                    name=bindparam('b_name'),
+                    role=bindparam('b_role'),
+                    control_mode=bindparam('b_control_mode'),
+                ),
+                updates,
+            )
         if inserts:
             await db.execute(insert(characters), inserts)
 
@@ -306,17 +380,21 @@ class StateService:
         updates, inserts = [], []
         for e in enemies:
             e_data = e.model_dump()
-            rec = {"b_id": e.id, "b_data": json.dumps(e_data)}
-
             if e.id in existing:
-                updates.append(rec)
+                # Keep scalar columns (name/type) in sync with the blob on update.
+                updates.append({"b_id": e.id, "b_data": json.dumps(e_data), "b_name": e.name, "b_type": e.type})
             else:
                 inserts.append({
                     "id": e.id, "data": json.dumps(e_data), "campaign_id": campaign_id, "name": e.name, "type": e.type
                 })
 
         if updates:
-            await db.execute(update(monsters).where(monsters.c.id == bindparam('b_id')).values(data=bindparam('b_data')), updates)
+            await db.execute(
+                update(monsters)
+                .where(monsters.c.id == bindparam('b_id'))
+                .values(data=bindparam('b_data'), name=bindparam('b_name'), type=bindparam('b_type')),
+                updates,
+            )
         if inserts:
             await db.execute(insert(monsters), inserts)
 
@@ -335,18 +413,20 @@ class StateService:
             n.data['position'] = n.position.model_dump()
             n.data['conditions'] = [c.model_dump() for c in n.conditions] if n.conditions else []
 
-            rec = {"b_id": n.id, "b_data": json.dumps(n.data)}
-
             if n.id in existing:
-                updates.append(rec)
+                # Keep scalar columns (name/role) in sync with the blob on update.
+                updates.append({"b_id": n.id, "b_data": json.dumps(n.data), "b_name": n.name, "b_role": n.role})
             else:
                 inserts.append({
                     "id": n.id, "data": json.dumps(n.data), "campaign_id": campaign_id, "name": n.name, "role": n.role
                 })
 
         if updates:
-            await db.execute(update(npcs).where(npcs.c.id == bindparam('b_id')).values(data=bindparam('b_data')), updates)
+            await db.execute(
+                update(npcs)
+                .where(npcs.c.id == bindparam('b_id'))
+                .values(data=bindparam('b_data'), name=bindparam('b_name'), role=bindparam('b_role')),
+                updates,
+            )
         if inserts:
             await db.execute(insert(npcs), inserts)
-
-

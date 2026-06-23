@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    MetaData, Table, Column, String, Integer, Boolean, DateTime, Text, ForeignKey
+    MetaData, Table, Column, String, Integer, Boolean, DateTime, Text, ForeignKey, UniqueConstraint
 )
 from sqlalchemy.sql import func
 
@@ -86,6 +86,8 @@ characters = Table(
 )
 
 # GAME STATES
+# One row per campaign (uq_game_states_campaign_id): save_game_state upserts on
+# campaign_id so the latest state is deterministic, not an append-log read by timestamp.
 game_states = Table(
     "game_states",
     metadata,
@@ -94,7 +96,8 @@ game_states = Table(
     Column("turn_index", Integer, server_default="0"),
     Column("phase", String, server_default="exploration"),
     Column("state_data", Text, nullable=False),
-    Column("updated_at", DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    Column("updated_at", DateTime(timezone=True), server_default=func.now(), onupdate=func.now()),
+    UniqueConstraint("campaign_id", name="uq_game_states_campaign_id"),
 )
 
 # IMAGE CACHE
