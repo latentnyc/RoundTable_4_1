@@ -65,6 +65,12 @@ class GameEngine:
         else:
             hit_mod = str_mod
 
+        # Weapon attacks add the proficiency bonus to the attack roll (we assume the attacker
+        # is proficient with their weapon; full per-weapon proficiency is a Phase 3 concern).
+        # Damage continues to use the ability modifier only (RAW: no proficiency on damage).
+        prof_bonus = actor.get_proficiency_bonus()
+        attack_mod = hit_mod + prof_bonus
+
         # 1. Roll to Hit (with advantage/disadvantage from conditions)
         has_advantage = params.get("advantage", False)
         has_disadvantage = params.get("disadvantage", False)
@@ -77,7 +83,7 @@ class GameEngine:
         else:
             roll = Dice.roll("1d20")
 
-        to_hit = roll["total"] + hit_mod
+        to_hit = roll["total"] + attack_mod
         ac = target.get_ac()
 
         is_hit = to_hit >= ac
@@ -89,7 +95,7 @@ class GameEngine:
             "attacker_name": actor.name,
             "target_name": target.name,
             "attack_roll": roll["total"],
-            "attack_mod": hit_mod,
+            "attack_mod": attack_mod,
             "attack_total": to_hit,
             "target_ac": ac,
             "is_hit": is_hit,
@@ -115,7 +121,7 @@ class GameEngine:
 
         tags_str = " ".join(attack_tags)
 
-        result_str = f"{tags_str}\n{actor.name} attacks {target.name} with {weapon_name}. Roll: {roll['total']} + {hit_mod} = {to_hit} vs AC {ac}. "
+        result_str = f"{tags_str}\n{actor.name} attacks {target.name} with {weapon_name}. Roll: {roll['total']} + {attack_mod} = {to_hit} vs AC {ac}. "
 
         if is_hit:
             # 2. Roll Damage
@@ -135,7 +141,7 @@ class GameEngine:
                 crit_roll = Dice.roll(damage_dice)
                 damage += crit_roll["total"]
                 detail_str += f" + {crit_roll['detail']} [CRIT]"
-                result_str += f"CRITICAL HIT! "
+                result_str += "CRITICAL HIT! "
 
             if damage_mod != 0:
                 detail_str += f" + {damage_mod}"
@@ -155,7 +161,7 @@ class GameEngine:
             result_data["target_hp_remaining"] = target.hp["current"]
 
             if target.hp["current"] <= 0:
-                result_str += f"\n[KILLING BLOW] "
+                result_str += "\n[KILLING BLOW] "
 
             result_data["message"] = result_str + damage_result_str
             result_data["target_status"] = "Unconscious" if target.hp["current"] <= 0 else "Active"
@@ -237,7 +243,7 @@ class GameEngine:
         # 1. Spell Attacks
         # ----------------
         if requires_attack_roll and target:
-            result_data["message"] += f"\n*Spell Attack Roll:* "
+            result_data["message"] += "\n*Spell Attack Roll:* "
             has_adv = params.get("advantage", False)
             has_dis = params.get("disadvantage", False)
             if has_adv and not has_dis:
@@ -279,7 +285,7 @@ class GameEngine:
                     if target.hp["current"] <= 0:
                          result_data["message"] += " [LETHAL]"
             else:
-                 result_data["message"] += f" **Miss.**"
+                 result_data["message"] += " **Miss.**"
                  result_data["target_hp_remaining"] = target.hp["current"]
 
         # ----------------
@@ -296,7 +302,7 @@ class GameEngine:
                 roll = {"total": 1, "detail": "1 [AUTO-FAIL]"}
                 save_total = 1
                 is_saved = False
-                result_data["message"] += f"**Auto-Fail!** (incapacitated) "
+                result_data["message"] += "**Auto-Fail!** (incapacitated) "
             else:
                 target_save_mod = target.get_save(dc_stat)
                 if save_disadvantage:
@@ -352,7 +358,7 @@ class GameEngine:
         # 3. Healing & Buffs
         # ----------------
         elif heal_dice and target:
-             result_data["message"] += f"\n*Healing Burst:* "
+             result_data["message"] += "\n*Healing Burst:* "
              heal_roll = Dice.roll(heal_dice)
              # Add spellcasting modifier to healing (common for Cure Wounds etc)
              # Usually it's Dice + Mod

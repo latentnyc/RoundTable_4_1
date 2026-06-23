@@ -91,7 +91,6 @@ class CombatService:
         Returns the new active entity ID and the GameState.
         """
         from app.services.game_service import GameService
-        from app.services.loot_service import LootService
 
         game_state = current_game_state
         if not game_state:
@@ -142,7 +141,6 @@ class CombatService:
         Returns a dict with results and the updated game state elements.
         """
         from app.services.game_service import GameService
-        from app.services.loot_service import LootService
         game_state = current_state
         if not game_state:
             game_state = await StateService.get_game_state(campaign_id, db)
@@ -346,7 +344,6 @@ class CombatService:
         Resolves casting a spell in or out of combat.
         """
         from app.services.game_service import GameService
-        from app.services.loot_service import LootService
 
         game_state = await StateService.get_game_state(campaign_id, db)
         if not game_state:
@@ -426,7 +423,7 @@ class CombatService:
                 return {"success": False, "message": f"**{actor_char.name}** tries to cast **{spell_name}** at **{target_char.name}**, but they are out of range ({max_range} squares max)!"}
 
         # Condition checks for spell casting
-        from app.services.condition_service import get_attack_modifiers, get_save_modifiers, should_skip_turn
+        from app.services.condition_service import get_attack_modifiers, get_save_modifiers, should_skip_turn, has_damage_resistance
 
         if should_skip_turn(actor_char):
             return {"success": False, "message": f"{actor_char.name} is incapacitated and cannot cast spells."}

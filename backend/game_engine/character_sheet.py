@@ -1,7 +1,16 @@
+import logging
 import math
 from typing import Optional
 
+logger = logging.getLogger(__name__)
+
 class CharacterSheet:
+    # Canonical ability name <-> 3-letter abbreviation, so stat dicts keyed either way resolve.
+    _ABILITY_ALIASES = {
+        "strength": "str", "dexterity": "dex", "constitution": "con",
+        "intelligence": "int", "wisdom": "wis", "charisma": "cha",
+    }
+
     def __init__(self, data: dict):
         self.data = data
 
@@ -19,7 +28,22 @@ class CharacterSheet:
         self.name = data.get("name", "Unknown")
 
     def get_mod(self, stat: str) -> int:
-        score = next((v for k, v in self.stats.items() if str(k).lower() == stat.lower()), 10)
+        target = str(stat).lower()
+        # Accept both full ("strength") and abbreviated ("str") keys, in either direction.
+        aliases = {target}
+        if target in self._ABILITY_ALIASES:
+            aliases.add(self._ABILITY_ALIASES[target])
+        else:
+            for full, short in self._ABILITY_ALIASES.items():
+                if short == target:
+                    aliases.add(full)
+        score = next((v for k, v in self.stats.items() if str(k).lower() in aliases), None)
+        if score is None:
+            logger.warning(
+                "get_mod: stat %r not found for %s; defaulting to 10 (+0). Available keys: %s",
+                stat, getattr(self, "name", "?"), list(self.stats.keys()),
+            )
+            score = 10
         return math.floor((int(score) - 10) / 2)
 
     def get_save(self, stat: str) -> int:

@@ -1,20 +1,17 @@
 from app.services.combat_service import CombatService
 import json
 import asyncio
-import functools
 from typing import TYPE_CHECKING
-from uuid import uuid4
-from sqlalchemy import select, insert, update, desc
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import GameState, Location
-from db.schema import game_states, characters, monsters, npcs, locations
-from game_engine.engine import GameEngine
+from db.schema import locations
 from app.services.state_service import StateService
 from app.services.pathfinding_service import PathfindingService
 from app.utils.grid_utils import chebyshev_distance
 
 if TYPE_CHECKING:
-    from app.models import Player, Enemy, NPC
+    pass
 
 class GameService:
     @staticmethod
@@ -222,7 +219,6 @@ class GameService:
             return {"success": False, "message": opp_msg, "game_state": latest_state}
 
         # Look up current location data
-        from app.models import Location
         query = select(locations.c.data).where(locations.c.id == game_state.location.id)
         loc_res = await db.execute(query)
         loc_data_str = loc_res.scalar_one_or_none()
@@ -292,12 +288,11 @@ class GameService:
         dest_desc = dest_data.get('description', {})
         visual = dest_desc.get('visual', "") if isinstance(dest_desc, dict) else str(dest_desc)
         dest_interactables = dest_data.get('interactables', [])
-
-        geometry_data = dest_data.get('geometry')
-        geometry_obj = None
-        if geometry_data:
-            from app.models import LocationGeometry
-            geometry_obj = LocationGeometry(**geometry_data)
+        # Carry the destination's grid and spawn points. The old Location was rebuilt without
+        # these, leaving every room past the start unwalkable; the previous `geometry`/
+        # LocationGeometry path referenced a model/field that does not exist (latent crash).
+        dest_walkable = dest_data.get('walkable_cells', [])
+        dest_party_locations = dest_data.get('party_locations', [])
 
         game_state.location = Location(
             id=dest_row.id,
@@ -305,9 +300,37 @@ class GameService:
             name=dest_row.name,
             description=visual,
             interactables=dest_interactables,
-            geometry=geometry_obj
+            walkable_cells=dest_walkable,
+            party_locations=dest_party_locations,
         )
         game_state.vessels = []
+
+        # Snap the party onto valid cells in the new room. Their old coordinates belong to the
+        # previous room's grid, so any member not already on a walkable cell is moved to a
+        # designated party spawn (falling back to a free walkable cell). Without this the
+        # destination is effectively unreachable: movement/pathfinding validate against
+        # walkable_cells. (Enemy/NPC repopulation per room is a Phase 4 content concern.)
+        walkable_set = {(c.x, c.y) for c in game_state.location.walkable_cells}
+        spawn_cells = []
+        for p_loc in dest_party_locations:
+            pos = p_loc.get('position') if isinstance(p_loc, dict) else None
+            if pos:
+                spawn_cells.append((pos.get('x', 0), pos.get('y', 0)))
+
+        if walkable_set:
+            fallback_cells = spawn_cells + sorted(walkable_set)
+            occupied = set()
+            for member in game_state.party:
+                if not member.position:
+                    continue
+                cur = (member.position.x, member.position.y)
+                if cur in walkable_set and cur not in occupied:
+                    occupied.add(cur)
+                    continue
+                target_cell = next((c for c in fallback_cells if c not in occupied), None)
+                if target_cell:
+                    member.position.x, member.position.y = target_cell
+                    occupied.add(target_cell)
 
         await StateService.save_game_state(campaign_id, game_state, db)
 
@@ -350,7 +373,7 @@ class GameService:
         for member in game_state.party:
             if member.id == leader_id:
                 continue
-                
+
             # Only process AI or NPCs in party
             if not member.is_ai and member.control_mode != 'ai':
                 continue
@@ -390,4 +413,3 @@ class GameService:
             await StateService.save_game_state(campaign_id, game_state, db)
             if sio:
                 await StateService.emit_state_update(campaign_id, game_state, sio)
-
