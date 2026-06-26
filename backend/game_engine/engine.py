@@ -1,10 +1,31 @@
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Tuple
 from .dice import Dice
 from .character_sheet import CharacterSheet
+from .damage import apply_typed_damage
+
+# Detail-string suffixes for each resistance outcome, shown in combat log parentheses.
+_DAMAGE_LABEL_SUFFIX = {
+    "IMMUNE": " [IMMUNE]",
+    "VULNERABLE": " [DOUBLED - VULNERABLE]",
+    "RESISTED": " [HALVED - RESISTANT]",
+}
 
 class GameEngine:
     def __init__(self):
         pass
+
+    @staticmethod
+    def _apply_typed(amount: int, damage_type: str, target: CharacterSheet, params: dict) -> Tuple[int, str]:
+        """Apply 5e typed resistance/immunity/vulnerability to a final damage amount.
+
+        Returns ``(final_amount, detail_suffix)``. ``params['damage_resistance']`` is the
+        legacy resist-all flag (e.g. Petrified, set by combat_service) and maps to
+        ``resist_all``. Call this LAST — after crit-doubling and save-halving — per RAW.
+        """
+        final, label = apply_typed_damage(
+            amount, damage_type, target, resist_all=params.get("damage_resistance", False)
+        )
+        return final, _DAMAGE_LABEL_SUFFIX.get(label, "")
 
     def resolve_action(self, actor_data: dict, action_type: str, target_data: Optional[dict] = None, params: dict = {}) -> Any:
         """
@@ -31,6 +52,7 @@ class GameEngine:
         # Determine weapon and stats
         weapon_name = params.get("weapon_name", "Unarmed Strike")
         damage_dice = params.get("weapon_damage_dice", "1d4")
+        weapon_damage_type = params.get("weapon_damage_type", "")
         is_finesse = params.get("is_finesse", False)
         is_ranged = params.get("is_ranged", False)
 
@@ -42,6 +64,7 @@ class GameEngine:
             weapon_data = weapon.get("data") or {}
             damage_info = weapon_data.get("damage") or {}
             damage_dice = damage_info.get("damage_dice", "1d4")
+            weapon_damage_type = (damage_info.get("damage_type") or {}).get("name", "") or weapon_damage_type
 
             properties = weapon_data.get("properties", [])
             for prop in properties:
@@ -146,10 +169,9 @@ class GameEngine:
             if damage_mod != 0:
                 detail_str += f" + {damage_mod}"
 
-            # Damage resistance (Petrified)
-            if params.get("damage_resistance"):
-                damage = damage // 2
-                detail_str += " [HALVED - RESISTANT]"
+            # Typed resistance / immunity / vulnerability (applied last, per RAW)
+            damage, dmg_label = self._apply_typed(damage, weapon_damage_type, target, params)
+            detail_str += dmg_label
 
             result_str += f"Hit! Damage: {damage} ({detail_str}). "
 
@@ -271,9 +293,8 @@ class GameEngine:
                         detail += f" + {crit_roll['detail']} [CRIT]"
                         result_data["message"] += " **CRITICAL HIT!**"
 
-                    if params.get("damage_resistance"):
-                        dmg = dmg // 2
-                        detail += " [HALVED - RESISTANT]"
+                    dmg, dmg_label = self._apply_typed(dmg, damage_type_name, target, params)
+                    detail += dmg_label
 
                     result_data["damage_total"] = dmg
                     result_data["damage_detail"] = detail
@@ -328,9 +349,8 @@ class GameEngine:
                     dmg = dmg // 2
                     result_data["message"] += " (Half damage)."
 
-                if params.get("damage_resistance"):
-                    dmg = dmg // 2
-                    detail += " [HALVED - RESISTANT]"
+                dmg, dmg_label = self._apply_typed(dmg, damage_type_name, target, params)
+                detail += dmg_label
 
                 result_data["damage_total"] = dmg
                 result_data["damage_detail"] = detail
@@ -374,13 +394,14 @@ class GameEngine:
         elif damage_dice and target:
              dmg_roll = Dice.roll(damage_dice)
              dmg = dmg_roll["total"]
-             if params.get("damage_resistance"):
-                 dmg = dmg // 2
+             detail = dmg_roll["detail"]
+             dmg, dmg_label = self._apply_typed(dmg, damage_type_name, target, params)
+             detail += dmg_label
              target.take_damage(dmg)
              result_data["damage_total"] = dmg
-             result_data["damage_detail"] = dmg_roll["detail"]
+             result_data["damage_detail"] = detail
              result_data["target_hp_remaining"] = target.hp["current"]
-             result_data["message"] += f"\n🎯 **Auto-Hit!** Damage: **{dmg}** {damage_type_name} ({dmg_roll['detail']}). Target HP: {target.hp['current']}"
+             result_data["message"] += f"\n🎯 **Auto-Hit!** Damage: **{dmg}** {damage_type_name} ({detail}). Target HP: {target.hp['current']}"
              if target.hp["current"] <= 0:
                   result_data["message"] += " [LETHAL]"
 

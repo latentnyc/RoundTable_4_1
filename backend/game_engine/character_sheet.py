@@ -1,6 +1,8 @@
 import logging
 import math
-from typing import Optional
+from typing import Optional, Set
+
+from game_engine.damage import tokenize_keywords
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +70,32 @@ class CharacterSheet:
     def heal(self, amount: int) -> str:
         self.hp["current"] = min(self.hp["max"], self.hp["current"] + amount)
         return f"{self.name} heals for {amount}. ({self.hp['current']}/{self.hp['max']} HP)"
+
+    def _raw_damage_keywords(self, field: str) -> list:
+        """Read a raw resistance/immunity/vulnerability array, wherever it lives.
+
+        Monster JSON keeps these under ``data`` and player sheets under ``sheet_data``;
+        a flattened entity may carry them at the top level. Mirrors the dual-path reads
+        in ``get_weapon``/``get_ac``.
+        """
+        for container_key in ("data", "sheet_data"):
+            container = self.data.get(container_key)
+            if isinstance(container, dict) and isinstance(container.get(field), list):
+                return container[field]
+        top = self.data.get(field)
+        return top if isinstance(top, list) else []
+
+    def get_damage_resistances(self) -> Set[str]:
+        """Damage types this creature resists (halves), as canonical lowercase words."""
+        return tokenize_keywords(self._raw_damage_keywords("damage_resistances"))
+
+    def get_damage_immunities(self) -> Set[str]:
+        """Damage types this creature is immune to (zeroes), as canonical lowercase words."""
+        return tokenize_keywords(self._raw_damage_keywords("damage_immunities"))
+
+    def get_damage_vulnerabilities(self) -> Set[str]:
+        """Damage types this creature is vulnerable to (doubles), as canonical lowercase words."""
+        return tokenize_keywords(self._raw_damage_keywords("damage_vulnerabilities"))
 
     @property
     def equipment(self):

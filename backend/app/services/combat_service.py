@@ -196,6 +196,7 @@ class CombatService:
                 if 'damage_dice' in weapon_data['data'].get('damage', {}):
                     params['weapon_damage_dice'] = weapon_data['data']['damage']['damage_dice']
                     params['weapon_name'] = weapon_data.get('name', 'Weapon')
+                    params['weapon_damage_type'] = (weapon_data['data']['damage'].get('damage_type') or {}).get('name', '')
 
                 properties = weapon_data['data'].get('properties', [])
                 for prop in properties:
